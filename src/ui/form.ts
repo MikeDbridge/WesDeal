@@ -121,7 +121,7 @@ export function buildForm(): FormController {
         if (ok) {
           const e = evaluateSpec(r.spec);
           const knr = e.knr === null ? '—' : e.knr.toFixed(2);
-          sr.status.textContent = `${e.hcp} HCP · ${knr} K&R · ${exactShape(e.lengths)}`;
+          sr.status.textContent = `${e.hcp} HCP · ${knr} KnR · ${exactShape(e.lengths)}`;
           sr.status.className = 'hand-status ok';
           sr.status.title = '';
         } else {
@@ -150,8 +150,8 @@ export function buildForm(): FormController {
   const buildSeatRow = (seat: Seat): SeatRow => {
     const toggle = h('input', { type: 'checkbox', onchange: updateLockState, title: 'Lock this hand' }) as HTMLInputElement;
 
-    const hcp = exprInput('10+ · 12-14');
-    const knr = exprInput('10+ · 12-14');
+    const hcp = exprInput('12-14');
+    const knr = exprInput('13.5+');
     const hcpCell = h('td', {}, [hcp]);
     const knrCell = h('td', {}, [knr]);
 
@@ -244,10 +244,17 @@ export function buildForm(): FormController {
     rows.push(sr.row, sr.filterRow);
   }
 
+  const groupRow = h('tr', { class: 'group-head' }, [
+    h('th', {}, []),
+    h('th', { colspan: '2' }, ['Values']),
+    h('th', { colspan: '4' }, ['Suit lengths']),
+    h('th', {}, []),
+    h('th', {}, []),
+  ]);
   const headerCells = [
     h('th', { class: 'lock-col', title: 'Tick a seat to type its exact hand instead of setting conditions' }, ['✓ set hand']),
     h('th', {}, ['HCP']),
-    h('th', {}, ['K&R']),
+    h('th', {}, ['KnR']),
     ...SUITS.map((s) => h('th', { class: redClass(s).trim() }, [SUIT_SYMBOLS[s]])),
     h('th', {}, ['Shape']),
     h('th', { class: 'filter-col', title: 'Custom filter' }, ['ƒ']),
@@ -255,7 +262,7 @@ export function buildForm(): FormController {
 
   const conditionsTable = h('div', { class: 'table-scroll' }, [
     h('table', { class: 'constraint-table' }, [
-      h('thead', {}, [h('tr', {}, headerCells)]),
+      h('thead', {}, [groupRow, h('tr', {}, headerCells)]),
       h('tbody', {}, rows),
     ]),
   ]);
@@ -283,16 +290,16 @@ export function buildForm(): FormController {
   ]);
 
   // ---- Partnership ---------------------------------------------------------
-  const nsHcp = exprInput();
-  const nsKnr = exprInput();
-  const ewHcp = exprInput();
-  const ewKnr = exprInput();
+  const nsHcp = exprInput('25+');
+  const nsKnr = exprInput('27+');
+  const ewHcp = exprInput('17-');
+  const ewKnr = exprInput('18-');
   const partnership = h('div', { class: 'partnership' }, [
     h('span', { class: 'group-label' }, ['Partnership']),
     h('label', {}, ['N+S HCP ', nsHcp]),
-    h('label', {}, ['K&R ', nsKnr]),
+    h('label', {}, ['KnR ', nsKnr]),
     h('label', {}, ['E+W HCP ', ewHcp]),
-    h('label', {}, ['K&R ', ewKnr]),
+    h('label', {}, ['KnR ', ewKnr]),
   ]);
 
   // ---- Run options ---------------------------------------------------------

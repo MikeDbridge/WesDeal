@@ -19,15 +19,15 @@ shape, partnership totals, and more.
 - **Given (locked) hands:** lock 0, 1, or 2 fully-specified hands and deal the remaining
   cards randomly around them, subject to the conditions on the free seats. Typed holdings
   are parsed and validated live; locked seats are marked in the diagram.
-- **HCP and Kaplan-Rubens (K&R) filters, side by side:** every seat (and partnership)
-  has both an HCP and a K&R points filter, available at once. K&R follows Pavlicek's
+- **HCP and Kaplan-Rubens (KnR) filters, side by side:** every seat (and partnership)
+  has both an HCP and a KnR points filter, available at once. KnR follows Pavlicek's
   26-step spec and is verified against Jeff Goldsmith's reference calculator (see
-  `tests/knr.test.ts`). Each hand shows both its HCP and K&R value.
+  `tests/knr.test.ts`). Each hand shows both its HCP and KnR value.
 - **Compact points syntax:** point filters accept `12` (exactly), `10+` (min), `11-`
-  (max), or `12-14` (range); decimals work for K&R.
+  (max), or `12-14` (range); decimals work for KnR.
 - **`x` for small cards:** locked hands may use `x` for any small card (rank 7 or below),
   e.g. `AKxxx Kx Qxx Axx`; the `x` cards are drawn fresh for each board. While typing a
-  locked hand, a live descriptor shows its HCP, K&R, and exact shape (♠♥♦♣ order, e.g.
+  locked hand, a live descriptor shows its HCP, KnR, and exact shape (♠♥♦♣ order, e.g.
   `2=5=2=4`).
 - **Output layouts:** a dropdown chooses how deals are shown — *PBN (one line)*, *Seat
   lines (compact)*, *Seat lines (with points)*, *Compass (compact)*, or *Compass

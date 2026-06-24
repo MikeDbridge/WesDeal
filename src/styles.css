@@ -78,10 +78,17 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 /* Compact points-filter expression input (e.g. "12-14") */
 .points-expr {
-  width: 84px; padding: 4px 6px; text-align: center;
+  width: 72px; padding: 4px 6px; text-align: center;
   border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff;
 }
-.points-expr::placeholder { font-size: 11px; }
+.points-expr::placeholder { font-size: 11px; color: #aeb6c0; }
+
+/* Grouping header row ("Values", "Suit lengths") */
+.constraint-table thead tr.group-head th {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;
+  color: var(--muted); padding: 3px 6px 3px; border-bottom: 1px solid var(--line);
+}
+.constraint-table thead tr.group-head th:empty { border-bottom: none; }
 .points-expr:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .partnership .points-expr { width: 60px; }
 

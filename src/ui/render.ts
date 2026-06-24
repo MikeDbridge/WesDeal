@@ -36,7 +36,7 @@ function ranksOf(cards: Card[], suit: Suit): string {
 
 function metaText(cards: Card[]): string {
   const a = analyzeHand(cards);
-  return `${a.hcp} HCP · ${knrPoints(cards)} K&R · ${exactShape(a.lengths)}`;
+  return `${a.hcp} HCP · ${knrPoints(cards)} KnR · ${exactShape(a.lengths)}`;
 }
 
 /** Inline suit holdings on one line, e.g. ♠ AKQ52  ♥ K9  ♦ Q84  ♣ K76 */
