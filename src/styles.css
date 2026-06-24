@@ -93,6 +93,7 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .filter-toggle.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .filter-toggle-cell { text-align: center; }
 .constraint-table th.filter-col { color: var(--muted); }
+.constraint-table th.lock-col { white-space: nowrap; font-size: 11px; color: var(--accent); }
 .filter-row > td { padding-top: 0; padding-bottom: 8px; }
 .filter-entry { display: flex; align-items: center; gap: 8px; }
 .filter-label { font-weight: 700; color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

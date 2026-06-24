@@ -241,7 +241,7 @@ export function buildForm(): FormController {
   }
 
   const headerCells = [
-    h('th', {}, ['']),
+    h('th', { class: 'lock-col', title: 'Tick a seat to type its exact hand instead of setting conditions' }, ['✓ set hand']),
     h('th', {}, ['HCP']),
     h('th', {}, ['K&R']),
     ...SUITS.map((s) => h('th', { class: redClass(s).trim() }, [SUIT_SYMBOLS[s]])),
