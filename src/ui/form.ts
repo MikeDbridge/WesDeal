@@ -73,11 +73,14 @@ function redClass(s: Suit): string {
   return s === 'H' || s === 'D' ? ' red' : '';
 }
 
-function exprInput(): HTMLInputElement {
+const POINTS_HELP = 'Points filter — examples: 12 (exactly), 10+ (min), 11- (max), 12-14 (range)';
+
+function exprInput(placeholder = '12-14'): HTMLInputElement {
   return h('input', {
     type: 'text',
     class: 'points-expr',
-    placeholder: '12-14',
+    placeholder,
+    title: POINTS_HELP,
     spellcheck: false,
     autocomplete: 'off',
   }) as HTMLInputElement;
@@ -147,8 +150,8 @@ export function buildForm(): FormController {
   const buildSeatRow = (seat: Seat): SeatRow => {
     const toggle = h('input', { type: 'checkbox', onchange: updateLockState, title: 'Lock this hand' }) as HTMLInputElement;
 
-    const hcp = exprInput();
-    const knr = exprInput();
+    const hcp = exprInput('10+ · 12-14');
+    const knr = exprInput('10+ · 12-14');
     const hcpCell = h('td', {}, [hcp]);
     const knrCell = h('td', {}, [knr]);
 
@@ -192,6 +195,7 @@ export function buildForm(): FormController {
       type: 'text',
       class: 'hand-input',
       placeholder: 'AKxxx Kx Qxx Axx',
+      title: '♠ ♥ ♦ ♣ separated by spaces · x = small card · - = void',
       oninput: updateLockState,
       spellcheck: false,
       autocomplete: 'off',
@@ -256,10 +260,6 @@ export function buildForm(): FormController {
     ]),
   ]);
 
-  const hint = h('p', { class: 'hint' }, [
-    'Points filters: 12, 10+, 11-, or 12-14. Tick a seat to lock its hand (♠ ♥ ♦ ♣ space-separated; x = small, - = void). ƒ(x) opens a custom filter per hand.',
-  ]);
-
   const codeLine = (s: string): HTMLElement => h('code', { class: 'filter-code' }, [s]);
   const filterHelp = h('details', { class: 'filter-help' }, [
     h('summary', {}, ['Custom filter syntax (ƒx)']),
@@ -310,7 +310,6 @@ export function buildForm(): FormController {
   const element = h('section', { class: 'form' }, [
     h('h2', {}, ['Conditions']),
     conditionsTable,
-    hint,
     filterHelp,
     partnership,
     options,
