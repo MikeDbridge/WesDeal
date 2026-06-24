@@ -187,16 +187,22 @@ function handLinesLetters(cards: Card[]): string[] {
 
 /** Arrange four per-hand line blocks into a compass: N top, W/E sides, S bottom. */
 function joinCompass(n: string[], e: string[], s: string[], w: string[]): string {
-  const wWidth = Math.max(0, ...w.map((l) => l.length));
-  const indent = ' '.repeat(wWidth + 2);
-  const eastCol = wWidth + 4;
+  const width = (lines: string[]): number => Math.max(0, ...lines.map((l) => l.length));
+  const gap = 4;
+  const eastCol = width(w) + gap; // column where the East block begins
+  const fullWidth = eastCol + width(e);
+  // Centre North/South over the whole figure, not just the West column.
+  const nsWidth = Math.max(width(n), width(s));
+  const nsIndent = ' '.repeat(Math.max(0, Math.round((fullWidth - nsWidth) / 2)));
+
   const out: string[] = [];
-  for (const l of n) out.push((indent + l).replace(/\s+$/, ''));
+  const trimEnd = (line: string): string => line.replace(/\s+$/, '');
+  for (const l of n) out.push(trimEnd(nsIndent + l));
   const rows = Math.max(w.length, e.length);
   for (let i = 0; i < rows; i++) {
-    out.push(((w[i] ?? '').padEnd(eastCol) + (e[i] ?? '')).replace(/\s+$/, ''));
+    out.push(trimEnd((w[i] ?? '').padEnd(eastCol) + (e[i] ?? '')));
   }
-  for (const l of s) out.push((indent + l).replace(/\s+$/, ''));
+  for (const l of s) out.push(trimEnd(nsIndent + l));
   return out.join('\n');
 }
 
