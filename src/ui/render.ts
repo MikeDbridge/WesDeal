@@ -169,3 +169,85 @@ export function boardElement(
 
   return h('article', { class: `board fmt-${format}` }, [head, body]);
 }
+
+// ---- Plain-text rendering (for the Copy button) ----------------------------
+
+function inlineSuitsText(cards: Card[]): string {
+  return SUITS.map((s) => `${SUIT_SYMBOLS[s]} ${ranksOf(cards, s)}`).join('  ');
+}
+
+function handLinesSymbols(cards: Card[], detailed: boolean): string[] {
+  const lines: string[] = [];
+  if (detailed) lines.push(metaText(cards));
+  for (const s of SUITS) lines.push(`${SUIT_SYMBOLS[s]} ${ranksOf(cards, s)}`);
+  return lines;
+}
+
+function handLinesLetters(cards: Card[]): string[] {
+  return SUITS.map((s) => `${SUIT_LETTERS[s]}: ${ranksOf(cards, s)}`);
+}
+
+/** Arrange four per-hand line blocks into a compass: N top, W/E sides, S bottom. */
+function joinCompass(n: string[], e: string[], s: string[], w: string[]): string {
+  const wWidth = Math.max(0, ...w.map((l) => l.length));
+  const indent = ' '.repeat(wWidth + 2);
+  const eastCol = wWidth + 4;
+  const out: string[] = [];
+  for (const l of n) out.push((indent + l).replace(/\s+$/, ''));
+  const rows = Math.max(w.length, e.length);
+  for (let i = 0; i < rows; i++) {
+    out.push(((w[i] ?? '').padEnd(eastCol) + (e[i] ?? '')).replace(/\s+$/, ''));
+  }
+  for (const l of s) out.push((indent + l).replace(/\s+$/, ''));
+  return out.join('\n');
+}
+
+/** Mini compass: one line per hand, N top / W,E middle / S bottom. */
+function joinCompassMini(deal: Deal): string {
+  const line = (seat: Seat): string => `${seat} ${inlineSuitsText(deal.hands[seat])}`;
+  const wl = line('W');
+  const col = wl.length + 3;
+  const indent = ' '.repeat(Math.floor(col / 2));
+  return [
+    (indent + line('N')).replace(/\s+$/, ''),
+    (wl.padEnd(col) + line('E')).replace(/\s+$/, ''),
+    (indent + line('S')).replace(/\s+$/, ''),
+  ].join('\n');
+}
+
+function seatLinesText(deal: Deal, locked: Set<Seat>): string {
+  return SEATS.map((seat) => {
+    const tag = locked.has(seat) ? `🔒${seat}` : seat;
+    return `${tag}  ${inlineSuitsText(deal.hands[seat])}`;
+  }).join('\n');
+}
+
+/** One board rendered as plain text in the given layout. */
+export function boardText(deal: Deal, index: number, lockedSeats: Seat[], format: BoardFormat): string {
+  const locked = new Set(lockedSeats);
+  const hands = deal.hands;
+  let body: string;
+  switch (format) {
+    case 'compass-text':
+      body = joinCompass(handLinesLetters(hands.N), handLinesLetters(hands.E), handLinesLetters(hands.S), handLinesLetters(hands.W));
+      break;
+    case 'compass-detailed':
+      body = joinCompass(
+        handLinesSymbols(hands.N, true), handLinesSymbols(hands.E, true),
+        handLinesSymbols(hands.S, true), handLinesSymbols(hands.W, true),
+      );
+      break;
+    case 'compass-mini':
+      body = joinCompassMini(deal);
+      break;
+    case 'seat-lines':
+      body = seatLinesText(deal, locked);
+      break;
+  }
+  return `Board ${index + 1}\n${body}`;
+}
+
+/** All deals as plain text in the given layout (for the Copy button). */
+export function dealsLayoutText(deals: Deal[], lockedSeats: Seat[], format: BoardFormat): string {
+  return deals.map((d, i) => boardText(d, i, lockedSeats, format)).join('\n\n');
+}

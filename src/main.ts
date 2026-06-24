@@ -1,10 +1,10 @@
 import './styles.css';
 import { h } from './ui/dom';
 import { buildForm } from './ui/form';
-import { boardElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
-import { dealToPBN, handToText } from './engine/format';
+import { boardElement, dealsLayoutText, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
+import { dealToPBN } from './engine/format';
 import { isEmptyConstraintSet } from './engine/constraints';
-import { SEATS, type Deal, type Seat } from './engine/deal';
+import { type Deal, type Seat } from './engine/deal';
 import type { GenerateRequest, WorkerResponse } from './worker/protocol';
 
 const worker = new Worker(new URL('./worker/dealer.worker.ts', import.meta.url), {
@@ -17,7 +17,7 @@ const results = h('div', { class: 'results' });
 
 const generateBtn = h('button', { class: 'primary', type: 'button' }, ['Generate']) as HTMLButtonElement;
 const copyPbnBtn = h('button', { type: 'button', disabled: true }, ['Copy PBN']) as HTMLButtonElement;
-const copyTextBtn = h('button', { type: 'button', disabled: true }, ['Copy text']) as HTMLButtonElement;
+const copyTextBtn = h('button', { type: 'button', disabled: true, title: 'Copy the deals as text in the selected layout' }, ['Copy layout']) as HTMLButtonElement;
 
 const formatSelect = h(
   'select',
@@ -43,15 +43,6 @@ function setBusy(busy: boolean): void {
 function dealsToPBN(deals: Deal[]): string {
   return deals
     .map((deal, i) => `[Board "${i + 1}"]\n[Deal "${dealToPBN(deal)}"]`)
-    .join('\n\n');
-}
-
-function dealsToText(deals: Deal[]): string {
-  return deals
-    .map((deal, i) => {
-      const hands = SEATS.map((seat) => `${seat}:\n${handToText(deal.hands[seat])}`).join('\n');
-      return `Board ${i + 1}\n${hands}`;
-    })
     .join('\n\n');
 }
 
@@ -130,7 +121,9 @@ worker.addEventListener('error', (event) => {
 
 generateBtn.addEventListener('click', generate);
 copyPbnBtn.addEventListener('click', () => copyToClipboard(dealsToPBN(lastDeals), copyPbnBtn));
-copyTextBtn.addEventListener('click', () => copyToClipboard(dealsToText(lastDeals), copyTextBtn));
+copyTextBtn.addEventListener('click', () =>
+  copyToClipboard(dealsLayoutText(lastDeals, lastLockedSeats, formatSelect.value as BoardFormat), copyTextBtn),
+);
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (app) {
