@@ -46,7 +46,7 @@ function normalizeHand(el: HTMLInputElement): void {
 interface SeatInputs {
   hcp: HTMLInputElement;
   knr: HTMLInputElement;
-  suit: Record<Suit, { min: HTMLInputElement; max: HTMLInputElement }>;
+  suit: Record<Suit, HTMLInputElement>;
   balanced: HTMLSelectElement;
 }
 
@@ -100,19 +100,25 @@ function exprInput(placeholder = '12-14'): HTMLInputElement {
     class: 'points-expr',
     placeholder,
     title: POINTS_HELP,
+    list: 'pts-presets',
     spellcheck: false,
     autocomplete: 'off',
   }) as HTMLInputElement;
 }
 
-function rangeFrom(min: HTMLInputElement, max: HTMLInputElement): Range | undefined {
-  const lo = intOrUndefined(min);
-  const hi = intOrUndefined(max);
-  if (lo === undefined && hi === undefined) return undefined;
-  const r: Range = {};
-  if (lo !== undefined) r.min = lo;
-  if (hi !== undefined) r.max = hi;
-  return r;
+const LEN_HELP = 'Suit length — e.g. 4 (exactly), 4+ (min), 2- (max), 2-3 (range)';
+
+/** A compact length field: typeable, with a dropdown of common presets. */
+function lenInput(suit: Suit): HTMLInputElement {
+  return h('input', {
+    type: 'text',
+    class: 'len-expr',
+    placeholder: '–',
+    title: `${SUIT_SYMBOLS[suit]} ${LEN_HELP}`,
+    list: 'len-presets',
+    spellcheck: false,
+    autocomplete: 'off',
+  }) as HTMLInputElement;
 }
 
 export function buildForm(): FormController {
@@ -171,20 +177,17 @@ export function buildForm(): FormController {
 
     const hcp = exprInput(VALUE_EG[seat].hcp);
     const knr = exprInput(VALUE_EG[seat].knr);
-    const hcpCell = h('td', {}, [hcp]);
-    const knrCell = h('td', {}, [knr]);
+    const hcpCell = h('td', { 'data-label': 'HCP' }, [hcp]);
+    const knrCell = h('td', { 'data-label': 'KnR' }, [knr]);
 
     const suit = {} as SeatInputs['suit'];
     const suitCells = SUITS.map((s) => {
-      const min = numberInput('–', 0, 13);
-      const max = numberInput('–', 0, 13);
-      suit[s] = { min, max };
-      return h('td', {}, [
-        h('div', { class: 'pair' }, [
+      const field = lenInput(s);
+      suit[s] = field;
+      return h('td', { class: 'len-cell' }, [
+        h('div', { class: 'len-field' }, [
           h('span', { class: 'suit-sym' + redClass(s) }, [SUIT_SYMBOLS[s]]),
-          min,
-          h('span', { class: 'dash' }, ['–']),
-          max,
+          field,
         ]),
       ]);
     });
@@ -194,7 +197,7 @@ export function buildForm(): FormController {
       h('option', { value: 'balanced' }, ['Balanced']),
       h('option', { value: 'unbalanced' }, ['Unbalanced']),
     ]) as HTMLSelectElement;
-    const shapeCell = h('td', {}, [balanced]);
+    const shapeCell = h('td', { 'data-label': 'Shape' }, [balanced]);
 
     const filterToggle = h('button', {
       type: 'button',
@@ -206,7 +209,7 @@ export function buildForm(): FormController {
         if (!fr.hidden) seatRows[seat].filterInput.focus();
       },
     }, ['ƒ(x)']) as HTMLButtonElement;
-    const filterToggleCell = h('td', { class: 'filter-toggle-cell' }, [filterToggle]);
+    const filterToggleCell = h('td', { class: 'filter-toggle-cell', 'data-label': 'Filter' }, [filterToggle]);
 
     const conditionCells = [hcpCell, knrCell, ...suitCells, shapeCell, filterToggleCell];
 
@@ -227,7 +230,7 @@ export function buildForm(): FormController {
       h('div', { class: 'hand-entry' }, [handInput, status]),
     ]);
 
-    const row = h('tr', {}, [
+    const row = h('tr', { class: 'seat-row' }, [
       h('th', { class: 'seat-label' }, [h('label', { class: 'lock-toggle' }, [toggle, SEAT_NAMES[seat]])]),
       ...conditionCells,
       handCell,
@@ -344,12 +347,21 @@ export function buildForm(): FormController {
     h('label', {}, ['Seed ', seed]),
   ]);
 
+  // Dropdown presets shared by the compact fields (typeable comboboxes).
+  const datalist = (id: string, values: string[]): HTMLElement =>
+    h('datalist', { id }, values.map((v) => h('option', { value: v })));
+  const presets = h('div', { hidden: true }, [
+    datalist('len-presets', ['4+', '5+', '6+', '2-3', '3-4', '4-5', '0-1', '2-', '0']),
+    datalist('pts-presets', ['10+', '11+', '12+', '8-', '0-7', '12-14', '15-17', '20+']),
+  ]);
+
   const element = h('section', { class: 'form' }, [
     h('h2', {}, ['Conditions']),
     conditionsTable,
     filterHelp,
     partnership,
     options,
+    presets,
   ]);
 
   const exprToRange = (input: HTMLInputElement, label: string, errors: string[]): Range | undefined => {
@@ -371,11 +383,11 @@ export function buildForm(): FormController {
       const c: HandConstraint = {};
       const hcp = exprToRange(inp.hcp, `${name} HCP`, errors);
       if (hcp) c.hcp = hcp;
-      const knr = exprToRange(inp.knr, `${name} K&R`, errors);
+      const knr = exprToRange(inp.knr, `${name} KnR`, errors);
       if (knr) c.knr = knr;
       const suitRanges: Partial<Record<Suit, Range>> = {};
       for (const s of SUITS) {
-        const r = rangeFrom(inp.suit[s].min, inp.suit[s].max);
+        const r = exprToRange(inp.suit[s], `${name} ${SUIT_SYMBOLS[s]} length`, errors);
         if (r) suitRanges[s] = r;
       }
       if (Object.keys(suitRanges).length) c.suit = suitRanges;

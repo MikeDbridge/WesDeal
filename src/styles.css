@@ -87,6 +87,15 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 }
 .points-expr::placeholder { font-size: 11px; color: #aeb6c0; }
 
+/* Compact suit-length field (typeable + dropdown presets via <datalist>) */
+.len-field { display: inline-flex; align-items: center; gap: 5px; }
+.len-expr {
+  width: 58px; padding: 4px 6px; text-align: center;
+  border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff;
+}
+.len-expr:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.len-expr::placeholder { color: #aeb6c0; }
+
 /* Grouping header row ("Values", "Suit lengths") */
 .constraint-table thead tr.group-head th {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;
@@ -214,3 +223,67 @@ button:disabled { opacity: 0.5; cursor: default; }
 .hand-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
 .suit-line { display: flex; gap: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; }
 .suit-line .ranks { letter-spacing: 1px; }
+
+/* ---- Phone / small-tablet layout ---------------------------------------- */
+@media (max-width: 680px) {
+  #app { padding: 16px 12px 48px; }
+
+  /* The conditions table reflows into one card per seat */
+  .table-scroll { overflow-x: visible; }
+  .constraint-table { min-width: 0; width: 100%; }
+  .constraint-table thead { display: none; }
+  .constraint-table tbody,
+  .constraint-table tr,
+  .constraint-table td,
+  .constraint-table th { display: block; }
+
+  .constraint-table tbody tr.seat-row {
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 6px 12px 10px; margin-bottom: 10px; background: #fff;
+  }
+  .constraint-table td { border-top: none; }
+
+  .constraint-table .seat-label {
+    position: static; box-shadow: none; background: transparent;
+    font-size: 16px; padding: 4px 0 8px; margin-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .constraint-table td {
+    display: flex; align-items: center; gap: 10px;
+    text-align: left; padding: 5px 0;
+  }
+  .constraint-table td[data-label]::before {
+    content: attr(data-label); flex: 0 0 64px;
+    color: var(--muted); font-size: 12px; font-weight: 600;
+  }
+
+  /* Fields stretch to fill the row */
+  .len-field { flex: 1; }
+  .len-expr { flex: 1; width: auto; text-align: left; }
+  .points-expr, .shape-select { flex: 1; width: auto; }
+  .filter-toggle .len-field { flex: none; }
+
+  /* Filter row sits boxed under its seat card */
+  .filter-row > td:first-child { display: none; }
+  .filter-row > td { padding: 0 0 6px; }
+  .filter-entry {
+    flex-wrap: wrap; background: #f7f9fb; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px;
+  }
+  .filter-input { min-width: 0; flex: 1 1 100%; }
+
+  /* Locked-hand field full width */
+  .hand-entry { flex-wrap: wrap; }
+  .hand-input { width: 100%; }
+
+  /* Partnership groups stack with a horizontal divider */
+  .partner-groups { flex-direction: column; align-items: stretch; gap: 10px; }
+  .partner-group + .partner-group {
+    padding-left: 0; padding-top: 10px;
+    border-left: none; border-top: 1px solid var(--line);
+  }
+
+  .actions { gap: 8px; }
+  .format-label { margin-left: 0; }
+}
