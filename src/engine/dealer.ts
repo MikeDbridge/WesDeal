@@ -13,12 +13,14 @@ import {
   type RNG,
   type GivenSpecs,
   mulberry32,
-  randomDeal,
+  fullDeck,
+  shuffleInPlace,
+  dealFromDeck,
   dealWithGivenSpecs,
   hasGivenSpecs,
   validateGivenSpecs,
 } from './deal';
-import { type ConstraintSet, matchesDeal } from './constraints';
+import { type ConstraintSet, compileMatcher } from './constraints';
 
 export interface DealerOptions {
   constraints: ConstraintSet;
@@ -58,16 +60,22 @@ export function generateDeals(options: DealerOptions): DealerResult {
     if (errors.length) throw new Error(errors.join(' '));
   }
   const useGiven = hasGivenSpecs(given);
-  const nextDeal = (): Deal => (useGiven ? dealWithGivenSpecs(given!, rng) : randomDeal(rng));
+  const matcher = compileMatcher(options.constraints);
+  // One reusable deck for the random path: shuffle in place, evaluate by offset,
+  // and only materialise a Deal when a board actually matches.
+  const deck = fullDeck();
 
   const deals: Deal[] = [];
   let attempts = 0;
 
   while (deals.length < count && attempts < maxAttempts) {
     attempts++;
-    const deal = nextDeal();
-    if (matchesDeal(deal, options.constraints)) {
-      deals.push(deal);
+    if (useGiven) {
+      const deal = dealWithGivenSpecs(given!, rng);
+      if (matcher.matchDeal(deal)) deals.push(deal);
+    } else {
+      shuffleInPlace(deck, rng);
+      if (matcher.matchFlat(deck)) deals.push(dealFromDeck(deck));
     }
   }
 

@@ -6,10 +6,10 @@
  * this exact same model, so nothing here needs to change to gain that power.
  */
 
-import { type Suit, SUITS } from './cards';
+import { type Suit, SUITS, HCP_BY_CARD } from './cards';
 import { type Seat, SEATS, type Deal } from './deal';
-import { analyzeHand, type HandAnalysis, isBalanced } from './hand';
-import { knrPoints } from './knr';
+import { type HandAnalysis, isBalanced } from './hand';
+import { knrPoints, knrPointsRange } from './knr';
 
 /** An inclusive numeric range; either bound may be omitted (open-ended). */
 export interface Range {
@@ -63,34 +63,197 @@ export function matchesHand(analysis: HandAnalysis, c: HandConstraint): boolean 
   return true;
 }
 
-/**
- * Evaluate a full deal against a constraint set. Hands are analyzed lazily and
- * cached so partnership totals reuse the per-seat work.
- */
-export function matchesDeal(deal: Deal, set: ConstraintSet): boolean {
-  const cache = {} as Partial<Record<Seat, HandAnalysis>>;
-  const analyze = (seat: Seat): HandAnalysis =>
-    (cache[seat] ??= analyzeHand(deal.hands[seat]));
-  const knrCache = {} as Partial<Record<Seat, number>>;
-  const knr = (seat: Seat): number => (knrCache[seat] ??= knrPoints(analyze(seat).cards));
+/** A constraint set compiled into a fast predicate (see `compileMatcher`). */
+export interface CompiledMatcher {
+  /** Evaluate a Deal object (used for given-hand dealing and one-off checks). */
+  matchDeal(deal: Deal): boolean;
+  /** Evaluate a flat, seat-ordered 52-card array in place (the hot path). */
+  matchFlat(deck: ArrayLike<number>): boolean;
+}
 
+interface CompiledHand {
+  i: number;
+  hcp?: Range;
+  knr?: Range;
+  balanced?: boolean;
+  suit: Array<Range | undefined> | null;
+}
+
+/**
+ * Compile a constraint set into a reusable, allocation-free predicate.
+ *
+ * Hot-loop strategy: a single pass over each constrained seat's 13 cards yields
+ * HCP and suit lengths (no sorting, no per-suit arrays); cheap checks (HCP,
+ * length, balanced) run for every seat before the expensive Kaplan-Rubens count
+ * is touched; and any failing check bails immediately. Per-seat HCP/K&R are
+ * cached in scratch buffers so partnership totals reuse the work.
+ */
+export function compileMatcher(set: ConstraintSet): CompiledMatcher {
+  const hands: CompiledHand[] = [];
   if (set.hands) {
-    for (const seat of SEATS) {
-      const c = set.hands[seat];
-      if (c && !matchesHand(analyze(seat), c)) return false;
+    for (let i = 0; i < 4; i++) {
+      const c = set.hands[SEATS[i]];
+      if (!c) continue;
+      hands.push({
+        i,
+        hcp: c.hcp,
+        knr: c.knr,
+        balanced: c.balanced,
+        suit: c.suit ? [c.suit.S, c.suit.H, c.suit.D, c.suit.C] : null,
+      });
     }
   }
+  const nsHcp = set.partnership?.NS?.hcp;
+  const nsKnr = set.partnership?.NS?.knr;
+  const ewHcp = set.partnership?.EW?.hcp;
+  const ewKnr = set.partnership?.EW?.knr;
+  const needHcpCache = !!(nsHcp || ewHcp);
+  const needKnrCache = !!(nsKnr || ewKnr);
 
-  if (set.partnership) {
-    const ns = set.partnership.NS;
-    if (ns?.hcp && !inRange(analyze('N').hcp + analyze('S').hcp, ns.hcp)) return false;
-    if (ns?.knr && !inRange(knr('N') + knr('S'), ns.knr)) return false;
-    const ew = set.partnership.EW;
-    if (ew?.hcp && !inRange(analyze('E').hcp + analyze('W').hcp, ew.hcp)) return false;
-    if (ew?.knr && !inRange(knr('E') + knr('W'), ew.knr)) return false;
-  }
+  // Scratch reused across every evaluation (single-threaded hot loop).
+  const len = [0, 0, 0, 0];
+  const hcpCache = [0, 0, 0, 0];
+  const hcpDone = [false, false, false, false];
+  const knrCache = [0, 0, 0, 0];
+  const knrDone = [false, false, false, false];
 
-  return true;
+  /** Check HCP / suit-length / balanced for one hand using `len` (just filled). */
+  const checkCheap = (h: CompiledHand, hcp: number): boolean => {
+    if (h.hcp && !inRange(hcp, h.hcp)) return false;
+    if (h.suit) {
+      for (let s = 0; s < 4; s++) {
+        const r = h.suit[s];
+        if (r && !inRange(len[s], r)) return false;
+      }
+    }
+    if (h.balanced !== undefined && balancedFromLengths(len) !== h.balanced) return false;
+    return true;
+  };
+
+  const run = (
+    hcpLen: (i: number) => number, // fills `len`, returns hcp
+    hcpOnly: (i: number) => number,
+    knrOf: (i: number) => number,
+  ): boolean => {
+    if (needHcpCache) hcpDone[0] = hcpDone[1] = hcpDone[2] = hcpDone[3] = false;
+    if (needKnrCache) knrDone[0] = knrDone[1] = knrDone[2] = knrDone[3] = false;
+
+    for (const h of hands) {
+      const hcp = hcpLen(h.i);
+      if (needHcpCache) {
+        hcpCache[h.i] = hcp;
+        hcpDone[h.i] = true;
+      }
+      if (!checkCheap(h, hcp)) return false;
+    }
+
+    if (nsHcp && !inRange(cachedHcp(hcpOnly, 0) + cachedHcp(hcpOnly, 2), nsHcp)) return false;
+    if (ewHcp && !inRange(cachedHcp(hcpOnly, 1) + cachedHcp(hcpOnly, 3), ewHcp)) return false;
+
+    for (const h of hands) {
+      if (!h.knr) continue;
+      const k = knrOf(h.i);
+      if (needKnrCache) {
+        knrCache[h.i] = k;
+        knrDone[h.i] = true;
+      }
+      if (!inRange(k, h.knr)) return false;
+    }
+
+    if (nsKnr && !inRange(cachedKnr(knrOf, 0) + cachedKnr(knrOf, 2), nsKnr)) return false;
+    if (ewKnr && !inRange(cachedKnr(knrOf, 1) + cachedKnr(knrOf, 3), ewKnr)) return false;
+
+    return true;
+  };
+
+  const cachedHcp = (hcpOnly: (i: number) => number, i: number): number => {
+    if (hcpDone[i]) return hcpCache[i];
+    const v = hcpOnly(i);
+    hcpCache[i] = v;
+    hcpDone[i] = true;
+    return v;
+  };
+  const cachedKnr = (knrOf: (i: number) => number, i: number): number => {
+    if (knrDone[i]) return knrCache[i];
+    const v = knrOf(i);
+    knrCache[i] = v;
+    knrDone[i] = true;
+    return v;
+  };
+
+  return {
+    matchDeal(deal: Deal): boolean {
+      const hcpLen = (i: number): number => {
+        const cards = deal.hands[SEATS[i]];
+        let hcp = 0;
+        len[0] = len[1] = len[2] = len[3] = 0;
+        for (let k = 0; k < 13; k++) {
+          const card = cards[k];
+          hcp += HCP_BY_CARD[card];
+          len[(card / 13) | 0]++;
+        }
+        return hcp;
+      };
+      const hcpOnly = (i: number): number => {
+        const cards = deal.hands[SEATS[i]];
+        let hcp = 0;
+        for (let k = 0; k < 13; k++) hcp += HCP_BY_CARD[cards[k]];
+        return hcp;
+      };
+      const knrOf = (i: number): number => knrPoints(deal.hands[SEATS[i]]);
+      return run(hcpLen, hcpOnly, knrOf);
+    },
+
+    matchFlat(deck: ArrayLike<number>): boolean {
+      const hcpLen = (i: number): number => {
+        const off = i * 13;
+        let hcp = 0;
+        len[0] = len[1] = len[2] = len[3] = 0;
+        for (let k = 0; k < 13; k++) {
+          const card = deck[off + k];
+          hcp += HCP_BY_CARD[card];
+          len[(card / 13) | 0]++;
+        }
+        return hcp;
+      };
+      const hcpOnly = (i: number): number => {
+        const off = i * 13;
+        let hcp = 0;
+        for (let k = 0; k < 13; k++) hcp += HCP_BY_CARD[deck[off + k]];
+        return hcp;
+      };
+      const knrOf = (i: number): number => knrPointsRange(deck, i * 13, i * 13 + 13);
+      return run(hcpLen, hcpOnly, knrOf);
+    },
+  };
+}
+
+/** True if four suit lengths form a balanced shape (4-3-3-3, 4-4-3-2, 5-3-3-2). */
+function balancedFromLengths(len: ArrayLike<number>): boolean {
+  let a = len[0];
+  let b = len[1];
+  let c = len[2];
+  let d = len[3];
+  // Sort the four lengths ascending (tiny fixed network).
+  if (a > b) [a, b] = [b, a];
+  if (c > d) [c, d] = [d, c];
+  if (a > c) [a, c] = [c, a];
+  if (b > d) [b, d] = [d, b];
+  if (b > c) [b, c] = [c, b];
+  return (
+    (a === 3 && b === 3 && c === 3 && d === 4) || // 4-3-3-3
+    (a === 2 && b === 3 && c === 4 && d === 4) || // 4-4-3-2
+    (a === 2 && b === 3 && c === 3 && d === 5) // 5-3-3-2
+  );
+}
+
+/**
+ * Evaluate a full deal against a constraint set. Convenience wrapper that
+ * compiles the set on each call — for the dealer's hot loop, compile once with
+ * `compileMatcher` and reuse the predicate.
+ */
+export function matchesDeal(deal: Deal, set: ConstraintSet): boolean {
+  return compileMatcher(set).matchDeal(deal);
 }
 
 /** True if a constraint set imposes no restrictions (matches every deal). */

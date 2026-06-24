@@ -9,6 +9,9 @@
  * (https://rpbridge.net/8j19.htm) and is verified against Jeff Goldsmith's
  * reference calculator (e.g. AKQ52 K9 Q84 K76 = 17.35; see knr.test.ts).
  *
+ * For speed each suit is represented as a 13-bit mask (bit `rank - 2` set when
+ * that rank is present), so the hot loop allocates nothing.
+ *
  * Per suit:
  *   Phase A  – steps 1-11: base honor values and ten/nine/length bonuses
  *   Step 12  – multiply the Phase A total by (suit length / 10)
@@ -16,25 +19,34 @@
  * Then: sum the four suits, subtract 1, and add 0.5 for a 4-3-3-3 hand.
  */
 
-import { type Card, type Suit, SUITS, suitOf, rankOf } from './cards';
+import type { Card } from './cards';
 
-const A = 14;
-const K = 13;
-const Q = 12;
-const J = 11;
-const T = 10;
-const NINE = 9;
-const EIGHT = 8;
+// Bit positions (rank - 2): A=12, K=11, Q=10, J=9, T=8, 9=7, 8=6.
+const BIT_A = 1 << 12;
+const BIT_K = 1 << 11;
+const BIT_Q = 1 << 10;
+const BIT_J = 1 << 9;
+const BIT_T = 1 << 8;
+const BIT_9 = 1 << 7;
+const BIT_8 = 1 << 6;
 
-function knrSuit(ranks: Set<number>, len: number): number {
-  const has = (r: number): boolean => ranks.has(r);
-  const hasA = has(A);
-  const hasK = has(K);
-  const hasQ = has(Q);
-  const hasJ = has(J);
-  const hasT = has(T);
-  const has9 = has(NINE);
-  const has8 = has(EIGHT);
+function popcount(n: number): number {
+  let c = 0;
+  while (n) {
+    n &= n - 1;
+    c++;
+  }
+  return c;
+}
+
+function knrSuit(mask: number, len: number): number {
+  const hasA = (mask & BIT_A) !== 0;
+  const hasK = (mask & BIT_K) !== 0;
+  const hasQ = (mask & BIT_Q) !== 0;
+  const hasJ = (mask & BIT_J) !== 0;
+  const hasT = (mask & BIT_T) !== 0;
+  const has9 = (mask & BIT_9) !== 0;
+  const has8 = (mask & BIT_8) !== 0;
 
   const countAboveJ = (hasA ? 1 : 0) + (hasK ? 1 : 0) + (hasQ ? 1 : 0); // higher than J
   const countAboveT = countAboveJ + (hasJ ? 1 : 0); // higher than T
@@ -47,13 +59,9 @@ function knrSuit(ranks: Set<number>, len: number): number {
   if (hasQ) a += 2;
   if (hasJ) a += 1;
   if (hasT) a += 0.5;
-  // 6: 2-6 cards, ten with jack or two+ higher honors
   if (hasT && len >= 2 && len <= 6 && (hasJ || countAboveT >= 2)) a += 0.5;
-  // 7: 2-6 cards, nine with eight, ten, or exactly two higher honors
   if (has9 && len >= 2 && len <= 6 && (has8 || hasT || countAbove9 === 2)) a += 0.5;
-  // 8: 4-6 cards, nine (no eight or ten) and exactly three higher honors
   if (has9 && len >= 4 && len <= 6 && !has8 && !hasT && countAboveT === 3) a += 0.5;
-  // 9-11: long suits missing top honors
   if (len >= 7 && !(hasQ && hasJ)) a += 1;
   if (len >= 8 && !hasQ) a += 1;
   if (len >= 9 && !hasQ && !hasJ) a += 1;
@@ -78,22 +86,42 @@ function knrSuit(ranks: Set<number>, len: number): number {
   return s;
 }
 
-/** Kaplan-Rubens points for a 13-card hand, rounded to the nearest 0.05. */
-export function knrPoints(cards: Card[]): number {
-  const ranksBySuit: Record<Suit, Set<number>> = { S: new Set(), H: new Set(), D: new Set(), C: new Set() };
-  for (const card of cards) ranksBySuit[suitOf(card)].add(rankOf(card));
-
-  let total = 0;
-  const lengths: number[] = [];
-  for (const suit of SUITS) {
-    const ranks = ranksBySuit[suit];
-    lengths.push(ranks.size);
-    total += knrSuit(ranks, ranks.size);
+/**
+ * Kaplan-Rubens points for the 13 cards in `cards[start..end)`, rounded to the
+ * nearest 0.05. Reads a slice so the dealer can evaluate a flat deck in place.
+ */
+export function knrPointsRange(cards: ArrayLike<number>, start: number, end: number): number {
+  let mS = 0;
+  let mH = 0;
+  let mD = 0;
+  let mC = 0;
+  for (let i = start; i < end; i++) {
+    const card = cards[i];
+    const bit = 1 << card % 13;
+    const suit = (card / 13) | 0;
+    if (suit === 0) mS |= bit;
+    else if (suit === 1) mH |= bit;
+    else if (suit === 2) mD |= bit;
+    else mC |= bit;
   }
 
-  total -= 1;
-  const shape = [...lengths].sort((x, y) => y - x);
-  if (shape[0] === 4 && shape[1] === 3 && shape[2] === 3 && shape[3] === 3) total += 0.5;
+  const lS = popcount(mS);
+  const lH = popcount(mH);
+  const lD = popcount(mD);
+  const lC = popcount(mC);
+
+  let total = knrSuit(mS, lS) + knrSuit(mH, lH) + knrSuit(mD, lD) + knrSuit(mC, lC) - 1;
+
+  // 4-3-3-3 bonus (one four-card suit, three threes).
+  const threes =
+    (lS === 3 ? 1 : 0) + (lH === 3 ? 1 : 0) + (lD === 3 ? 1 : 0) + (lC === 3 ? 1 : 0);
+  const fours = (lS === 4 ? 1 : 0) + (lH === 4 ? 1 : 0) + (lD === 4 ? 1 : 0) + (lC === 4 ? 1 : 0);
+  if (threes === 3 && fours === 1) total += 0.5;
 
   return Math.round(total * 20) / 20;
+}
+
+/** Kaplan-Rubens points for a 13-card hand, rounded to the nearest 0.05. */
+export function knrPoints(cards: ArrayLike<Card>): number {
+  return knrPointsRange(cards, 0, cards.length);
 }

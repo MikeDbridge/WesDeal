@@ -75,3 +75,8 @@ export function rankOf(card: Card): Rank {
 export function cardLabel(card: Card): string {
   return SUIT_SYMBOLS[suitOf(card)] + RANK_LABELS[rankOf(card)];
 }
+
+/** HCP indexed by card id 0..51 — a lookup table for the dealer's hot loop. */
+export const HCP_BY_CARD: readonly number[] = Array.from({ length: DECK_SIZE }, (_, c) =>
+  hcpOfRank((c % 13) + 2),
+);
