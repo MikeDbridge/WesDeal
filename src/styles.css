@@ -91,7 +91,6 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .points-expr::placeholder { font-size: 11px; color: #aeb6c0; }
 
 /* Compact suit-length field (typeable + dropdown presets via <datalist>) */
-.len-field { display: inline-flex; align-items: center; gap: 5px; }
 .len-expr {
   width: 58px; padding: 4px 6px; text-align: center;
   border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff;
@@ -268,7 +267,6 @@ button:disabled { opacity: 0.5; cursor: default; }
   }
 
   /* Fields stretch to fill the row */
-  .len-field { flex: 1; }
   .len-expr { flex: 1; width: auto; text-align: left; }
   .points-expr, .shape-select { flex: 1; width: auto; }
   .filter-toggle .len-field { flex: none; }

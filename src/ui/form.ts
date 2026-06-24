@@ -196,12 +196,8 @@ export function buildForm(): FormController {
     const suitCells = SUITS.map((s) => {
       const field = lenInput(s);
       suit[s] = field;
-      return h('td', { class: 'len-cell' }, [
-        h('div', { class: 'len-field' }, [
-          h('span', { class: 'suit-sym' + redClass(s) }, [SUIT_SYMBOLS[s]]),
-          field,
-        ]),
-      ]);
+      // Symbol lives in the column header (and the mobile row label) only.
+      return h('td', { class: 'len-cell', 'data-label': SUIT_SYMBOLS[s] }, [field]);
     });
 
     const balanced = h('select', { class: 'shape-select' }, [
