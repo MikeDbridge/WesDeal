@@ -130,7 +130,7 @@ if (app) {
   app.append(
     h('header', { class: 'app-header' }, [
       h('h1', {}, ['WesDeal']),
-      h('p', { class: 'tagline' }, ['Random bridge deals that fit your conditions.']),
+      h('p', { class: 'tagline' }, ['Generating random bridge deals to justify your overbidding.']),
     ]),
     form.element,
     h('div', { class: 'actions' }, [
