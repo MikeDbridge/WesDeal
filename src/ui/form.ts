@@ -124,6 +124,18 @@ function lenInput(suit: Suit): HTMLInputElement {
 export function buildForm(): FormController {
   const seatRows = {} as Record<Seat, SeatRow>;
 
+  // The "Custom filter syntax" panel (assigned below); opening a ƒ(x) box
+  // pops it open and flashes it so attention is drawn to the syntax.
+  let filterHelp: HTMLDetailsElement | undefined;
+  const revealFilterHelp = (): void => {
+    if (!filterHelp) return;
+    filterHelp.open = true;
+    filterHelp.classList.remove('flash');
+    void filterHelp.offsetWidth; // restart the highlight animation
+    filterHelp.classList.add('flash');
+    filterHelp.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+
   const updateLockState = (): void => {
     const lockedCount = SEATS.filter((s) => seatRows[s].toggle.checked).length;
     for (const seat of SEATS) {
@@ -206,7 +218,10 @@ export function buildForm(): FormController {
       onclick: () => {
         const fr = seatRows[seat].filterRow;
         fr.hidden = !fr.hidden;
-        if (!fr.hidden) seatRows[seat].filterInput.focus();
+        if (!fr.hidden) {
+          seatRows[seat].filterInput.focus();
+          revealFilterHelp();
+        }
       },
     }, ['ƒ(x)']) as HTMLButtonElement;
     const filterToggleCell = h('td', { class: 'filter-toggle-cell', 'data-label': 'Filter' }, [filterToggle]);
@@ -293,7 +308,7 @@ export function buildForm(): FormController {
   ]);
 
   const codeLine = (s: string): HTMLElement => h('code', { class: 'filter-code' }, [s]);
-  const filterHelp = h('details', { class: 'filter-help' }, [
+  filterHelp = h('details', { class: 'filter-help' }, [
     h('summary', {}, ['Custom filter syntax (ƒx)']),
     h('div', { class: 'filter-help-body' }, [
       h('p', {}, ['A filter is a yes/no condition the hand must satisfy. Vocabulary:']),

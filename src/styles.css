@@ -52,6 +52,9 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 }
 .num:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
+/* All placeholder "examples" use the same muted shade as the rest of the form */
+.form input::placeholder { color: #aeb6c0; opacity: 1; }
+
 .suit-sym { font-size: 15px; }
 .red { color: var(--red); }
 
@@ -127,8 +130,14 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .filter-status.ok { color: var(--accent); }
 .filter-status.bad { color: var(--red); }
 
-.filter-help { margin: 8px 0 0; font-size: 13px; }
+.filter-help { margin: 8px 0 0; font-size: 13px; border-radius: 6px; padding: 2px 6px; }
 .filter-help summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+/* Flash to pull attention to the syntax when a ƒ(x) box is opened */
+.filter-help.flash { animation: filter-flash 1.4s ease-out; }
+@keyframes filter-flash {
+  0%, 15% { background: rgba(29, 111, 66, 0.16); }
+  100% { background: transparent; }
+}
 .filter-help-body { margin-top: 6px; }
 .filter-help-body p { margin: 6px 0 2px; }
 .filter-help-body ul { margin: 4px 0; padding-left: 18px; }
