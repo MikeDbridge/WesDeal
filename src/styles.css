@@ -54,6 +54,10 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 .suit-sym { font-size: 15px; }
 .red { color: var(--red); }
+
+/* Suit symbols in the table header: ♥♦ red, ♠♣ black */
+.constraint-table th.suit-head { color: var(--ink); font-size: 14px; }
+.constraint-table th.suit-head.red { color: var(--red); }
 .shape-select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
 
 /* Locked seat: row shows a single hand field instead of condition cells */
@@ -67,7 +71,7 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
   flex: 0 0 auto; width: 190px; padding: 5px 8px;
   border: 1px solid var(--line); border-radius: 6px; font: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 1px; text-transform: uppercase; background: #fff;
+  letter-spacing: 1px; background: #fff;
 }
 .hand-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .hand-status { font-size: 12px; font-weight: 600; white-space: nowrap; }

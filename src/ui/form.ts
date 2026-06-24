@@ -24,6 +24,25 @@ import type { ConstraintSet, HandConstraint, Range } from '../engine/constraints
 
 const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
 
+// Example placeholders chosen to showcase every points-filter form
+// (range / min / max / exact / decimals) just by scanning the rows.
+const VALUE_EG: Record<Seat, { hcp: string; knr: string }> = {
+  N: { hcp: '12-14', knr: '13.5+' },
+  E: { hcp: '15+', knr: '18-' },
+  S: { hcp: '11-', knr: '8-12' },
+  W: { hcp: '20', knr: '15.5+' },
+};
+
+/** Bridge convention: honors are upper-case, small cards are a lower-case "x". */
+function normalizeHand(el: HTMLInputElement): void {
+  const norm = el.value.toUpperCase().replace(/X/g, 'x');
+  if (norm !== el.value) {
+    const pos = el.selectionStart;
+    el.value = norm;
+    if (pos !== null) el.setSelectionRange(pos, pos);
+  }
+}
+
 interface SeatInputs {
   hcp: HTMLInputElement;
   knr: HTMLInputElement;
@@ -150,8 +169,8 @@ export function buildForm(): FormController {
   const buildSeatRow = (seat: Seat): SeatRow => {
     const toggle = h('input', { type: 'checkbox', onchange: updateLockState, title: 'Lock this hand' }) as HTMLInputElement;
 
-    const hcp = exprInput('12-14');
-    const knr = exprInput('13.5+');
+    const hcp = exprInput(VALUE_EG[seat].hcp);
+    const knr = exprInput(VALUE_EG[seat].knr);
     const hcpCell = h('td', {}, [hcp]);
     const knrCell = h('td', {}, [knr]);
 
@@ -196,7 +215,10 @@ export function buildForm(): FormController {
       class: 'hand-input',
       placeholder: 'AKxxx Kx Qxx Axx',
       title: '♠ ♥ ♦ ♣ separated by spaces · x = small card · - = void',
-      oninput: updateLockState,
+      oninput: () => {
+        normalizeHand(handInput);
+        updateLockState();
+      },
       spellcheck: false,
       autocomplete: 'off',
     }) as HTMLInputElement;
@@ -255,7 +277,7 @@ export function buildForm(): FormController {
     h('th', { class: 'lock-col', title: 'Tick a seat to type its exact hand instead of setting conditions' }, ['✓ set hand']),
     h('th', {}, ['HCP']),
     h('th', {}, ['KnR']),
-    ...SUITS.map((s) => h('th', { class: redClass(s).trim() }, [SUIT_SYMBOLS[s]])),
+    ...SUITS.map((s) => h('th', { class: 'suit-head' + redClass(s) }, [SUIT_SYMBOLS[s]])),
     h('th', {}, ['Shape']),
     h('th', { class: 'filter-col', title: 'Custom filter' }, ['ƒ']),
   ];
