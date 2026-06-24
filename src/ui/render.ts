@@ -98,28 +98,26 @@ function compassBoard(
 
 // ---- Text compass (monospace "S: AKQ" hand diagram) ------------------------
 
-function textHand(cards: Card[]): HTMLElement {
-  return h(
-    'div',
-    { class: 'text-hand' },
-    SUITS.map((s) =>
-      h('div', { class: 'text-suit' }, [
-        h('span', { class: 'suit-letter' + redClass(s) }, [SUIT_LETTERS[s]]),
-        `: ${ranksOf(cards, s)}`,
-      ]),
-    ),
+// Rendered as a real <pre> of the exact text the Copy button produces, so that
+// selecting it on screen and pasting into Notepad/email keeps the alignment.
+// Hearts/diamonds suit letters are tinted red without disturbing the text.
+function compassTextBoard(deal: Deal): HTMLElement {
+  const text = joinCompass(
+    handLinesLetters(deal.hands.N),
+    handLinesLetters(deal.hands.E),
+    handLinesLetters(deal.hands.S),
+    handLinesLetters(deal.hands.W),
   );
-}
-
-function textSeat(deal: Deal, seat: Seat, locked: boolean): HTMLElement {
-  const children: HTMLElement[] = [];
-  if (locked) children.push(h('div', { class: 'lock-badge', title: SEAT_NAMES[seat] }, [`🔒 ${seat}`]));
-  children.push(textHand(deal.hands[seat]));
-  return h('div', { class: `text-seat pos-${seat}` }, children);
-}
-
-function compassTextBoard(deal: Deal, locked: Set<Seat>): HTMLElement {
-  return h('div', { class: 'compass-text' }, SEATS.map((s) => textSeat(deal, s, locked.has(s))));
+  const children: Array<Node | string> = [];
+  const lines = text.split('\n');
+  lines.forEach((line, i) => {
+    for (const part of line.split(/(H:|D:)/)) {
+      if (part === 'H:' || part === 'D:') children.push(h('span', { class: 'red' }, [part]));
+      else if (part !== '') children.push(part);
+    }
+    if (i < lines.length - 1) children.push('\n');
+  });
+  return h('pre', { class: 'compass-pre' }, children);
 }
 
 // ---- Seat-line layout ------------------------------------------------------
@@ -157,7 +155,7 @@ export function boardElement(
       body = compassBoard(deal, label, locked, 'mini');
       break;
     case 'compass-text':
-      body = compassTextBoard(deal, locked);
+      body = compassTextBoard(deal);
       break;
     case 'compass-detailed':
       body = compassBoard(deal, label, locked, 'detailed');

@@ -176,18 +176,13 @@ button:disabled { opacity: 0.5; cursor: default; }
 .inline-suits .suit-sym:first-child { margin-left: 0; }
 .inline-suits .ranks { letter-spacing: 1px; }
 
-/* Text compass: monospace "S: AKQ" hand diagram positioned by seat */
-.compass-text {
-  display: grid; gap: 8px 24px;
-  grid-template-columns: auto auto auto;
-  grid-template-areas: ". n ." "w c e" ". s .";
-  justify-content: start;
+/* Text compass: a real <pre> so selecting it copies clean, aligned text */
+.compass-pre {
+  margin: 0; white-space: pre; overflow-x: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px; line-height: 1.5;
+  font-size: 13px; line-height: 1.5; color: var(--ink);
 }
-.text-hand .text-suit { white-space: pre; }
-.compass-text .suit-letter { font-weight: 600; }
-.compass-text .lock-badge { margin: 0 0 2px; }
+.compass-pre .red { color: var(--red); }
 
 /* Mini compass: each seat is a single tight line */
 .compass.mini { gap: 4px; max-width: 460px; }
