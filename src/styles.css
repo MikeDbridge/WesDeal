@@ -84,6 +84,38 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .points-expr:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .partnership .points-expr { width: 60px; }
 
+/* Custom per-hand filters */
+.filter-toggle {
+  padding: 2px 7px; font-size: 12px; border: 1px solid var(--line); border-radius: 6px;
+  background: #fff; cursor: pointer; color: var(--muted); white-space: nowrap;
+}
+.filter-toggle:hover { border-color: var(--accent); }
+.filter-toggle.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.filter-toggle-cell { text-align: center; }
+.constraint-table th.filter-col { color: var(--muted); }
+.filter-row > td { padding-top: 0; padding-bottom: 8px; }
+.filter-entry { display: flex; align-items: center; gap: 8px; }
+.filter-label { font-weight: 700; color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.filter-input {
+  flex: 1; min-width: 220px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+  font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #fff;
+}
+.filter-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.filter-status { font-size: 12px; font-weight: 600; }
+.filter-status.ok { color: var(--accent); }
+.filter-status.bad { color: var(--red); }
+
+.filter-help { margin: 8px 0 0; font-size: 13px; }
+.filter-help summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.filter-help-body { margin-top: 6px; }
+.filter-help-body p { margin: 6px 0 2px; }
+.filter-help-body ul { margin: 4px 0; padding-left: 18px; }
+.filter-help-body li { margin: 2px 0; }
+.filter-code {
+  background: #eef1f4; border-radius: 4px; padding: 1px 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+}
+
 .lock-badge { font-weight: 600; font-size: 11px; color: var(--accent); margin-left: 6px; }
 .seat.locked { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 

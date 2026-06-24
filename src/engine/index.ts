@@ -5,6 +5,7 @@ export * from './deal';
 export * from './hand';
 export * from './knr';
 export * from './evaluate';
+export * from './filter';
 export * from './constraints';
 export * from './dealer';
 export * from './format';

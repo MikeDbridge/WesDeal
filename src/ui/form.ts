@@ -19,6 +19,7 @@ import { SEATS, type Seat, type GivenSpecs, validateGivenSpecs } from '../engine
 import { parseHandSpec } from '../engine/parse';
 import { evaluateSpec } from '../engine/evaluate';
 import { exactShape } from '../engine/hand';
+import { compileFilter } from '../engine/filter';
 import type { ConstraintSet, HandConstraint, Range } from '../engine/constraints';
 
 const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
@@ -38,6 +39,10 @@ interface SeatRow {
   handCell: HTMLElement;
   handInput: HTMLInputElement;
   status: HTMLElement;
+  filterRow: HTMLElement;
+  filterToggle: HTMLButtonElement;
+  filterInput: HTMLInputElement;
+  filterStatus: HTMLElement;
 }
 
 export interface RunOptions {
@@ -101,6 +106,7 @@ export function buildForm(): FormController {
       sr.row.classList.toggle('locked', locked);
       for (const cell of sr.conditionCells) cell.hidden = locked;
       sr.handCell.hidden = !locked;
+      if (locked) sr.filterRow.hidden = true; // locked hands ignore filters
 
       if (!locked) {
         sr.status.textContent = '';
@@ -122,6 +128,20 @@ export function buildForm(): FormController {
         }
       }
     }
+  };
+
+  const updateFilterState = (seat: Seat): void => {
+    const sr = seatRows[seat];
+    const text = sr.filterInput.value.trim();
+    sr.filterToggle.classList.toggle('active', text !== '');
+    if (text === '') {
+      sr.filterStatus.textContent = '';
+      sr.filterStatus.className = 'filter-status';
+      return;
+    }
+    const { error } = compileFilter(text);
+    sr.filterStatus.textContent = error ?? '✓';
+    sr.filterStatus.className = 'filter-status ' + (error ? 'bad' : 'ok');
   };
 
   const buildSeatRow = (seat: Seat): SeatRow => {
@@ -154,7 +174,19 @@ export function buildForm(): FormController {
     ]) as HTMLSelectElement;
     const shapeCell = h('td', {}, [balanced]);
 
-    const conditionCells = [hcpCell, knrCell, ...suitCells, shapeCell];
+    const filterToggle = h('button', {
+      type: 'button',
+      class: 'filter-toggle',
+      title: 'Custom filter',
+      onclick: () => {
+        const fr = seatRows[seat].filterRow;
+        fr.hidden = !fr.hidden;
+        if (!fr.hidden) seatRows[seat].filterInput.focus();
+      },
+    }, ['ƒ(x)']) as HTMLButtonElement;
+    const filterToggleCell = h('td', { class: 'filter-toggle-cell' }, [filterToggle]);
+
+    const conditionCells = [hcpCell, knrCell, ...suitCells, shapeCell, filterToggleCell];
 
     const handInput = h('input', {
       type: 'text',
@@ -165,7 +197,7 @@ export function buildForm(): FormController {
       autocomplete: 'off',
     }) as HTMLInputElement;
     const status = h('span', { class: 'hand-status' }, []);
-    const handCell = h('td', { colspan: '7', class: 'hand-cell', hidden: true }, [
+    const handCell = h('td', { colspan: '8', class: 'hand-cell', hidden: true }, [
       h('div', { class: 'hand-entry' }, [handInput, status]),
     ]);
 
@@ -175,14 +207,37 @@ export function buildForm(): FormController {
       handCell,
     ]);
 
-    return { row, inputs: { hcp, knr, suit, balanced }, toggle, conditionCells, handCell, handInput, status };
+    const filterInput = h('input', {
+      type: 'text',
+      class: 'filter-input',
+      placeholder: 'e.g. spades >= 6 and top(spades, 6) >= 3',
+      oninput: () => updateFilterState(seat),
+      spellcheck: false,
+      autocomplete: 'off',
+    }) as HTMLInputElement;
+    const filterStatus = h('span', { class: 'filter-status' }, []);
+    const filterRow = h('tr', { class: 'filter-row', hidden: true }, [
+      h('td', {}, []),
+      h('td', { colspan: '8' }, [
+        h('div', { class: 'filter-entry' }, [
+          h('span', { class: 'filter-label', title: 'This hand must satisfy:' }, ['ƒ(x)']),
+          filterInput,
+          filterStatus,
+        ]),
+      ]),
+    ]);
+
+    return {
+      row, inputs: { hcp, knr, suit, balanced }, toggle, conditionCells, handCell, handInput, status,
+      filterRow, filterToggle, filterInput, filterStatus,
+    };
   };
 
   const rows: HTMLElement[] = [];
   for (const seat of SEATS) {
     const sr = buildSeatRow(seat);
     seatRows[seat] = sr;
-    rows.push(sr.row);
+    rows.push(sr.row, sr.filterRow);
   }
 
   const headerCells = [
@@ -191,6 +246,7 @@ export function buildForm(): FormController {
     h('th', {}, ['K&R']),
     ...SUITS.map((s) => h('th', { class: redClass(s).trim() }, [SUIT_SYMBOLS[s]])),
     h('th', {}, ['Shape']),
+    h('th', { class: 'filter-col', title: 'Custom filter' }, ['ƒ']),
   ];
 
   const conditionsTable = h('div', { class: 'table-scroll' }, [
@@ -201,7 +257,29 @@ export function buildForm(): FormController {
   ]);
 
   const hint = h('p', { class: 'hint' }, [
-    'Points filters: 12, 10+, 11-, or 12-14. Tick a seat to lock its hand — type ♠ ♥ ♦ ♣ separated by spaces (x = small card, - = void).',
+    'Points filters: 12, 10+, 11-, or 12-14. Tick a seat to lock its hand (♠ ♥ ♦ ♣ space-separated; x = small, - = void). ƒ(x) opens a custom filter per hand.',
+  ]);
+
+  const codeLine = (s: string): HTMLElement => h('code', { class: 'filter-code' }, [s]);
+  const filterHelp = h('details', { class: 'filter-help' }, [
+    h('summary', {}, ['Custom filter syntax (ƒx)']),
+    h('div', { class: 'filter-help-body' }, [
+      h('p', {}, ['A filter is a yes/no condition the hand must satisfy. Vocabulary:']),
+      h('ul', {}, [
+        h('li', {}, ['Suit length: ', codeLine('spades hearts diamonds clubs'), ' (or ', codeLine('s h d c'), ')']),
+        h('li', {}, ['Points: ', codeLine('hcp'), ', ', codeLine('knr'), ', ', codeLine('controls'), ' (A=2, K=1)']),
+        h('li', {}, [codeLine('top(suit, n)'), ' — how many of the top n ranks are held']),
+        h('li', {}, [codeLine('has(suit, rank)'), ' — holds a card, rank ', codeLine('A K Q J T'), ' or ', codeLine('2..10')]),
+        h('li', {}, ['Compare ', codeLine('>= <= > < = !='), ', range ', codeLine('x in lo..hi'), ', maths ', codeLine('+ -')]),
+        h('li', {}, ['Combine ', codeLine('and or not'), ' (or ', codeLine('& | !'), '), group with ', codeLine('( )')]),
+      ]),
+      h('p', {}, ['Examples:']),
+      h('ul', {}, [
+        h('li', {}, [codeLine('spades >= 6 and top(spades, 6) >= 3')]),
+        h('li', {}, [codeLine('not (hearts >= 4 and spades >= 4 and hcp in 3..9)')]),
+        h('li', {}, [codeLine('spades + hearts >= 9 and hcp in 10..15')]),
+      ]),
+    ]),
   ]);
 
   // ---- Partnership ---------------------------------------------------------
@@ -233,6 +311,7 @@ export function buildForm(): FormController {
     h('h2', {}, ['Conditions']),
     conditionsTable,
     hint,
+    filterHelp,
     partnership,
     options,
   ]);
@@ -266,6 +345,12 @@ export function buildForm(): FormController {
       if (Object.keys(suitRanges).length) c.suit = suitRanges;
       if (inp.balanced.value === 'balanced') c.balanced = true;
       else if (inp.balanced.value === 'unbalanced') c.balanced = false;
+      const filterText = seatRows[seat].filterInput.value.trim();
+      if (filterText) {
+        const { error } = compileFilter(filterText);
+        if (error) errors.push(`${name} filter: ${error}`);
+        else c.filter = filterText;
+      }
       if (Object.keys(c).length) hands[seat] = c;
     }
 

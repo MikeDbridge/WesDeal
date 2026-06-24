@@ -10,6 +10,7 @@ import { type Suit, SUITS, HCP_BY_CARD } from './cards';
 import { type Seat, SEATS, type Deal } from './deal';
 import { type HandAnalysis, isBalanced } from './hand';
 import { knrPoints, knrPointsRange } from './knr';
+import { compileFilter, type CompiledFilter, type HandContext } from './filter';
 
 /** An inclusive numeric range; either bound may be omitted (open-ended). */
 export interface Range {
@@ -26,6 +27,8 @@ export interface HandConstraint {
   suit?: Partial<Record<Suit, Range>>;
   /** If set, require the hand to be balanced (true) or unbalanced (false). */
   balanced?: boolean;
+  /** A custom filter expression (see filter.ts) the hand must satisfy. */
+  filter?: string;
 }
 
 export interface PartnershipConstraint {
@@ -77,6 +80,7 @@ interface CompiledHand {
   knr?: Range;
   balanced?: boolean;
   suit: Array<Range | undefined> | null;
+  filter: CompiledFilter | null;
 }
 
 /**
@@ -94,15 +98,23 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
     for (let i = 0; i < 4; i++) {
       const c = set.hands[SEATS[i]];
       if (!c) continue;
+      let filter: CompiledFilter | null = null;
+      if (c.filter && c.filter.trim() !== '') {
+        const r = compileFilter(c.filter);
+        if (r.error) throw new Error(`Filter error (${SEATS[i]}): ${r.error}`);
+        filter = r.filter ?? null;
+      }
       hands.push({
         i,
         hcp: c.hcp,
         knr: c.knr,
         balanced: c.balanced,
         suit: c.suit ? [c.suit.S, c.suit.H, c.suit.D, c.suit.C] : null,
+        filter,
       });
     }
   }
+  const anyFilter = hands.some((h) => h.filter !== null);
   const nsHcp = set.partnership?.NS?.hcp;
   const nsKnr = set.partnership?.NS?.knr;
   const ewHcp = set.partnership?.EW?.hcp;
@@ -112,10 +124,13 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
 
   // Scratch reused across every evaluation (single-threaded hot loop).
   const len = [0, 0, 0, 0];
+  const mask = [0, 0, 0, 0];
   const hcpCache = [0, 0, 0, 0];
   const hcpDone = [false, false, false, false];
   const knrCache = [0, 0, 0, 0];
   const knrDone = [false, false, false, false];
+  // Reusable context for custom filters (filled per seat just before use).
+  const fctx: HandContext = { hcp: 0, knr: 0, controls: 0, len, mask };
 
   /** Check HCP / suit-length / balanced for one hand using `len` (just filled). */
   const checkCheap = (h: CompiledHand, hcp: number): boolean => {
@@ -131,20 +146,26 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
   };
 
   const run = (
-    hcpLen: (i: number) => number, // fills `len`, returns hcp
+    hcpLen: (i: number, withMask: boolean) => number, // fills `len` (and `mask`), returns hcp
     hcpOnly: (i: number) => number,
     knrOf: (i: number) => number,
   ): boolean => {
     if (needHcpCache) hcpDone[0] = hcpDone[1] = hcpDone[2] = hcpDone[3] = false;
-    if (needKnrCache) knrDone[0] = knrDone[1] = knrDone[2] = knrDone[3] = false;
+    if (needKnrCache || anyFilter) knrDone[0] = knrDone[1] = knrDone[2] = knrDone[3] = false;
 
     for (const h of hands) {
-      const hcp = hcpLen(h.i);
+      const hcp = hcpLen(h.i, h.filter !== null);
       if (needHcpCache) {
         hcpCache[h.i] = hcp;
         hcpDone[h.i] = true;
       }
       if (!checkCheap(h, hcp)) return false;
+      if (h.filter) {
+        fctx.hcp = hcp; // len and mask are already filled for this seat
+        if (h.filter.usesKnr) fctx.knr = cachedKnr(knrOf, h.i);
+        if (h.filter.usesControls) fctx.controls = controlsFromMask(mask);
+        if (!h.filter.predicate(fctx)) return false;
+      }
     }
 
     if (nsHcp && !inRange(cachedHcp(hcpOnly, 0) + cachedHcp(hcpOnly, 2), nsHcp)) return false;
@@ -183,14 +204,17 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
 
   return {
     matchDeal(deal: Deal): boolean {
-      const hcpLen = (i: number): number => {
+      const hcpLen = (i: number, withMask: boolean): number => {
         const cards = deal.hands[SEATS[i]];
         let hcp = 0;
         len[0] = len[1] = len[2] = len[3] = 0;
+        if (withMask) mask[0] = mask[1] = mask[2] = mask[3] = 0;
         for (let k = 0; k < 13; k++) {
           const card = cards[k];
           hcp += HCP_BY_CARD[card];
-          len[(card / 13) | 0]++;
+          const su = (card / 13) | 0;
+          len[su]++;
+          if (withMask) mask[su] |= 1 << card % 13;
         }
         return hcp;
       };
@@ -205,14 +229,17 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
     },
 
     matchFlat(deck: ArrayLike<number>): boolean {
-      const hcpLen = (i: number): number => {
+      const hcpLen = (i: number, withMask: boolean): number => {
         const off = i * 13;
         let hcp = 0;
         len[0] = len[1] = len[2] = len[3] = 0;
+        if (withMask) mask[0] = mask[1] = mask[2] = mask[3] = 0;
         for (let k = 0; k < 13; k++) {
           const card = deck[off + k];
           hcp += HCP_BY_CARD[card];
-          len[(card / 13) | 0]++;
+          const su = (card / 13) | 0;
+          len[su]++;
+          if (withMask) mask[su] |= 1 << card % 13;
         }
         return hcp;
       };
@@ -226,6 +253,16 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
       return run(hcpLen, hcpOnly, knrOf);
     },
   };
+}
+
+/** Honor controls (A=2, K=1) summed across four suit rank-masks. */
+function controlsFromMask(mask: ArrayLike<number>): number {
+  let c = 0;
+  for (let s = 0; s < 4; s++) {
+    if (mask[s] & (1 << 12)) c += 2; // ace
+    if (mask[s] & (1 << 11)) c += 1; // king
+  }
+  return c;
 }
 
 /** True if four suit lengths form a balanced shape (4-3-3-3, 4-4-3-2, 5-3-3-2). */
