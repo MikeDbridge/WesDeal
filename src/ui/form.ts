@@ -316,12 +316,20 @@ export function buildForm(): FormController {
   const nsKnr = exprInput('27+');
   const ewHcp = exprInput('17-');
   const ewKnr = exprInput('18-');
+  const partnerGroup = (title: string, hcpIn: HTMLInputElement, knrIn: HTMLInputElement): HTMLElement =>
+    h('div', { class: 'partner-group' }, [
+      h('div', { class: 'partner-title' }, [title]),
+      h('div', { class: 'partner-pair' }, [
+        h('label', {}, ['HCP ', hcpIn]),
+        h('label', {}, ['KnR ', knrIn]),
+      ]),
+    ]);
   const partnership = h('div', { class: 'partnership' }, [
     h('span', { class: 'group-label' }, ['Partnership']),
-    h('label', {}, ['N+S HCP ', nsHcp]),
-    h('label', {}, ['KnR ', nsKnr]),
-    h('label', {}, ['E+W HCP ', ewHcp]),
-    h('label', {}, ['KnR ', ewKnr]),
+    h('div', { class: 'partner-groups' }, [
+      partnerGroup('N+S', nsHcp, nsKnr),
+      partnerGroup('E+W', ewHcp, ewKnr),
+    ]),
   ]);
 
   // ---- Run options ---------------------------------------------------------
