@@ -7,7 +7,7 @@ import { isEmptyConstraintSet } from './engine/constraints';
 import { type Deal, type Seat } from './engine/deal';
 import type { DDCell } from './engine/dd';
 import type { GenerateRequest, WorkerResponse } from './worker/protocol';
-import type { DDSolveRequest, DDWorkerMessage } from './worker/dd.protocol';
+import { DDPool } from './worker/ddPool';
 
 const worker = new Worker(new URL('./worker/dealer.worker.ts', import.meta.url), {
   type: 'module',
@@ -140,36 +140,8 @@ copyTextBtn.addEventListener('click', () =>
   copyToClipboard(dealsLayoutText(lastDeals, lastLockedSeats, formatSelect.value as BoardFormat), copyTextBtn),
 );
 
-// ---- Double dummy ----------------------------------------------------------
-let ddWorker: Worker | null = null;
-let ddProgress = 0;
-
-function ensureDDWorker(): Worker {
-  if (ddWorker) return ddWorker;
-  ddWorker = new Worker(new URL('./worker/dd.worker.ts', import.meta.url), { type: 'module' });
-  ddWorker.addEventListener('message', (e: MessageEvent<DDWorkerMessage>) => {
-    const msg = e.data;
-    if (msg.type === 'result') {
-      ddResults[msg.index] = msg.tricks;
-      const el = boardEls[msg.index];
-      if (el) {
-        el.querySelector('.dd-result')?.remove();
-        el.append(ddResultElement(lastDDCells, msg.tricks));
-      }
-      ddProgress++;
-      status.textContent = `Solving double dummy… ${ddProgress}/${lastDeals.length}`;
-    } else if (msg.type === 'done') {
-      solveDDBtn.disabled = false;
-      solveDDBtn.textContent = 'Solve double dummy';
-      status.textContent = `Double dummy solved for ${lastDeals.length} deal${lastDeals.length === 1 ? '' : 's'}.`;
-    } else if (msg.type === 'error') {
-      solveDDBtn.disabled = false;
-      solveDDBtn.textContent = 'Solve double dummy';
-      status.textContent = `Double-dummy error: ${msg.message}`;
-    }
-  });
-  return ddWorker;
-}
+// ---- Double dummy (solved across a worker pool) ----------------------------
+const ddPool = new DDPool();
 
 function solveDD(): void {
   if (lastDeals.length === 0) {
@@ -183,13 +155,33 @@ function solveDD(): void {
   }
   lastDDCells = cells;
   ddResults = new Array(lastDeals.length);
-  ddProgress = 0;
-  renderResults(); // clear any previous DD lines before re-solving
+  renderResults(); // clear any previous DD output before re-solving
   solveDDBtn.disabled = true;
   solveDDBtn.textContent = 'Solving…';
-  status.textContent = 'Loading double-dummy solver…';
-  const req: DDSolveRequest = { type: 'solve', deals: lastDeals.map((d) => dealToPBN(d)), cells };
-  ensureDDWorker().postMessage(req);
+  const total = lastDeals.length;
+  status.textContent = `Solving double dummy… 0/${total}`;
+
+  ddPool.solve(lastDeals.map((d) => dealToPBN(d)), cells, {
+    onResult(index, tricks) {
+      ddResults[index] = tricks;
+      const el = boardEls[index];
+      if (el) {
+        el.querySelector('.dd-result')?.remove();
+        el.append(ddResultElement(lastDDCells, tricks));
+      }
+    },
+    onProgress(done) {
+      status.textContent = `Solving double dummy… ${done}/${total}`;
+    },
+    onDone() {
+      solveDDBtn.disabled = false;
+      solveDDBtn.textContent = 'Solve double dummy';
+      status.textContent = `Double dummy solved for ${total} deal${total === 1 ? '' : 's'}.`;
+    },
+    onError(message) {
+      status.textContent = `Double-dummy error: ${message}`;
+    },
+  });
 }
 
 solveDDBtn.addEventListener('click', solveDD);

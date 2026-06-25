@@ -1,15 +1,15 @@
 import type { DDCell } from '../engine/dd';
 
-/** Ask the DD worker to solve `cells` for each deal (deals as PBN strings). */
-export interface DDSolveRequest {
+/** Solve one deal. `jobId` lets the pool discard results from a superseded run. */
+export interface DDSolveOne {
   type: 'solve';
-  deals: string[];
+  jobId: number;
+  index: number;
+  pbn: string;
   cells: DDCell[];
 }
 
-/** Messages the DD worker sends back. Results stream in per deal. */
+/** A worker's reply for one deal. */
 export type DDWorkerMessage =
-  | { type: 'ready' } // WASM loaded
-  | { type: 'result'; index: number; tricks: number[] }
-  | { type: 'done' }
-  | { type: 'error'; message: string };
+  | { type: 'result'; jobId: number; index: number; tricks: number[] }
+  | { type: 'error'; jobId: number; index: number; message: string };

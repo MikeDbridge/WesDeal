@@ -1,12 +1,12 @@
 /**
- * Double-dummy worker. The worker itself is created lazily (only on the first
- * solve), so importing the ~525 KB DDS WASM statically here still costs nothing
- * until DD is actually used. It streams a trick result back for each deal.
+ * Double-dummy worker — solves one deal per message. A pool of these runs in
+ * parallel (see ddPool.ts). The worker is created lazily, so importing the
+ * ~525 KB DDS WASM statically still costs nothing until DD is actually used.
  */
 
 import { loadDds, Dds } from 'bridge-dds';
 import { solveDeal } from '../engine/ddSolve';
-import type { DDSolveRequest, DDWorkerMessage } from './dd.protocol';
+import type { DDSolveOne, DDWorkerMessage } from './dd.protocol';
 
 let ddsPromise: Promise<Dds> | null = null;
 
@@ -17,17 +17,13 @@ function getDds(): Promise<Dds> {
 
 const post = (msg: DDWorkerMessage): void => self.postMessage(msg);
 
-self.onmessage = async (e: MessageEvent<DDSolveRequest>): Promise<void> => {
+self.onmessage = async (e: MessageEvent<DDSolveOne>): Promise<void> => {
   const msg = e.data;
   if (msg.type !== 'solve') return;
   try {
     const dds = await getDds();
-    post({ type: 'ready' });
-    for (let i = 0; i < msg.deals.length; i++) {
-      post({ type: 'result', index: i, tricks: solveDeal(dds, msg.deals[i], msg.cells) });
-    }
-    post({ type: 'done' });
+    post({ type: 'result', jobId: msg.jobId, index: msg.index, tricks: solveDeal(dds, msg.pbn, msg.cells) });
   } catch (err) {
-    post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+    post({ type: 'error', jobId: msg.jobId, index: msg.index, message: err instanceof Error ? err.message : String(err) });
   }
 };
