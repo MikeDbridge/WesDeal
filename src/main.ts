@@ -140,6 +140,8 @@ worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
   copyPbnBtn.disabled = !hasDeals;
   copyTextBtn.disabled = !hasDeals;
   solveDDBtn.disabled = !hasDeals;
+
+  if (hasDeals && form.autoSolveDD() && form.readDD().length > 0) solveDD();
 });
 
 worker.addEventListener('error', (event) => {

@@ -29,9 +29,9 @@ const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W:
 // (range / min / max / exact / decimals) just by scanning the rows.
 const VALUE_EG: Record<Seat, { hcp: string; knr: string }> = {
   N: { hcp: '12-14', knr: '13.5+' },
-  E: { hcp: '15+', knr: '18-' },
-  S: { hcp: '11-', knr: '8-12' },
-  W: { hcp: '20', knr: '15.5+' },
+  E: { hcp: '3-9', knr: '18-' },
+  S: { hcp: '0-4', knr: '8-12' },
+  W: { hcp: '17', knr: '15.5+' },
 };
 
 /** Bridge convention: honors are upper-case, small cards are a lower-case "x". */
@@ -89,6 +89,8 @@ export interface FormController {
   readGiven(): GivenResult;
   /** Which strain × declarer cells to double-dummy solve (empty = none). */
   readDD(): DDCell[];
+  /** Whether to run the DD solve automatically after each generate. */
+  autoSolveDD(): boolean;
 }
 
 function redClass(s: Suit): string {
@@ -398,11 +400,13 @@ export function buildForm(): FormController {
       }),
     ]),
   );
+  const ddAuto = h('input', { type: 'checkbox' }) as HTMLInputElement;
   const ddSection = h('div', { class: 'dd-section' }, [
     h('div', { class: 'dd-bar' }, [
       h('span', { class: 'group-label' }, ['Double dummy']),
       h('button', { type: 'button', class: 'dd-btn', onclick: () => setAllDD(true) }, ['Full table']),
       h('button', { type: 'button', class: 'dd-btn', onclick: () => setAllDD(false) }, ['Clear']),
+      h('label', { class: 'dd-auto', title: 'Solve the ticked cells automatically after each generate' }, [ddAuto, ' solve on generate']),
     ]),
     h('table', { class: 'dd-table' }, [h('thead', {}, [ddHeader]), h('tbody', {}, ddBody)]),
     h('p', { class: 'hint' }, [
@@ -508,5 +512,5 @@ export function buildForm(): FormController {
     return { given, lockedSeats, errors };
   };
 
-  return { element, readConstraints, readOptions, readGiven, readDD };
+  return { element, readConstraints, readOptions, readGiven, readDD, autoSolveDD: () => ddAuto.checked };
 }

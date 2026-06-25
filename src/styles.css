@@ -165,6 +165,7 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 /* Double-dummy selection grid */
 .dd-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .dd-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+.dd-auto { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; cursor: pointer; }
 .dd-btn { padding: 4px 10px; font-size: 13px; }
 .dd-table { border-collapse: collapse; }
 .dd-table th, .dd-table td { padding: 2px 10px; text-align: center; }
@@ -213,9 +214,14 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
   display: flex; flex-direction: column; justify-content: space-between;
   font-size: 11px; color: var(--muted); padding-bottom: 18px;
 }
-.dd-plot { display: flex; align-items: flex-end; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
+.dd-plot { display: flex; align-items: flex-end; gap: 14px; overflow-x: auto; padding-bottom: 2px; }
 .dd-col2 { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.dd-bars { display: flex; align-items: flex-end; gap: 2px; }
+.dd-bars { display: flex; align-items: flex-end; gap: 3px; }
+.dd-barcol { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.dd-atleast {
+  font-size: 10px; font-weight: 700; line-height: 1; margin-bottom: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 .dd-bar { border-radius: 2px 2px 0 0; }
 .dd-xlabel { font-size: 11px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 

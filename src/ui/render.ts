@@ -347,8 +347,22 @@ export function ddSummaryElement(cells: DDCell[], perDeal: number[][]): HTMLElem
   let yMax = 1;
   for (const arr of counts) for (const c of arr) if (c > yMax) yMax = c;
 
-  const barW = cells.length <= 4 ? 13 : cells.length <= 8 ? 7 : 4;
+  const span = xMax - xMin + 1;
+  // Cumulative "at least x tricks" count per cell (sum from the top down).
+  const atLeast = counts.map((arr) => {
+    const out = new Array<number>(span).fill(0);
+    let running = 0;
+    for (let k = span - 1; k >= 0; k--) {
+      running += arr[k];
+      out[k] = running;
+    }
+    return out;
+  });
+
+  const barW = cells.length === 1 ? 34 : cells.length === 2 ? 20 : cells.length <= 4 ? 15 : cells.length <= 8 ? 9 : 5;
+  const showAtLeast = cells.length <= 4; // labels would collide on narrower bars
   const plotH = 120;
+  const topPct = Math.round((yMax / n) * 100);
 
   const legend = h('div', { class: 'dd-legend' },
     cells.map((c, ci) => h('span', { class: 'dd-legend-item' }, [swatch(ci), ...cellLabelNodes(c)])),
@@ -358,22 +372,27 @@ export function ddSummaryElement(cells: DDCell[], perDeal: number[][]): HTMLElem
   for (let x = xMin; x <= xMax; x++) {
     const bars = counts.map((arr, ci) => {
       const cnt = arr[x - xMin];
+      const ge = atLeast[ci][x - xMin];
       const hpx = cnt === 0 ? 0 : Math.max(2, Math.round((cnt / yMax) * plotH));
-      return h('div', {
+      const color = DD_PALETTE[ci % DD_PALETTE.length];
+      const kids: Array<Node | string> = [];
+      if (showAtLeast) kids.push(h('div', { class: 'dd-atleast', style: `color:${color}` }, [String(ge)]));
+      kids.push(h('div', {
         class: 'dd-bar',
-        style: `height:${hpx}px;width:${barW}px;background:${DD_PALETTE[ci % DD_PALETTE.length]}`,
-        title: `${cellLabelText(cells[ci])}: ${cnt} of ${n} make ${x}`,
-      }, []);
+        style: `height:${hpx}px;width:${barW}px;background:${color}`,
+        title: `${cellLabelText(cells[ci])}: ${((cnt / n) * 100).toFixed(0)}% (${cnt}/${n}) make exactly ${x} · ${ge}/${n} make ≥ ${x}`,
+      }, []));
+      return h('div', { class: 'dd-barcol' }, kids);
     });
     columns.push(
       h('div', { class: 'dd-col2' }, [
-        h('div', { class: 'dd-bars', style: `height:${plotH}px` }, bars),
+        h('div', { class: 'dd-bars', style: `min-height:${plotH}px` }, bars),
         h('div', { class: 'dd-xlabel' }, [String(x)]),
       ]),
     );
   }
   const chart = h('div', { class: 'dd-chart' }, [
-    h('div', { class: 'dd-yaxis' }, [h('span', {}, [String(yMax)]), h('span', {}, ['0'])]),
+    h('div', { class: 'dd-yaxis' }, [h('span', {}, [`${topPct}%`]), h('span', {}, ['0%'])]),
     h('div', { class: 'dd-plot' }, columns),
   ]);
 
@@ -395,7 +414,7 @@ export function ddSummaryElement(cells: DDCell[], perDeal: number[][]): HTMLElem
     h('div', { class: 'dd-summary-head' }, [`Double-dummy summary · ${n} deal${n === 1 ? '' : 's'}`]),
     legend,
     chart,
-    h('p', { class: 'hint' }, ['Bars: how many deals make each number of tricks (double dummy), per selected cell.']),
+    h('p', { class: 'hint' }, [`Bar height = % of deals making exactly that many tricks; the number above = how many of the ${n} make at least that many.`]),
     stats,
   ]);
 }
