@@ -12,8 +12,8 @@ const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W:
 export type BoardFormat = 'compass-mini' | 'compass-text' | 'compass-detailed' | 'seat-lines';
 
 export const BOARD_FORMATS: ReadonlyArray<{ value: BoardFormat; label: string }> = [
-  { value: 'compass-mini', label: 'Compass — mini' },
   { value: 'compass-text', label: 'Compass — text' },
+  { value: 'compass-mini', label: 'Compass — mini' },
   { value: 'compass-detailed', label: 'Compass — detailed' },
   { value: 'seat-lines', label: 'Seat lines' },
 ];
@@ -73,24 +73,15 @@ function compassSeat(deal: Deal, seat: Seat, locked: boolean, variant: 'compact'
   return h('div', { class: `seat pos-${seat}` + (locked ? ' locked' : '') }, children);
 }
 
-/** Mini: each seat is a single line — abbreviation + inline holdings. */
-function compassMiniSeat(deal: Deal, seat: Seat, locked: boolean): HTMLElement {
-  return h('div', { class: `seat mini pos-${seat}` + (locked ? ' locked' : '') }, [
-    h('span', { class: 'seat-abbr', title: SEAT_NAMES[seat] }, [locked ? `🔒${seat}` : seat]),
-    inlineSuits(deal.hands[seat]),
-  ]);
-}
-
 function compassBoard(
   deal: Deal,
   label: string,
   locked: Set<Seat>,
-  variant: 'mini' | 'compact' | 'detailed',
+  variant: 'mini' | 'detailed',
 ): HTMLElement {
-  const seats =
-    variant === 'mini'
-      ? SEATS.map((s) => compassMiniSeat(deal, s, locked.has(s)))
-      : SEATS.map((s) => compassSeat(deal, s, locked.has(s), variant));
+  // Mini = stacked suit lines without the HCP/KnR/shape meta line.
+  const seatVariant = variant === 'detailed' ? 'detailed' : 'compact';
+  const seats = SEATS.map((s) => compassSeat(deal, s, locked.has(s), seatVariant));
   return h('div', { class: `compass ${variant}` }, [
     ...seats,
     h('div', { class: 'compass-center' }, [label]),

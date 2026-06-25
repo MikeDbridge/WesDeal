@@ -179,11 +179,12 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .dd-line {
   margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+  text-align: center;
 }
 .dd-line .dd-strain { font-weight: 700; }
 
 .dd-result-table {
-  margin-top: 8px; border-top: 1px dashed var(--line); border-collapse: collapse;
+  margin: 8px auto 0; border-top: 1px dashed var(--line); border-collapse: collapse;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
 }
 .dd-result-table th, .dd-result-table td { padding: 1px 9px; text-align: center; }
@@ -273,16 +274,12 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .compass-pre .red { color: var(--red); }
 
-/* Mini compass: each seat is a single tight line */
-.compass.mini { gap: 4px; max-width: 460px; }
-.compass.mini .seat.mini {
-  display: flex; align-items: baseline; gap: 8px; padding: 4px 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
-}
-.seat-abbr { font-weight: 700; min-width: 16px; }
-.compass.mini .compass-center { min-height: 0; font-size: 14px; border-style: solid; }
-.compass.mini .inline-suits .suit-sym { margin-left: 5px; }
-.compass.mini .inline-suits .suit-sym:first-child { margin-left: 0; }
+/* Mini compass: stacked suit lines, no meta — a touch tighter than detailed */
+.compass.mini { gap: 8px; }
+.compass.mini .seat { padding: 6px 9px; }
+.compass.mini .seat-name { font-size: 11px; margin-bottom: 2px; }
+.compass.mini .suit-line { font-size: 12px; line-height: 1.4; }
+.compass.mini .compass-center { min-height: 44px; font-size: 16px; }
 
 .compass {
   display: grid; gap: 10px;
