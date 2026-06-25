@@ -205,10 +205,14 @@ export function buildForm(): FormController {
       return h('td', { class: 'len-cell', 'data-label': SUIT_SYMBOLS[s] }, [field]);
     });
 
-    const balanced = h('select', { class: 'shape-select' }, [
+    const balanced = h('select', {
+      class: 'shape-select',
+      title: 'Semi-bal (NT): balanced, a 6-card minor (6-3-2-2), or 4-4-4-1 with an A/K/Q singleton in a minor',
+    }, [
       h('option', { value: 'any' }, ['Any']),
       h('option', { value: 'balanced' }, ['Balanced']),
       h('option', { value: 'unbalanced' }, ['Unbalanced']),
+      h('option', { value: 'semiNT' }, ['Semi-bal (NT)']),
     ]) as HTMLSelectElement;
     const shapeCell = h('td', { 'data-label': 'Shape' }, [balanced]);
 
@@ -466,6 +470,7 @@ export function buildForm(): FormController {
       if (Object.keys(suitRanges).length) c.suit = suitRanges;
       if (inp.balanced.value === 'balanced') c.balanced = true;
       else if (inp.balanced.value === 'unbalanced') c.balanced = false;
+      else if (inp.balanced.value === 'semiNT') c.semiBalancedNT = true;
       const filterText = seatRows[seat].filterInput.value.trim();
       if (filterText) {
         const { error } = compileFilter(filterText);

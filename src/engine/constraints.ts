@@ -27,6 +27,8 @@ export interface HandConstraint {
   suit?: Partial<Record<Suit, Range>>;
   /** If set, require the hand to be balanced (true) or unbalanced (false). */
   balanced?: boolean;
+  /** If true, require a "semi-balanced for NT" shape (see isSemiBalancedNT). */
+  semiBalancedNT?: boolean;
   /** A custom filter expression (see filter.ts) the hand must satisfy. */
   filter?: string;
 }
@@ -57,6 +59,10 @@ export function matchesHand(analysis: HandAnalysis, c: HandConstraint): boolean 
   if (!inRange(analysis.hcp, c.hcp)) return false;
   if (c.knr && !inRange(knrPoints(analysis.cards), c.knr)) return false;
   if (c.balanced !== undefined && isBalanced(analysis) !== c.balanced) return false;
+  if (c.semiBalancedNT) {
+    const lm = lenMaskFromCards(analysis.cards);
+    if (!isSemiBalancedNT(lm.len, lm.mask)) return false;
+  }
   if (c.suit) {
     for (const suit of SUITS) {
       const r = c.suit[suit];
@@ -79,6 +85,7 @@ interface CompiledHand {
   hcp?: Range;
   knr?: Range;
   balanced?: boolean;
+  semiNT: boolean;
   suit: Array<Range | undefined> | null;
   filter: CompiledFilter | null;
 }
@@ -109,6 +116,7 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
         hcp: c.hcp,
         knr: c.knr,
         balanced: c.balanced,
+        semiNT: !!c.semiBalancedNT,
         suit: c.suit ? [c.suit.S, c.suit.H, c.suit.D, c.suit.C] : null,
         filter,
       });
@@ -142,6 +150,7 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
       }
     }
     if (h.balanced !== undefined && balancedFromLengths(len) !== h.balanced) return false;
+    if (h.semiNT && !isSemiBalancedNT(len, mask)) return false;
     return true;
   };
 
@@ -154,7 +163,7 @@ export function compileMatcher(set: ConstraintSet): CompiledMatcher {
     if (needKnrCache || anyFilter) knrDone[0] = knrDone[1] = knrDone[2] = knrDone[3] = false;
 
     for (const h of hands) {
-      const hcp = hcpLen(h.i, h.filter !== null);
+      const hcp = hcpLen(h.i, h.filter !== null || h.semiNT);
       if (needHcpCache) {
         hcpCache[h.i] = hcp;
         hcpDone[h.i] = true;
@@ -282,6 +291,40 @@ function balancedFromLengths(len: ArrayLike<number>): boolean {
     (a === 2 && b === 3 && c === 4 && d === 4) || // 4-4-3-2
     (a === 2 && b === 3 && c === 3 && d === 5) // 5-3-3-2
   );
+}
+
+const AKQ_BITS = (1 << 12) | (1 << 11) | (1 << 10); // ace, king, queen
+
+/** Suit lengths and 13-bit rank masks (bit = rank-2) per suit, from 13 cards. */
+function lenMaskFromCards(cards: ArrayLike<number>): { len: number[]; mask: number[] } {
+  const len = [0, 0, 0, 0];
+  const mask = [0, 0, 0, 0];
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    const suit = (card / 13) | 0;
+    len[suit]++;
+    mask[suit] |= 1 << card % 13;
+  }
+  return { len, mask };
+}
+
+/**
+ * "Semi-balanced for NT": any balanced shape, OR a 6-card minor (6-3-2-2 with
+ * the six in ♦ or ♣), OR a 4-4-4-1 whose singleton is in a minor and is an
+ * A, K, or Q. Suit indices: 0=♠ 1=♥ 2=♦ 3=♣.
+ */
+function isSemiBalancedNT(len: ArrayLike<number>, mask: ArrayLike<number>): boolean {
+  if (balancedFromLengths(len)) return true;
+  const sorted = [len[0], len[1], len[2], len[3]].sort((x, y) => y - x); // descending
+  if (sorted[0] === 6 && sorted[1] === 3 && sorted[2] === 2 && sorted[3] === 2) {
+    return len[2] === 6 || len[3] === 6; // the six-card suit is a minor
+  }
+  if (sorted[0] === 4 && sorted[1] === 4 && sorted[2] === 4 && sorted[3] === 1) {
+    for (let s = 2; s <= 3; s++) {
+      if (len[s] === 1 && (mask[s] & AKQ_BITS) !== 0) return true; // honor singleton in a minor
+    }
+  }
+  return false;
 }
 
 /**
