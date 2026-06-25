@@ -193,6 +193,13 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .dd-result-table .dd-th.red { color: var(--red); }
 .dd-result-table .dd-empty { color: var(--line); }
 
+/* Plain-text DD results for the compass-text layout */
+.dd-text {
+  margin: 8px 0 0; padding-top: 6px; border-top: 1px dashed var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+  white-space: pre; text-align: left;
+}
+
 /* Double-dummy summary panel */
 .dd-summary-panel { margin: 0 0 14px; }
 .dd-summary {

@@ -295,6 +295,35 @@ export function ddResultElement(cells: DDCell[], tricks: number[]): HTMLElement 
   return cells.length > 1 ? ddTableElement(cells, tricks) : ddLineElement(cells, tricks);
 }
 
+/** Plain-text DD results (for the compass-text layout, so they read as text). */
+function ddResultTextLines(cells: DDCell[], tricks: number[]): string[] {
+  const value = new Map<string, number>();
+  cells.forEach((c, i) => value.set(cellKey(c.strain, c.declarer), tricks[i]));
+  if (cells.length === 1) {
+    const c = cells[0];
+    return [`${DD_STRAIN_LABELS[c.strain]} ${DD_DECLARER_LABELS[c.declarer]}  ${tricks[0]}`];
+  }
+  const strains = [...new Set(cells.map((c) => c.strain))].sort((a, b) => a - b);
+  const declarers = DD_ROW_ORDER.filter((d) => cells.some((c) => c.declarer === d));
+  const cell = (s: number, d: number): string => {
+    const v = value.get(cellKey(s, d));
+    return v === undefined ? '–' : String(v);
+  };
+  const colW = strains.map((s) =>
+    Math.max(DD_STRAIN_LABELS[s].length, ...declarers.map((d) => cell(s, d).length)),
+  );
+  const trimEnd = (line: string): string => line.replace(/\s+$/, '');
+  const header = trimEnd(' ' + strains.map((s, i) => '  ' + DD_STRAIN_LABELS[s].padStart(colW[i])).join(''));
+  const rows = declarers.map((d) =>
+    trimEnd(DD_DECLARER_LABELS[d] + strains.map((s, i) => '  ' + cell(s, d).padStart(colW[i])).join('')),
+  );
+  return [header, ...rows];
+}
+
+export function ddResultTextElement(cells: DDCell[], tricks: number[]): HTMLElement {
+  return h('pre', { class: 'dd-result dd-text' }, [ddResultTextLines(cells, tricks).join('\n')]);
+}
+
 // ---- Double-dummy summary (distribution comparison) ------------------------
 
 const DD_PALETTE = ['#1d6f42', '#c0392b', '#2c6fb0', '#b8860b', '#7d3c98', '#138d90', '#d35400', '#566573'];

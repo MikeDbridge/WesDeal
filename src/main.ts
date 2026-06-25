@@ -1,7 +1,7 @@
 import './styles.css';
 import { h } from './ui/dom';
 import { buildForm } from './ui/form';
-import { boardElement, dealsLayoutText, ddResultElement, ddSummaryElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
+import { boardElement, dealsLayoutText, ddResultElement, ddResultTextElement, ddSummaryElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
 import { dealToPBN } from './engine/format';
 import { isEmptyConstraintSet } from './engine/constraints';
 import { type Deal, type Seat } from './engine/deal';
@@ -43,12 +43,20 @@ let ddStart = 0;
 /** Elapsed seconds since `start`, to 2 decimals. */
 const secsSince = (start: number): string => ((performance.now() - start) / 1000).toFixed(2);
 
+/** Attach DD results to a board — plain text for compass-text, widget otherwise. */
+function attachDD(el: HTMLElement, tricks: number[], format: BoardFormat): void {
+  el.querySelector('.dd-result')?.remove();
+  el.append(format === 'compass-text'
+    ? ddResultTextElement(lastDDCells, tricks)
+    : ddResultElement(lastDDCells, tricks));
+}
+
 function renderResults(): void {
   const format = formatSelect.value as BoardFormat;
   boardEls = lastDeals.map((deal, i) => {
     const el = boardElement(deal, i, lastLockedSeats, format);
     const tricks = ddResults[i];
-    if (tricks) el.append(ddResultElement(lastDDCells, tricks));
+    if (tricks) attachDD(el, tricks, format);
     return el;
   });
   results.replaceChildren(...boardEls);
@@ -181,10 +189,7 @@ function solveDD(): void {
     onResult(index, tricks) {
       ddResults[index] = tricks;
       const el = boardEls[index];
-      if (el) {
-        el.querySelector('.dd-result')?.remove();
-        el.append(ddResultElement(lastDDCells, tricks));
-      }
+      if (el) attachDD(el, tricks, formatSelect.value as BoardFormat);
     },
     onProgress(done) {
       status.textContent = `Solving double dummy… ${done}/${total}`;
