@@ -2,6 +2,7 @@ import './styles.css';
 import { h } from './ui/dom';
 import { buildForm } from './ui/form';
 import { boardElement, dealsLayoutText, ddResultElement, ddResultTextElement, ddSummaryElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
+import { siteNav } from './ui/nav';
 import { dealToPBN } from './engine/format';
 import { isEmptyConstraintSet } from './engine/constraints';
 import { type Deal, type Seat } from './engine/deal';
@@ -228,6 +229,7 @@ summaryBtn.addEventListener('click', toggleSummary);
 const app = document.querySelector<HTMLDivElement>('#app');
 if (app) {
   app.append(
+    siteNav('deal'),
     h('header', { class: 'app-header' }, [
       h('h1', {}, ['WesDeal']),
       h('p', { class: 'tagline' }, ['Generating random bridge deals to justify your overbidding.']),
