@@ -35,6 +35,11 @@ let lastLockedSeats: Seat[] = [];
 let lastDDCells: DDCell[] = [];
 let ddResults: Array<number[] | undefined> = [];
 let boardEls: HTMLElement[] = [];
+let searchStart = 0;
+let ddStart = 0;
+
+/** Elapsed seconds since `start`, to 2 decimals. */
+const secsSince = (start: number): string => ((performance.now() - start) / 1000).toFixed(2);
 
 function renderResults(): void {
   const format = formatSelect.value as BoardFormat;
@@ -94,6 +99,7 @@ function generate(): void {
     ? `Searching for matching deals${around}…`
     : `Generating random deals${around}…`;
 
+  searchStart = performance.now();
   worker.postMessage(request);
 }
 
@@ -112,13 +118,14 @@ worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
   lastDDCells = [];
 
   const requested = form.readOptions().count;
+  const secs = secsSince(searchStart);
   const rate = accepted > 0 ? ` · ~${Math.round(attempts / accepted)} tried per match` : '';
   if (accepted === 0) {
-    status.textContent = `No matching deal found in ${attempts.toLocaleString()} attempts. The constraints may be too tight — raise max attempts or relax a condition. (seed ${seed})`;
+    status.textContent = `No matching deal found in ${attempts.toLocaleString()} attempts (${secs} s). The constraints may be too tight — raise max attempts or relax a condition. (seed ${seed})`;
   } else if (!complete) {
-    status.textContent = `Found ${accepted} of ${requested} within ${attempts.toLocaleString()} attempts — constraints are very tight.${rate} (seed ${seed})`;
+    status.textContent = `Found ${accepted} of ${requested} in ${secs} s · ${attempts.toLocaleString()} attempts — constraints are very tight.${rate} (seed ${seed})`;
   } else {
-    status.textContent = `Found ${accepted} deal${accepted === 1 ? '' : 's'} in ${attempts.toLocaleString()} attempts.${rate} (seed ${seed})`;
+    status.textContent = `Found ${accepted} deal${accepted === 1 ? '' : 's'} in ${secs} s · ${attempts.toLocaleString()} attempts.${rate} (seed ${seed})`;
   }
 
   renderResults();
@@ -160,6 +167,7 @@ function solveDD(): void {
   solveDDBtn.textContent = 'Solving…';
   const total = lastDeals.length;
   status.textContent = `Solving double dummy… 0/${total}`;
+  ddStart = performance.now();
 
   ddPool.solve(lastDeals.map((d) => dealToPBN(d)), cells, {
     onResult(index, tricks) {
@@ -176,7 +184,7 @@ function solveDD(): void {
     onDone() {
       solveDDBtn.disabled = false;
       solveDDBtn.textContent = 'Solve double dummy';
-      status.textContent = `Double dummy solved for ${total} deal${total === 1 ? '' : 's'}.`;
+      status.textContent = `Double dummy solved for ${total} deal${total === 1 ? '' : 's'} in ${secsSince(ddStart)} s.`;
     },
     onError(message) {
       status.textContent = `Double-dummy error: ${message}`;
