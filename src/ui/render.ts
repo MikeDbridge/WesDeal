@@ -303,3 +303,99 @@ function ddTableElement(cells: DDCell[], tricks: number[]): HTMLElement {
 export function ddResultElement(cells: DDCell[], tricks: number[]): HTMLElement {
   return cells.length > 1 ? ddTableElement(cells, tricks) : ddLineElement(cells, tricks);
 }
+
+// ---- Double-dummy summary (distribution comparison) ------------------------
+
+const DD_PALETTE = ['#1d6f42', '#c0392b', '#2c6fb0', '#b8860b', '#7d3c98', '#138d90', '#d35400', '#566573'];
+
+function cellLabelText(c: DDCell): string {
+  return `${DD_STRAIN_LABELS[c.strain]}${DD_DECLARER_LABELS[c.declarer]}`;
+}
+function cellLabelNodes(c: DDCell): Array<Node | string> {
+  const red = c.strain === 1 || c.strain === 2;
+  return [h('span', { class: red ? 'red' : '' }, [DD_STRAIN_LABELS[c.strain]]), DD_DECLARER_LABELS[c.declarer]];
+}
+function swatch(ci: number): HTMLElement {
+  return h('span', { class: 'dd-swatch', style: `background:${DD_PALETTE[ci % DD_PALETTE.length]}` }, []);
+}
+
+/**
+ * A summary across all solved deals: a grouped histogram of how many deals make
+ * each number of tricks (one colour per selected cell, for direct comparison),
+ * plus an average/range table. `perDeal[i]` holds the tricks for each cell.
+ */
+export function ddSummaryElement(cells: DDCell[], perDeal: number[][]): HTMLElement {
+  const n = perDeal.length;
+  const series = cells.map((_, ci) => perDeal.map((r) => r[ci]));
+
+  let xMin = 13;
+  let xMax = 0;
+  for (const vals of series) for (const v of vals) {
+    if (v < xMin) xMin = v;
+    if (v > xMax) xMax = v;
+  }
+  if (xMin > xMax) {
+    xMin = 0;
+    xMax = 0;
+  }
+
+  const counts = series.map((vals) => {
+    const arr = new Array<number>(xMax - xMin + 1).fill(0);
+    for (const v of vals) arr[v - xMin]++;
+    return arr;
+  });
+  let yMax = 1;
+  for (const arr of counts) for (const c of arr) if (c > yMax) yMax = c;
+
+  const barW = cells.length <= 4 ? 13 : cells.length <= 8 ? 7 : 4;
+  const plotH = 120;
+
+  const legend = h('div', { class: 'dd-legend' },
+    cells.map((c, ci) => h('span', { class: 'dd-legend-item' }, [swatch(ci), ...cellLabelNodes(c)])),
+  );
+
+  const columns: HTMLElement[] = [];
+  for (let x = xMin; x <= xMax; x++) {
+    const bars = counts.map((arr, ci) => {
+      const cnt = arr[x - xMin];
+      const hpx = cnt === 0 ? 0 : Math.max(2, Math.round((cnt / yMax) * plotH));
+      return h('div', {
+        class: 'dd-bar',
+        style: `height:${hpx}px;width:${barW}px;background:${DD_PALETTE[ci % DD_PALETTE.length]}`,
+        title: `${cellLabelText(cells[ci])}: ${cnt} of ${n} make ${x}`,
+      }, []);
+    });
+    columns.push(
+      h('div', { class: 'dd-col2' }, [
+        h('div', { class: 'dd-bars', style: `height:${plotH}px` }, bars),
+        h('div', { class: 'dd-xlabel' }, [String(x)]),
+      ]),
+    );
+  }
+  const chart = h('div', { class: 'dd-chart' }, [
+    h('div', { class: 'dd-yaxis' }, [h('span', {}, [String(yMax)]), h('span', {}, ['0'])]),
+    h('div', { class: 'dd-plot' }, columns),
+  ]);
+
+  const statRows = cells.map((c, ci) => {
+    const vals = series[ci];
+    const mean = (vals.reduce((a, b) => a + b, 0) / n).toFixed(2);
+    return h('tr', {}, [
+      h('th', {}, [swatch(ci), ...cellLabelNodes(c)]),
+      h('td', {}, [mean]),
+      h('td', {}, [`${Math.min(...vals)}–${Math.max(...vals)}`]),
+    ]);
+  });
+  const stats = h('table', { class: 'dd-stats' }, [
+    h('thead', {}, [h('tr', {}, [h('th', {}, ['Cell']), h('th', {}, ['Avg']), h('th', {}, ['Range'])])]),
+    h('tbody', {}, statRows),
+  ]);
+
+  return h('div', { class: 'dd-summary' }, [
+    h('div', { class: 'dd-summary-head' }, [`Double-dummy summary · ${n} deal${n === 1 ? '' : 's'}`]),
+    legend,
+    chart,
+    h('p', { class: 'hint' }, ['Bars: how many deals make each number of tricks (double dummy), per selected cell.']),
+    stats,
+  ]);
+}

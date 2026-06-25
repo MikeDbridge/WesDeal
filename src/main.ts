@@ -1,7 +1,7 @@
 import './styles.css';
 import { h } from './ui/dom';
 import { buildForm } from './ui/form';
-import { boardElement, dealsLayoutText, ddResultElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
+import { boardElement, dealsLayoutText, ddResultElement, ddSummaryElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
 import { dealToPBN } from './engine/format';
 import { isEmptyConstraintSet } from './engine/constraints';
 import { type Deal, type Seat } from './engine/deal';
@@ -21,6 +21,8 @@ const generateBtn = h('button', { class: 'primary', type: 'button' }, ['Generate
 const copyPbnBtn = h('button', { type: 'button', disabled: true }, ['Copy PBN']) as HTMLButtonElement;
 const copyTextBtn = h('button', { type: 'button', disabled: true, title: 'Copy the deals as text in the selected layout' }, ['Copy layout']) as HTMLButtonElement;
 const solveDDBtn = h('button', { type: 'button', disabled: true, title: 'Solve the ticked strain × declarer cells for each deal' }, ['Solve double dummy']) as HTMLButtonElement;
+const summaryBtn = h('button', { type: 'button', disabled: true, title: 'Distribution summary of the double-dummy results' }, ['Summary']) as HTMLButtonElement;
+const summaryEl = h('div', { class: 'dd-summary-panel', hidden: true });
 
 const formatSelect = h(
   'select',
@@ -116,6 +118,10 @@ worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
   lastDeals = deals;
   ddResults = new Array(deals.length); // fresh deals → drop any old DD results
   lastDDCells = [];
+  summaryBtn.disabled = true;
+  summaryBtn.textContent = 'Summary';
+  summaryEl.hidden = true;
+  summaryEl.replaceChildren();
 
   const requested = form.readOptions().count;
   const secs = secsSince(searchStart);
@@ -184,6 +190,8 @@ function solveDD(): void {
     onDone() {
       solveDDBtn.disabled = false;
       solveDDBtn.textContent = 'Solve double dummy';
+      summaryBtn.disabled = false;
+      if (!summaryEl.hidden) renderSummary();
       status.textContent = `Double dummy solved for ${total} deal${total === 1 ? '' : 's'} in ${secsSince(ddStart)} s.`;
     },
     onError(message) {
@@ -193,6 +201,22 @@ function solveDD(): void {
 }
 
 solveDDBtn.addEventListener('click', solveDD);
+
+function renderSummary(): void {
+  const perDeal = ddResults.filter((r): r is number[] => r !== undefined);
+  if (lastDDCells.length === 0 || perDeal.length === 0) {
+    summaryEl.replaceChildren(h('p', { class: 'hint' }, ['No double-dummy results to summarise yet.']));
+    return;
+  }
+  summaryEl.replaceChildren(ddSummaryElement(lastDDCells, perDeal));
+}
+
+function toggleSummary(): void {
+  summaryEl.hidden = !summaryEl.hidden;
+  summaryBtn.textContent = summaryEl.hidden ? 'Summary' : 'Hide summary';
+  if (!summaryEl.hidden) renderSummary();
+}
+summaryBtn.addEventListener('click', toggleSummary);
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (app) {
@@ -205,11 +229,13 @@ if (app) {
     h('div', { class: 'actions' }, [
       generateBtn,
       solveDDBtn,
+      summaryBtn,
       copyPbnBtn,
       copyTextBtn,
       h('label', { class: 'format-label' }, ['Layout ', formatSelect]),
     ]),
     status,
+    summaryEl,
     results,
   );
 }

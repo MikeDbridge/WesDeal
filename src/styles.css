@@ -190,6 +190,43 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .dd-result-table .dd-th { color: var(--muted); font-weight: 700; }
 .dd-result-table .dd-th.red { color: var(--red); }
 .dd-result-table .dd-empty { color: var(--line); }
+
+/* Double-dummy summary panel */
+.dd-summary-panel { margin: 0 0 14px; }
+.dd-summary {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 14px;
+}
+.dd-summary-head {
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;
+}
+.dd-legend {
+  display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px;
+  font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dd-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.dd-swatch { width: 11px; height: 11px; border-radius: 2px; display: inline-block; flex: none; }
+
+.dd-chart { display: flex; align-items: stretch; gap: 8px; }
+.dd-yaxis {
+  display: flex; flex-direction: column; justify-content: space-between;
+  font-size: 11px; color: var(--muted); padding-bottom: 18px;
+}
+.dd-plot { display: flex; align-items: flex-end; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
+.dd-col2 { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dd-bars { display: flex; align-items: flex-end; gap: 2px; }
+.dd-bar { border-radius: 2px 2px 0 0; }
+.dd-xlabel { font-size: 11px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.dd-stats {
+  border-collapse: collapse; margin-top: 12px; font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dd-stats th, .dd-stats td { padding: 2px 16px 2px 0; text-align: left; white-space: nowrap; }
+.dd-stats thead th { color: var(--muted); font-weight: 600; }
+.dd-stats tbody th { font-weight: 700; }
+.dd-stats tbody th .dd-swatch { margin-right: 6px; }
 .partnership label, .run-options label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
 .run-options .num { width: 92px; }
 
