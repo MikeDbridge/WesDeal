@@ -5,7 +5,7 @@ import { SUITS, SUIT_SYMBOLS, RANK_LABELS, rankOf, suitOf, type Card, type Suit 
 import { type Deal, type Seat, SEATS } from '../engine/deal';
 import { analyzeHand, exactShape } from '../engine/hand';
 import { knrPoints } from '../engine/knr';
-import { DD_STRAIN_LABELS, DD_DECLARER_LABELS, type DDCell } from '../engine/dd';
+import { DD_STRAIN_LABELS, DD_DECLARER_LABELS, cellKey, type DDCell } from '../engine/dd';
 
 const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
 
@@ -257,16 +257,49 @@ export function dealsLayoutText(deals: Deal[], lockedSeats: Seat[], format: Boar
   return deals.map((d, i) => boardText(d, i, lockedSeats, format)).join('\n\n');
 }
 
-// ---- Double-dummy inline results -------------------------------------------
+// ---- Double-dummy results --------------------------------------------------
 
-/** A concise per-board line of DD results, e.g. "♥S 10 · ♠N 9". */
-export function ddLineElement(cells: DDCell[], tricks: number[]): HTMLElement {
+/** Concise one-liner for a single cell, e.g. "♥ S 10". */
+function ddLineElement(cells: DDCell[], tricks: number[]): HTMLElement {
   const parts: Array<Node | string> = [];
   cells.forEach((c, i) => {
     if (i > 0) parts.push(' · ');
     const red = c.strain === 1 || c.strain === 2;
     parts.push(h('span', { class: 'dd-strain' + (red ? ' red' : '') }, [DD_STRAIN_LABELS[c.strain]]));
-    parts.push(`${DD_DECLARER_LABELS[c.declarer]} ${tricks[i]}`);
+    parts.push(` ${DD_DECLARER_LABELS[c.declarer]} ${tricks[i]}`);
   });
-  return h('div', { class: 'dd-line' }, parts);
+  return h('div', { class: 'dd-line dd-result' }, parts);
+}
+
+// Declarer rows grouped by partnership: N, S, then E, W.
+const DD_ROW_ORDER = [0, 2, 1, 3];
+
+/** Compact strain × declarer table for several cells ("–" where not solved). */
+function ddTableElement(cells: DDCell[], tricks: number[]): HTMLElement {
+  const value = new Map<string, number>();
+  cells.forEach((c, i) => value.set(cellKey(c.strain, c.declarer), tricks[i]));
+  const strains = [...new Set(cells.map((c) => c.strain))].sort((a, b) => a - b);
+  const declarers = DD_ROW_ORDER.filter((d) => cells.some((c) => c.declarer === d));
+
+  const header = h('tr', {}, [
+    h('th', {}, []),
+    ...strains.map((s) =>
+      h('th', { class: 'dd-th' + (s === 1 || s === 2 ? ' red' : '') }, [DD_STRAIN_LABELS[s]]),
+    ),
+  ]);
+  const rows = declarers.map((d) =>
+    h('tr', {}, [
+      h('th', { class: 'dd-th' }, [DD_DECLARER_LABELS[d]]),
+      ...strains.map((s) => {
+        const v = value.get(cellKey(s, d));
+        return h('td', { class: v === undefined ? 'dd-empty' : '' }, [v === undefined ? '–' : String(v)]);
+      }),
+    ]),
+  );
+  return h('table', { class: 'dd-result dd-result-table' }, [h('thead', {}, [header]), h('tbody', {}, rows)]);
+}
+
+/** Per-board DD output: one line for a single cell, a small table for several. */
+export function ddResultElement(cells: DDCell[], tricks: number[]): HTMLElement {
+  return cells.length > 1 ? ddTableElement(cells, tricks) : ddLineElement(cells, tricks);
 }

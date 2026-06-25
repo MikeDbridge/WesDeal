@@ -174,12 +174,22 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .dd-head-cell.dd-strain.red { color: var(--red); }
 .dd-check { width: 16px; height: 16px; cursor: pointer; }
 
-/* Inline DD results under a board */
+/* DD results under a board: one line for a single cell, a table for several */
 .dd-line {
   margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
 }
 .dd-line .dd-strain { font-weight: 700; }
+
+.dd-result-table {
+  margin-top: 8px; border-top: 1px dashed var(--line); border-collapse: collapse;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+}
+.dd-result-table th, .dd-result-table td { padding: 1px 9px; text-align: center; }
+.dd-result-table thead th { padding-top: 5px; }
+.dd-result-table .dd-th { color: var(--muted); font-weight: 700; }
+.dd-result-table .dd-th.red { color: var(--red); }
+.dd-result-table .dd-empty { color: var(--line); }
 .partnership label, .run-options label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
 .run-options .num { width: 92px; }
 

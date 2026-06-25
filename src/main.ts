@@ -1,7 +1,7 @@
 import './styles.css';
 import { h } from './ui/dom';
 import { buildForm } from './ui/form';
-import { boardElement, dealsLayoutText, ddLineElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
+import { boardElement, dealsLayoutText, ddResultElement, BOARD_FORMATS, DEFAULT_FORMAT, type BoardFormat } from './ui/render';
 import { dealToPBN } from './engine/format';
 import { isEmptyConstraintSet } from './engine/constraints';
 import { type Deal, type Seat } from './engine/deal';
@@ -41,7 +41,7 @@ function renderResults(): void {
   boardEls = lastDeals.map((deal, i) => {
     const el = boardElement(deal, i, lastLockedSeats, format);
     const tricks = ddResults[i];
-    if (tricks) el.append(ddLineElement(lastDDCells, tricks));
+    if (tricks) el.append(ddResultElement(lastDDCells, tricks));
     return el;
   });
   results.replaceChildren(...boardEls);
@@ -153,8 +153,8 @@ function ensureDDWorker(): Worker {
       ddResults[msg.index] = msg.tricks;
       const el = boardEls[msg.index];
       if (el) {
-        el.querySelector('.dd-line')?.remove();
-        el.append(ddLineElement(lastDDCells, msg.tricks));
+        el.querySelector('.dd-result')?.remove();
+        el.append(ddResultElement(lastDDCells, msg.tricks));
       }
       ddProgress++;
       status.textContent = `Solving double dummy… ${ddProgress}/${lastDeals.length}`;
