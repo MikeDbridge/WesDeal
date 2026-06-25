@@ -161,6 +161,25 @@ h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .partner-group + .partner-group { padding-left: 18px; border-left: 1px solid var(--line); }
 .partner-title { font-weight: 700; color: var(--ink); font-size: 13px; text-align: center; }
 .partner-pair { display: flex; align-items: center; gap: 12px; }
+
+/* Double-dummy selection grid */
+.dd-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.dd-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+.dd-btn { padding: 4px 10px; font-size: 13px; }
+.dd-table { border-collapse: collapse; }
+.dd-table th, .dd-table td { padding: 2px 10px; text-align: center; }
+.dd-head-cell { color: var(--muted); font-weight: 700; cursor: pointer; user-select: none; }
+.dd-head-cell:hover { color: var(--accent); }
+.dd-head-cell.dd-strain { font-size: 15px; }
+.dd-head-cell.dd-strain.red { color: var(--red); }
+.dd-check { width: 16px; height: 16px; cursor: pointer; }
+
+/* Inline DD results under a board */
+.dd-line {
+  margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+}
+.dd-line .dd-strain { font-weight: 700; }
 .partnership label, .run-options label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
 .run-options .num { width: 92px; }
 

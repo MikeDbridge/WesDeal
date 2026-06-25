@@ -20,6 +20,7 @@ import { parseHandSpec } from '../engine/parse';
 import { evaluateSpec } from '../engine/evaluate';
 import { exactShape } from '../engine/hand';
 import { compileFilter } from '../engine/filter';
+import { DD_STRAIN_LABELS, DD_DECLARER_LABELS, type DDCell } from '../engine/dd';
 import type { ConstraintSet, HandConstraint, Range } from '../engine/constraints';
 
 const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
@@ -86,6 +87,8 @@ export interface FormController {
   readConstraints(): ConstraintResult;
   readOptions(): RunOptions;
   readGiven(): GivenResult;
+  /** Which strain × declarer cells to double-dummy solve (empty = none). */
+  readDD(): DDCell[];
 }
 
 function redClass(s: Suit): string {
@@ -358,6 +361,60 @@ export function buildForm(): FormController {
     h('label', {}, ['Seed ', seed]),
   ]);
 
+  // ---- Double-dummy selection (strain × declarer grid) ---------------------
+  const ddChecks: HTMLInputElement[][] = [[], [], [], [], []]; // [strain][declarer]
+  const setAllDD = (v: boolean): void => {
+    for (const row of ddChecks) for (const cb of row) cb.checked = v;
+  };
+  const toggleDDRow = (s: number): void => {
+    const all = ddChecks[s].every((cb) => cb.checked);
+    for (const cb of ddChecks[s]) cb.checked = !all;
+  };
+  const toggleDDCol = (d: number): void => {
+    const all = ddChecks.every((row) => row[d].checked);
+    for (const row of ddChecks) row[d].checked = !all;
+  };
+  const ddHeader = h('tr', {}, [
+    h('th', {}, []),
+    ...DD_DECLARER_LABELS.map((d, di) =>
+      h('th', { class: 'dd-head-cell', title: `Toggle ${d} for every strain`, onclick: () => toggleDDCol(di) }, [d]),
+    ),
+  ]);
+  const ddBody = DD_STRAIN_LABELS.map((label, si) =>
+    h('tr', {}, [
+      h(
+        'th',
+        {
+          class: 'dd-head-cell dd-strain' + (si === 1 || si === 2 ? ' red' : ''),
+          title: `Toggle ${label} for every declarer`,
+          onclick: () => toggleDDRow(si),
+        },
+        [label],
+      ),
+      ...DD_DECLARER_LABELS.map((_, di) => {
+        const cb = h('input', { type: 'checkbox', class: 'dd-check' }) as HTMLInputElement;
+        ddChecks[si][di] = cb;
+        return h('td', {}, [cb]);
+      }),
+    ]),
+  );
+  const ddSection = h('div', { class: 'dd-section' }, [
+    h('div', { class: 'dd-bar' }, [
+      h('span', { class: 'group-label' }, ['Double dummy']),
+      h('button', { type: 'button', class: 'dd-btn', onclick: () => setAllDD(true) }, ['Full table']),
+      h('button', { type: 'button', class: 'dd-btn', onclick: () => setAllDD(false) }, ['Clear']),
+    ]),
+    h('table', { class: 'dd-table' }, [h('thead', {}, [ddHeader]), h('tbody', {}, ddBody)]),
+    h('p', { class: 'hint' }, [
+      'Tick which strain × declarer to solve for each deal (one cell is fastest). Click a ♠/N label to toggle a whole row/column.',
+    ]),
+  ]);
+  const readDD = (): DDCell[] => {
+    const cells: DDCell[] = [];
+    for (let s = 0; s < 5; s++) for (let d = 0; d < 4; d++) if (ddChecks[s][d].checked) cells.push({ strain: s, declarer: d });
+    return cells;
+  };
+
   // Dropdown presets shared by the compact fields (typeable comboboxes).
   const datalist = (id: string, values: string[]): HTMLElement =>
     h('datalist', { id }, values.map((v) => h('option', { value: v })));
@@ -372,6 +429,7 @@ export function buildForm(): FormController {
     filterHelp,
     partnership,
     options,
+    ddSection,
     presets,
   ]);
 
@@ -450,5 +508,5 @@ export function buildForm(): FormController {
     return { given, lockedSeats, errors };
   };
 
-  return { element, readConstraints, readOptions, readGiven };
+  return { element, readConstraints, readOptions, readGiven, readDD };
 }

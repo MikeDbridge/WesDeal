@@ -5,6 +5,7 @@ import { SUITS, SUIT_SYMBOLS, RANK_LABELS, rankOf, suitOf, type Card, type Suit 
 import { type Deal, type Seat, SEATS } from '../engine/deal';
 import { analyzeHand, exactShape } from '../engine/hand';
 import { knrPoints } from '../engine/knr';
+import { DD_STRAIN_LABELS, DD_DECLARER_LABELS, type DDCell } from '../engine/dd';
 
 const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
 
@@ -254,4 +255,18 @@ export function boardText(deal: Deal, index: number, lockedSeats: Seat[], format
 /** All deals as plain text in the given layout (for the Copy button). */
 export function dealsLayoutText(deals: Deal[], lockedSeats: Seat[], format: BoardFormat): string {
   return deals.map((d, i) => boardText(d, i, lockedSeats, format)).join('\n\n');
+}
+
+// ---- Double-dummy inline results -------------------------------------------
+
+/** A concise per-board line of DD results, e.g. "♥S 10 · ♠N 9". */
+export function ddLineElement(cells: DDCell[], tricks: number[]): HTMLElement {
+  const parts: Array<Node | string> = [];
+  cells.forEach((c, i) => {
+    if (i > 0) parts.push(' · ');
+    const red = c.strain === 1 || c.strain === 2;
+    parts.push(h('span', { class: 'dd-strain' + (red ? ' red' : '') }, [DD_STRAIN_LABELS[c.strain]]));
+    parts.push(`${DD_DECLARER_LABELS[c.declarer]} ${tricks[i]}`);
+  });
+  return h('div', { class: 'dd-line' }, parts);
 }
