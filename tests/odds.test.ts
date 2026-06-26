@@ -35,6 +35,17 @@ describe('suit-break odds', () => {
     expect(pct(suitBreakOdds(6), 6, 0)).toBeCloseTo(1.49, 1);
   });
 
+  it('skews with asymmetric vacant spaces but still sums to 1', () => {
+    // East has 12 vacant spaces, West only 2 → the suit lies 2-0 far more often.
+    const s = suitBreakOdds(2, 12, 2);
+    expect(pct(s, 1, 1)).toBeCloseTo((24 / 91) * 100, 6); // 1-1
+    expect(pct(s, 2, 0)).toBeCloseTo((67 / 91) * 100, 6); // 2-0
+    for (const [vE, vW] of [[13, 13], [12, 2], [10, 5], [13, 0]]) {
+      const total = suitBreakOdds(4, vE, vW).reduce((sum, x) => sum + x.probability, 0);
+      expect(total).toBeCloseTo(1, 9);
+    }
+  });
+
   it('orders splits most-even first and sums to 1', () => {
     const five = suitBreakOdds(5);
     expect(five.map((s) => `${s.a}-${s.b}`)).toEqual(['3-2', '4-1', '5-0']);

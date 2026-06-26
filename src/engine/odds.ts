@@ -1,19 +1,16 @@
 /**
- * A-priori suit-break odds.
+ * Suit-break odds under the vacant-spaces model.
  *
- * When your side holds some cards in a suit, the opponents hold the rest. Before
- * any cards are seen, the chance the missing cards split a given way between the
- * two opponents follows the hypergeometric distribution: each opponent is dealt
- * 13 of the 26 unknown cards, so
+ * When your side holds some cards in a suit, the opponents hold the rest. With
+ * `vE`/`vW` unknown card slots ("vacant spaces") in the two hands, the chance one
+ * opponent holds exactly k of the m missing cards is hypergeometric:
  *
- *   P(one opponent holds exactly k of the m missing) =
- *       C(m, k) · C(26 - m, 13 - k) / C(26, 13)
+ *   P(East holds exactly k) = C(m, k) · C(vE + vW - m, vE - k) / C(vE + vW, vE)
  *
  * A named split a-b (a ≥ b, a + b = m) covers both opponents, so its probability
- * is that of k = a plus k = b (equal by symmetry), i.e. doubled unless a = b.
+ * is P(East = a) + P(East = b) — equal when vacant spaces match, but not otherwise.
+ * A-priori each opponent has 13 vacant spaces (vE = vW = 13), the default.
  */
-
-const TOTAL = 10_400_600; // C(26, 13): ways to deal 13 of the 26 unknown cards
 
 export function comb(n: number, k: number): number {
   if (k < 0 || k > n) return 0;
@@ -36,15 +33,19 @@ export interface SuitSplit {
 
 /**
  * Every way `missing` opponent cards can split, most even first, with odds.
- * `missing` is the number of cards your side does NOT hold (0..13).
+ * `missing` is the number of cards your side does NOT hold. `vacantE`/`vacantW`
+ * are the opponents' vacant spaces (default 13 each = a-priori).
  */
-export function suitBreakOdds(missing: number): SuitSplit[] {
+export function suitBreakOdds(missing: number, vacantE = 13, vacantW = 13): SuitSplit[] {
+  const v = vacantE + vacantW;
+  const denom = comb(v, vacantE);
+  // ways East holds exactly k of the missing cards.
+  const east = (k: number): number => comb(missing, k) * comb(v - missing, vacantE - k);
   const splits: SuitSplit[] = [];
   for (let a = Math.ceil(missing / 2); a <= missing; a++) {
     const b = missing - a;
-    const ways = comb(missing, a) * comb(26 - missing, 13 - a);
-    const cases = a === b ? ways : 2 * ways;
-    splits.push({ a, b, cases, probability: cases / TOTAL });
+    const cases = a === b ? east(a) : east(a) + east(b);
+    splits.push({ a, b, cases, probability: cases / denom });
   }
   return splits;
 }
