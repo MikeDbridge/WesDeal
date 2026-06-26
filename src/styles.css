@@ -74,6 +74,10 @@ body {
 }
 .odds-holding:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .odds-vacant { width: 64px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; cursor: pointer; }
+.odds-field { display: inline-flex; flex-direction: column; align-items: center; gap: 5px; }
+.odds-field-title { font-size: 13px; font-weight: 600; color: var(--muted); }
+.vacant-pair { display: flex; gap: 14px; }
+.vacant-pair label { display: inline-flex; align-items: center; gap: 5px; }
 .odds-error { color: var(--danger, #c0392b); font-weight: 600; margin: 4px 0 0; }
 
 h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 0 0 10px; }

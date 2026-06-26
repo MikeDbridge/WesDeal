@@ -1,7 +1,7 @@
 import './styles.css';
 import { h } from './ui/dom';
 import { siteNav } from './ui/nav';
-import { suitBreakOdds, type SuitSplit } from './engine/odds';
+import { suitBreakOdds, orientedSuitBreaks, type SuitSplit } from './engine/odds';
 import { parseHolding, cardLieOdds } from './engine/cardSplit';
 
 const pctStr = (p: number, dp = 2): string => `${(p * 100).toFixed(dp)}%`;
@@ -19,6 +19,17 @@ const vacantInput = (): HTMLSelectElement => {
   sel.value = '13';
   return sel;
 };
+
+/** A control (or controls) with a centred title above it. */
+const fieldStack = (title: string, ...controls: Array<Node | string>): HTMLElement =>
+  h('div', { class: 'odds-field' }, [h('div', { class: 'odds-field-title' }, [title]), ...controls]);
+
+/** "Vacant spaces" title centred over a West/East pair of dropdowns. */
+const vacantGroup = (west: HTMLSelectElement, east: HTMLSelectElement): HTMLElement =>
+  fieldStack('Vacant spaces', h('div', { class: 'vacant-pair' }, [
+    h('label', {}, ['West: ', west]),
+    h('label', {}, ['East: ', east]),
+  ]));
 
 /** A collapsible explanation, hidden until clicked. */
 const explain = (...body: Array<Node | string>): HTMLElement =>
@@ -79,18 +90,15 @@ const holdingInput = h('input', { type: 'text', value: 'KJxxx', class: 'odds-hol
 const lieVacantE = vacantInput();
 const lieVacantW = vacantInput();
 const orderByLength = h('input', { type: 'checkbox', class: 'odds-check' }) as HTMLInputElement;
-const lieStatus = h('span', { class: 'odds-missing' }, []);
 const lieResults = h('div', { class: 'odds-results' }, []);
 
 function buildLieResults(): HTMLElement {
   const holding = parseHolding(holdingInput.value);
   if (holding.error) {
-    lieStatus.textContent = holding.error;
     return h('p', { class: 'odds-error' }, [holding.error]);
   }
   const vE = clampVacant(lieVacantE);
   const vW = clampVacant(lieVacantW);
-  lieStatus.textContent = `${holding.cards} card${holding.cards === 1 ? '' : 's'} missing`;
   if (holding.cards === 0) {
     return h('p', { class: 'odds-missing' }, ['Enter the cards the opponents hold above.']);
   }
@@ -126,11 +134,9 @@ const liePanel = h('section', { class: 'form odds-panel' }, [
     ' to combine breaks in two suits. Lower the vacant spaces once the shape of the opponents’ hands becomes known.',
   ),
   h('div', { class: 'odds-controls' }, [
-    h('label', {}, ['Opponents hold ', holdingInput]),
-    h('label', {}, ['West vacant ', lieVacantW]),
-    h('label', {}, ['East vacant ', lieVacantE]),
+    fieldStack('Opponents’ hold', holdingInput),
+    vacantGroup(lieVacantW, lieVacantE),
     h('label', { title: 'Sort by the number of cards West holds instead of by probability' }, [orderByLength, ' Order by length']),
-    lieStatus,
   ]),
   lieResults,
 ]);
@@ -140,7 +146,6 @@ const liePanel = h('section', { class: 'form odds-panel' }, [
 const holdsInput = h('input', { type: 'number', min: 0, max: 13, value: '8', class: 'num odds-holds' }) as HTMLInputElement;
 const basicVacantE = vacantInput();
 const basicVacantW = vacantInput();
-const missingLabel = h('span', { class: 'odds-missing' }, []);
 const basicResults = h('div', { class: 'odds-results' }, []);
 
 function buildBasicResults(): HTMLElement {
@@ -150,9 +155,22 @@ function buildBasicResults(): HTMLElement {
   const missing = 13 - holds;
   const vE = clampVacant(basicVacantE);
   const vW = clampVacant(basicVacantW);
-  missingLabel.textContent = `Opponents hold ${missing} card${missing === 1 ? '' : 's'}`;
   if (missing > vE + vW) {
     return h('p', { class: 'odds-error' }, [`Only ${vE + vW} vacant spaces for ${missing} cards — increase the vacant spaces.`]);
+  }
+
+  // When the vacant spaces differ, West and East are no longer symmetric, so
+  // show each orientation (West 3 / East 2 vs West 2 / East 3) as its own row.
+  if (vE !== vW) {
+    const rows = orientedSuitBreaks(missing, vE, vW).map((s) => ({
+      lead: [
+        h('td', { class: 'odds-split' }, [String(s.west)]),
+        h('td', { class: 'odds-split' }, [String(s.east)]),
+        h('td', { class: 'odds-prob' }, [pctStr(s.probability)]),
+      ],
+      probability: s.probability,
+    }));
+    return oddsTable([h('th', {}, ['West']), h('th', {}, ['East']), h('th', {}, ['Probability'])], rows);
   }
 
   const rows = suitBreakOdds(missing, vE, vW).map((s) => ({
@@ -177,10 +195,8 @@ const basicPanel = h('section', { class: 'form odds-panel' }, [
     'Enter how many cards your side holds; the opponents hold the rest. Each row is a way the missing cards can divide. Lower the vacant spaces once the shape of the opponents’ hands becomes known.',
   ),
   h('div', { class: 'odds-controls' }, [
-    h('label', {}, ['Cards your side holds ', holdsInput]),
-    h('label', {}, ['West vacant ', basicVacantW]),
-    h('label', {}, ['East vacant ', basicVacantE]),
-    missingLabel,
+    fieldStack('Degree of fit', holdsInput),
+    vacantGroup(basicVacantW, basicVacantE),
   ]),
   basicResults,
 ]);

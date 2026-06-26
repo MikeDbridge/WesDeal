@@ -49,3 +49,29 @@ export function suitBreakOdds(missing: number, vacantE = 13, vacantW = 13): Suit
   }
   return splits;
 }
+
+export interface OrientedSplit {
+  /** Cards in West. */
+  west: number;
+  /** Cards in East. */
+  east: number;
+  probability: number;
+}
+
+/**
+ * Suit breaks with West and East kept distinct, West's holding descending.
+ * Unlike {@link suitBreakOdds}, the two orientations of a split (e.g. West 3 /
+ * East 2 vs West 2 / East 3) are separate rows — they only matter when the
+ * opponents' vacant spaces differ. P(West holds exactly w) = C(m, w) ·
+ * C(vE + vW - m, vW - w) / C(vE + vW, vW).
+ */
+export function orientedSuitBreaks(missing: number, vacantE = 13, vacantW = 13): OrientedSplit[] {
+  const v = vacantE + vacantW;
+  const denom = comb(v, vacantW);
+  const out: OrientedSplit[] = [];
+  for (let w = missing; w >= 0; w--) {
+    const cases = comb(missing, w) * comb(v - missing, vacantW - w);
+    out.push({ west: w, east: missing - w, probability: cases / denom });
+  }
+  return out;
+}

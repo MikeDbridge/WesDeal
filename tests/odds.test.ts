@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { suitBreakOdds, comb } from '../src/engine/odds';
+import { suitBreakOdds, orientedSuitBreaks, comb } from '../src/engine/odds';
 
 const pct = (splits: { a: number; b: number; probability: number }[], a: number, b: number): number => {
   const s = splits.find((x) => x.a === a && x.b === b);
@@ -53,5 +53,18 @@ describe('suit-break odds', () => {
       const total = suitBreakOdds(m).reduce((sum, s) => sum + s.probability, 0);
       expect(total).toBeCloseTo(1, 6);
     }
+  });
+
+  it('orientedSuitBreaks keeps West and East distinct, West descending', () => {
+    const o = orientedSuitBreaks(2, 12, 2); // East has the room
+    expect(o.map((s) => `${s.west}-${s.east}`)).toEqual(['2-0', '1-1', '0-2']);
+    expect(o.find((s) => s.west === 2)!.probability).toBeCloseTo(1 / 91, 9);
+    expect(o.find((s) => s.west === 0)!.probability).toBeCloseTo(66 / 91, 9);
+    expect(o.reduce((sum, s) => sum + s.probability, 0)).toBeCloseTo(1, 9);
+    // the two orientations sum to the unordered split probability
+    const ow = orientedSuitBreaks(2, 12, 2);
+    const unordered = suitBreakOdds(2, 12, 2).find((s) => s.a === 2 && s.b === 0)!.probability;
+    const pair = ow.find((s) => s.west === 2)!.probability + ow.find((s) => s.west === 0)!.probability;
+    expect(pair).toBeCloseTo(unordered, 9);
   });
 });
