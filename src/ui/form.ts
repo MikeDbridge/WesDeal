@@ -99,13 +99,13 @@ function redClass(s: Suit): string {
 
 const POINTS_HELP = 'Points filter — examples: 12 (exactly), 10+ (min), 11- (max), 12-14 (range)';
 
-function exprInput(placeholder = '12-14'): HTMLInputElement {
+function exprInput(placeholder = '12-14', list = 'pts-presets'): HTMLInputElement {
   return h('input', {
     type: 'text',
     class: 'points-expr',
     placeholder,
     title: POINTS_HELP,
-    list: 'pts-presets',
+    list,
     spellcheck: false,
     autocomplete: 'off',
   }) as HTMLInputElement;
@@ -335,10 +335,10 @@ export function buildForm(): FormController {
   ]);
 
   // ---- Partnership ---------------------------------------------------------
-  const nsHcp = exprInput('25+');
-  const nsKnr = exprInput('27+');
-  const ewHcp = exprInput('17-');
-  const ewKnr = exprInput('18-');
+  const nsHcp = exprInput('25+', 'partner-presets');
+  const nsKnr = exprInput('27+', 'partner-presets');
+  const ewHcp = exprInput('17-', 'partner-presets');
+  const ewKnr = exprInput('18-', 'partner-presets');
   const partnerGroup = (title: string, hcpIn: HTMLInputElement, knrIn: HTMLInputElement): HTMLElement =>
     h('div', { class: 'partner-group' }, [
       h('div', { class: 'partner-title' }, [title]),
@@ -427,8 +427,9 @@ export function buildForm(): FormController {
   const datalist = (id: string, values: string[]): HTMLElement =>
     h('datalist', { id }, values.map((v) => h('option', { value: v })));
   const presets = h('div', { hidden: true }, [
-    datalist('len-presets', ['4+', '5+', '6+', '2-3', '3-4', '4-5', '0-1', '2-', '0']),
-    datalist('pts-presets', ['10+', '11+', '12+', '8-', '0-7', '12-14', '15-17', '20+']),
+    datalist('len-presets', ['4+', '5+', '6+', '0-3', '1-']),
+    datalist('pts-presets', ['11+', '15-17', '10-', '5-9', '20+']),
+    datalist('partner-presets', ['20+', '24+', '28+']),
   ]);
 
   const element = h('section', { class: 'form' }, [
