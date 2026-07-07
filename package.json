@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "research:gen": "vitest run -c vitest.research.config.ts gen",
+    "research:analyze": "vitest run -c vitest.research.config.ts analyze"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

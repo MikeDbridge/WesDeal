@@ -3,5 +3,8 @@ dist/
 *.log
 .DS_Store
 
+# Research datasets (regenerate with: npm run research:gen)
+research/data/
+
 # Local Claude Code tooling config (machine-specific paths, local permissions)
 .claude/

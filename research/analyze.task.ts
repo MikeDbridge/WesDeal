@@ -1,0 +1,241 @@
+/**
+ * Analysis, focused on 3NT and 4♥/4♠ from balanced / semi-balanced pairs.
+ *
+ * Population filter (both North AND South): 4333/4432/5332, 6322 with a 6-card
+ * minor, 4441/5431 with a stiff A/K/Q in a minor (lib.ts ntEligible).
+ *
+ * Sources pool cleanly: the eligible subset of the uniform shards has the same
+ * distribution as the filter-generated shards (different seed streams, so no
+ * duplicate deals). Uniform-only stats use just the uniform shards.
+ *
+ * Targets: ntNS = DD tricks in NT (better of N/S declaring); majTricks = DD
+ * tricks in the pair's longer major (ties: more tricks), again best declarer.
+ *
+ * Prints the report and writes research/report-pilot.md.
+ */
+
+import { it } from 'vitest';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { parsePBN, handFeatures, ntEligible, linfit, mean, sd, type StoredDeal } from './lib';
+
+const METRICS = ['hcp', 'bumrap', 'knr', 'controls'] as const;
+type Metric = (typeof METRICS)[number];
+const METRIC_LABELS: Record<Metric, string> = {
+  hcp: 'HCP (4-3-2-1)',
+  bumrap: 'BUM-RAP (4.5/3/1.5/0.75/0.25)',
+  knr: 'Kaplan-Rubens',
+  controls: 'Controls (A=2, K=1)',
+};
+
+interface Row {
+  uniform: boolean;
+  elig: boolean;
+  ntNS: number;
+  majTricks: number;
+  majFit: number;
+  m: Record<Metric, number>;
+}
+
+function loadRows(dir: string): Row[] {
+  const rows: Row[] = [];
+  for (const fn of readdirSync(dir).filter((f) => f.endsWith('.jsonl'))) {
+    const uniform = !fn.startsWith('deals-f');
+    for (const line of readFileSync(path.join(dir, fn), 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      const { pbn, dd } = JSON.parse(line) as StoredDeal;
+      const hands = parsePBN(pbn);
+      const fN = handFeatures(hands.N);
+      const fS = handFeatures(hands.S);
+      const elig = ntEligible(hands.N) && ntEligible(hands.S);
+      if (!uniform && !elig) throw new Error(`filtered shard contains ineligible deal: ${pbn}`);
+
+      const fitS = fN.lengths[0] + fS.lengths[0];
+      const fitH = fN.lengths[1] + fS.lengths[1];
+      const tricksIn = (strain: number): number => Math.max(dd[strain][0], dd[strain][2]);
+      let major: number;
+      if (fitS > fitH) major = 0;
+      else if (fitH > fitS) major = 1;
+      else major = tricksIn(0) >= tricksIn(1) ? 0 : 1;
+
+      rows.push({
+        uniform,
+        elig,
+        ntNS: tricksIn(4),
+        majTricks: tricksIn(major),
+        majFit: major === 0 ? fitS : fitH,
+        m: {
+          hcp: fN.hcp + fS.hcp,
+          bumrap: fN.bumrap + fS.bumrap,
+          knr: fN.knr + fS.knr,
+          controls: fN.controls + fS.controls,
+        },
+      });
+    }
+  }
+  return rows;
+}
+
+const pct = (num: number, den: number): string => (den === 0 ? '—' : `${((num / den) * 100).toFixed(0)}%`);
+
+function fitTable(rows: Row[], target: (r: Row) => number): string[] {
+  const ys = rows.map(target);
+  const out = ['| metric | r | R² | residual sd (tricks) | tricks per point |', '|---|---|---|---|---|'];
+  for (const metric of METRICS) {
+    const f = linfit(rows.map((r) => r.m[metric]), ys);
+    out.push(
+      `| ${METRIC_LABELS[metric]} | ${f.r.toFixed(3)} | ${f.r2.toFixed(3)} | ${f.residSD.toFixed(2)} | ${f.slope.toFixed(3)} |`,
+    );
+  }
+  return out;
+}
+
+/** Trick-count distribution table by combined HCP: raw counts for eyeballing. */
+function trickDistTable(
+  rows: Row[],
+  tricksOf: (r: Row) => number,
+  buckets: { label: string; has: (t: number) => boolean }[],
+  makeAt: number,
+  minN: number,
+): string[] {
+  const byHcp = new Map<number, Row[]>();
+  for (const r of rows) {
+    const list = byHcp.get(r.m.hcp) ?? [];
+    list.push(r);
+    byHcp.set(r.m.hcp, list);
+  }
+  const head = `| HCP | deals | avg tricks | sd | ${buckets.map((b) => b.label).join(' | ')} | P(make) |`;
+  const sep = `|${'---|'.repeat(buckets.length + 5)}`;
+  const out = [head, sep];
+  for (const hcp of [...byHcp.keys()].sort((a, b) => a - b)) {
+    const list = byHcp.get(hcp)!;
+    if (list.length < minN) continue;
+    const tricks = list.map(tricksOf);
+    const counts = buckets.map((b) => tricks.filter((t) => b.has(t)).length);
+    const made = tricks.filter((t) => t >= makeAt).length;
+    out.push(
+      `| ${hcp} | ${list.length} | ${mean(tricks).toFixed(2)} | ${sd(tricks).toFixed(2)} | ${counts.join(' | ')} | ${pct(made, list.length)} |`,
+    );
+  }
+  return out;
+}
+
+const NT_BUCKETS = [
+  { label: '≤6', has: (t: number) => t <= 6 },
+  { label: '7', has: (t: number) => t === 7 },
+  { label: '8', has: (t: number) => t === 8 },
+  { label: '9', has: (t: number) => t === 9 },
+  { label: '10', has: (t: number) => t === 10 },
+  { label: '11', has: (t: number) => t === 11 },
+  { label: '12+', has: (t: number) => t >= 12 },
+];
+const MAJ_BUCKETS = [
+  { label: '≤7', has: (t: number) => t <= 7 },
+  { label: '8', has: (t: number) => t === 8 },
+  { label: '9', has: (t: number) => t === 9 },
+  { label: '10', has: (t: number) => t === 10 },
+  { label: '11', has: (t: number) => t === 11 },
+  { label: '12+', has: (t: number) => t >= 12 },
+];
+
+/** 3NT vs 4M head-to-head on deals with an 8+ card major fit. */
+function headToHead(rows: Row[], minN: number): string[] {
+  const byHcp = new Map<number, Row[]>();
+  for (const r of rows) {
+    const list = byHcp.get(r.m.hcp) ?? [];
+    list.push(r);
+    byHcp.set(r.m.hcp, list);
+  }
+  const out = [
+    '| HCP | deals | avg NT | avg 4M | P(3NT) | P(4M) | 4M✓ 3NT✗ | 3NT✓ 4M✗ |',
+    '|---|---|---|---|---|---|---|---|',
+  ];
+  for (const hcp of [...byHcp.keys()].sort((a, b) => a - b)) {
+    const list = byHcp.get(hcp)!;
+    if (list.length < minN) continue;
+    const n = list.length;
+    const nt9 = list.filter((r) => r.ntNS >= 9).length;
+    const mj10 = list.filter((r) => r.majTricks >= 10).length;
+    const mjOnly = list.filter((r) => r.majTricks >= 10 && r.ntNS < 9).length;
+    const ntOnly = list.filter((r) => r.ntNS >= 9 && r.majTricks < 10).length;
+    out.push(
+      `| ${hcp} | ${n} | ${mean(list.map((r) => r.ntNS)).toFixed(2)} | ${mean(list.map((r) => r.majTricks)).toFixed(2)} ` +
+        `| ${pct(nt9, n)} | ${pct(mj10, n)} | ${pct(mjOnly, n)} | ${pct(ntOnly, n)} |`,
+    );
+  }
+  return out;
+}
+
+/** Effect of the major fit length, game-zone deals only. */
+function fitEffect(rows: Row[]): string[] {
+  const groups: { label: string; has: (f: number) => boolean }[] = [
+    { label: '≤7', has: (f) => f <= 7 },
+    { label: '8', has: (f) => f === 8 },
+    { label: '9', has: (f) => f === 9 },
+    { label: '10+', has: (f) => f >= 10 },
+  ];
+  const out = [
+    '| major fit | deals | avg NT | avg major | major − NT | P(3NT) | P(4M) |',
+    '|---|---|---|---|---|---|---|',
+  ];
+  for (const g of groups) {
+    const list = rows.filter((r) => g.has(r.majFit));
+    if (list.length === 0) continue;
+    const nt = mean(list.map((r) => r.ntNS));
+    const mj = mean(list.map((r) => r.majTricks));
+    out.push(
+      `| ${g.label} | ${list.length} | ${nt.toFixed(2)} | ${mj.toFixed(2)} | ${(mj - nt).toFixed(2)} ` +
+        `| ${pct(list.filter((r) => r.ntNS >= 9).length, list.length)} | ${pct(list.filter((r) => r.majTricks >= 10).length, list.length)} |`,
+    );
+  }
+  return out;
+}
+
+it('analyze the dataset (3NT / 4M focus)', () => {
+  const dir = path.join(import.meta.dirname, 'data');
+  if (!existsSync(dir)) throw new Error('No dataset found — run `npm run research:gen` first.');
+  const rows = loadRows(dir);
+  const uniform = rows.filter((r) => r.uniform);
+  const study = rows.filter((r) => r.elig);
+  const gameZone = study.filter((r) => r.m.hcp >= 22 && r.m.hcp <= 28);
+  const fitDeals = study.filter((r) => r.majFit >= 8);
+
+  const lines: string[] = [];
+  const push = (...ls: string[]): void => {
+    lines.push(...ls);
+  };
+
+  push(`# Hand evaluation vs double dummy — 3NT / 4M study`, '');
+  push(
+    `Deals: ${rows.length} total (${uniform.length} uniform + ${rows.length - uniform.length} filter-generated).`,
+    `Study population (both N and S balanced/semi-balanced): **${study.length}** deals` +
+      (uniform.length ? ` — ${((uniform.filter((r) => r.elig).length / uniform.length) * 100).toFixed(1)}% of random deals qualify.` : '.'),
+    '',
+    `Shapes: 4333/4432/5332, 6322 (6-card minor), 4441/5431 with stiff A/K/Q in a minor; both hands must qualify.`,
+    `Tricks are double dummy, better of N/S declaring. 4M = the pair's longer major.`,
+    '',
+  );
+
+  push(`## Metric accuracy, study population → NT tricks`, '');
+  push(...fitTable(study, (r) => r.ntNS), '');
+  push(`(For reference, on ALL uniform deals: )`, '');
+  push(...fitTable(uniform, (r) => r.ntNS), '');
+
+  push(`## Eyeball table: NT tricks by combined HCP (study population)`, '');
+  push(`Counts of deals taking each number of NT tricks. P(make) = 9+ tricks.`, '');
+  push(...trickDistTable(study, (r) => r.ntNS, NT_BUCKETS, 9, 10), '');
+
+  push(`## Eyeball table: major-suit tricks by combined HCP (8+ card fit only, n=${fitDeals.length})`, '');
+  push(`Counts of deals taking each number of tricks in the longer major. P(make) = 10+ tricks.`, '');
+  push(...trickDistTable(fitDeals, (r) => r.majTricks, MAJ_BUCKETS, 10, 10), '');
+
+  push(`## 3NT vs 4M head-to-head (8+ card major fit)`, '');
+  push(...headToHead(fitDeals, 10), '');
+
+  push(`## Fit-length effect (game zone: 22–28 combined HCP, n=${gameZone.length})`, '');
+  push(...fitEffect(gameZone), '');
+
+  const report = lines.join('\n');
+  console.log('\n' + report);
+  writeFileSync(path.join(import.meta.dirname, 'report-pilot.md'), report + '\n');
+}, 600_000);
