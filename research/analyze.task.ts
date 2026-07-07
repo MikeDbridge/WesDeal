@@ -21,7 +21,10 @@ import {
   parsePBN,
   handFeatures,
   shapeClass,
+  ntEligible,
   doubletonHonours,
+  doubletonClasses,
+  SHORT_VALUES_MIN,
   linfit,
   mean,
   sd,
@@ -49,6 +52,8 @@ interface Row {
   clsS: ShapeClass | null;
   dblN: number;
   dblS: number;
+  /** Doubleton honor classes ("AK", "Kx", "xx", …) across both N and S. */
+  dbls: string[];
 }
 
 function loadRows(dir: string): Row[] {
@@ -63,7 +68,7 @@ function loadRows(dir: string): Row[] {
       const fS = handFeatures(hands.S);
       const clsN = shapeClass(hands.N);
       const clsS = shapeClass(hands.S);
-      const elig = clsN !== null && clsS !== null;
+      const elig = ntEligible(hands.N) && ntEligible(hands.S); // shape + 1M-route rule
       if (!uniform && !elig) throw new Error(`filtered shard contains ineligible deal: ${pbn}`);
 
       const fitS = fN.lengths[0] + fS.lengths[0];
@@ -90,6 +95,7 @@ function loadRows(dir: string): Row[] {
         clsS,
         dblN: clsN === '5422' ? doubletonHonours(hands.N) : 0,
         dblS: clsS === '5422' ? doubletonHonours(hands.S) : 0,
+        dbls: elig ? [...doubletonClasses(hands.N), ...doubletonClasses(hands.S)] : [],
       });
     }
   }
@@ -186,10 +192,9 @@ function headToHead(rows: Row[], minN: number): string[] {
   return out;
 }
 
-/** Effect of the major fit length, game-zone deals only. */
+/** Effect of the major fit length (8+ card fits only), game-zone deals. */
 function fitEffect(rows: Row[]): string[] {
   const groups: { label: string; has: (f: number) => boolean }[] = [
-    { label: '≤7', has: (f) => f <= 7 },
     { label: '8', has: (f) => f === 8 },
     { label: '9', has: (f) => f === 9 },
     { label: '10+', has: (f) => f >= 10 },
@@ -212,6 +217,52 @@ function fitEffect(rows: Row[]): string[] {
 }
 
 const STRICT_BAL = new Set<ShapeClass>(['4333', '4432', '5332']);
+const isBal = (c: ShapeClass | null): boolean => c !== null && STRICT_BAL.has(c);
+
+/**
+ * Reference line for "at equal HCP" comparisons: NT tricks ~ combined HCP,
+ * fitted on deals where both hands are strictly balanced.
+ */
+function balancedBaseline(rows: Row[]): { n: number; residOf: (r: Row) => number } {
+  const base = rows.filter((r) => isBal(r.clsN) && isBal(r.clsS));
+  const fit = linfit(base.map((r) => r.m.hcp), base.map((r) => r.ntNS));
+  return { n: base.length, residOf: (r) => r.ntNS - (fit.intercept + fit.slope * r.m.hcp) };
+}
+
+// Doubleton holding classes, strongest first, for the honors-in-doubletons table.
+const DBL_ORDER = ['AK', 'AQ', 'AJ', 'AT', 'Ax', 'KQ', 'KJ', 'KT', 'Kx', 'QJ', 'QT', 'Qx', 'JT', 'Jx', 'Tx', 'xx'];
+
+/**
+ * NT performance by specific doubleton holding (honors and honor pairings).
+ * Every doubleton held by N or S in a study deal contributes one sample with
+ * that deal's residual, so a deal with several doubletons appears several
+ * times — fine for eyeballing relative quality.
+ */
+function doubletonTable(rows: Row[]): string[] {
+  const { n, residOf } = balancedBaseline(rows);
+  const acc = new Map<string, { resid: number[]; hcp: number[] }>();
+  for (const r of rows) {
+    for (const d of r.dbls) {
+      const slot = acc.get(d) ?? { resid: [], hcp: [] };
+      slot.resid.push(residOf(r));
+      slot.hcp.push(r.m.hcp);
+      acc.set(d, slot);
+    }
+  }
+  const out = [
+    `Baseline: both-strictly-balanced deals (n=${n}). Each doubleton held by N or S contributes the deal's residual.`,
+    '',
+    '| doubleton | samples | avg deal HCP | NT tricks vs baseline |',
+    '|---|---|---|---|',
+  ];
+  for (const cls of DBL_ORDER) {
+    const slot = acc.get(cls);
+    if (!slot) continue;
+    const m = mean(slot.resid);
+    out.push(`| ${cls} | ${slot.resid.length} | ${mean(slot.hcp).toFixed(1)} | ${m >= 0 ? '+' : ''}${m.toFixed(2)} |`);
+  }
+  return out;
+}
 
 /**
  * NT performance of each shape class at equal HCP: mean residual vs a baseline
@@ -221,10 +272,7 @@ const STRICT_BAL = new Set<ShapeClass>(['4333', '4432', '5332']);
  * many honor cards (T+) sit in its two doubletons — the user's KT/AJ question.
  */
 function shapeResidualTable(rows: Row[]): string[] {
-  const isBal = (c: ShapeClass | null): boolean => c !== null && STRICT_BAL.has(c);
-  const base = rows.filter((r) => isBal(r.clsN) && isBal(r.clsS));
-  const fit = linfit(base.map((r) => r.m.hcp), base.map((r) => r.ntNS));
-  const residOf = (r: Row): number => r.ntNS - (fit.intercept + fit.slope * r.m.hcp);
+  const { n: baseN, residOf } = balancedBaseline(rows);
 
   interface Cat {
     label: string;
@@ -256,7 +304,7 @@ function shapeResidualTable(rows: Row[]): string[] {
   }
 
   const out = [
-    `Baseline: NT tricks ~ combined HCP, fitted on both-strictly-balanced deals (n=${base.length}).`,
+    `Baseline: NT tricks ~ combined HCP, fitted on both-strictly-balanced deals (n=${baseN}).`,
     `Each row: hands of that shape whose PARTNER is strictly balanced; residual = NT tricks vs baseline at the same HCP.`,
     '',
     '| shape (partner balanced) | samples | avg HCP | NT tricks vs baseline |',
@@ -295,6 +343,8 @@ it('analyze the dataset (3NT / 4M focus)', () => {
     '',
     `Shapes: 4333/4432/5332, 6322 (6-card minor), 4441/5431 with stiff A/K/Q in a minor,`,
     `5422 except exactly 5♠-4♥ (doubleton honor quality measured below, not gated); both hands must qualify.`,
+    `1M-route rule: 15-16 HCP with a 5+ major and a 4+ card lower suit is excluded unless`,
+    `≥${SHORT_VALUES_MIN} HCP sit outside the two long suits. Major-fit analysis covers 8+ card fits only.`,
     `Tricks are double dummy, better of N/S declaring. 4M = the pair's longer major.`,
     '',
   );
@@ -315,11 +365,14 @@ it('analyze the dataset (3NT / 4M focus)', () => {
   push(`## 3NT vs 4M head-to-head (8+ card major fit)`, '');
   push(...headToHead(fitDeals, 10), '');
 
-  push(`## Fit-length effect (game zone: 22–28 combined HCP, n=${gameZone.length})`, '');
+  push(`## Fit-length effect, 8+ card major fits (game zone: 22–28 combined HCP)`, '');
   push(...fitEffect(gameZone), '');
 
   push(`## Shape quality in NT at equal HCP (incl. the 5422 doubleton-honor question)`, '');
   push(...shapeResidualTable(study), '');
+
+  push(`## Honors in doubletons — specific holdings and pairings`, '');
+  push(...doubletonTable(study), '');
 
   const report = lines.join('\n');
   console.log('\n' + report);

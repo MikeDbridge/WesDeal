@@ -94,9 +94,17 @@ export function handFeatures(cards: Card[]): HandFeatures {
  */
 export type ShapeClass = '4333' | '4432' | '5332' | '6m322' | '4441' | '5431' | '5422';
 
-export function shapeClass(cards: Card[]): ShapeClass | null {
+/** Per-suit rank lists (♠♥♦♣ order) for shape/honor questions. */
+function suitRanks(cards: Card[]): number[][] {
   const suits: number[][] = [[], [], [], []];
   for (const c of cards) suits[(c / 13) | 0].push((c % 13) + 2);
+  return suits;
+}
+
+const hcpOfRank = (r: number): number => (r >= 11 ? r - 10 : 0); // J=1 Q=2 K=3 A=4
+
+export function shapeClass(cards: Card[]): ShapeClass | null {
+  const suits = suitRanks(cards);
   const len = suits.map((s) => s.length);
   const pattern = [...len].sort((a, b) => b - a).join('');
   if (pattern === '4333' || pattern === '4432' || pattern === '5332') return pattern;
@@ -110,17 +118,61 @@ export function shapeClass(cards: Card[]): ShapeClass | null {
   return null;
 }
 
+/** "A lot of values in the short suits" threshold for the 1M-route exception. */
+export const SHORT_VALUES_MIN = 6;
+
+/**
+ * The 1M-opening-route exclusion (user 2026-07-07): with 15-16 HCP, a 5+ card
+ * major and another 4+ card LOWER-ranking suit, the hand opens 1M and rebids
+ * the second suit — so it leaves the NT-ish population — unless the values
+ * outside those two long suits are substantial (≥ SHORT_VALUES_MIN HCP).
+ */
+function opensOneMajorInstead(suits: number[][], hcp: number): boolean {
+  if (hcp < 15 || hcp > 16) return false;
+  const len = suits.map((s) => s.length);
+  for (let m = 0; m < 2; m++) {
+    if (len[m] < 5) continue;
+    for (let s = m + 1; s < 4; s++) {
+      if (len[s] < 4) continue;
+      let outside = 0;
+      for (let k = 0; k < 4; k++) {
+        if (k !== m && k !== s) outside += suits[k].reduce((a, r) => a + hcpOfRank(r), 0);
+      }
+      if (outside < SHORT_VALUES_MIN) return true;
+    }
+  }
+  return false;
+}
+
 export function ntEligible(cards: Card[]): boolean {
-  return shapeClass(cards) !== null;
+  if (shapeClass(cards) === null) return false;
+  const suits = suitRanks(cards);
+  const hcp = suits.flat().reduce((a, r) => a + hcpOfRank(r), 0);
+  return !opensOneMajorInstead(suits, hcp);
 }
 
 /** Honor cards (T or higher) held in the hand's two-card suits (0–4 for 5422). */
 export function doubletonHonours(cards: Card[]): number {
-  const suits: number[][] = [[], [], [], []];
-  for (const c of cards) suits[(c / 13) | 0].push((c % 13) + 2);
   let n = 0;
-  for (const s of suits) if (s.length === 2) n += s.filter((r) => r >= 10).length;
+  for (const s of suitRanks(cards)) if (s.length === 2) n += s.filter((r) => r >= 10).length;
   return n;
+}
+
+const RANK_CHAR: Record<number, string> = { 14: 'A', 13: 'K', 12: 'Q', 11: 'J', 10: 'T' };
+
+/**
+ * Each doubleton the hand holds, as an honor-holding class: both cards T+ give
+ * a pairing ("AK", "KT", "JT", …), one honor gives "Ax"/"Kx"/…, none is "xx".
+ */
+export function doubletonClasses(cards: Card[]): string[] {
+  return suitRanks(cards)
+    .filter((s) => s.length === 2)
+    .map((s) => {
+      const honors = s.filter((r) => r >= 10).sort((a, b) => b - a).map((r) => RANK_CHAR[r]);
+      if (honors.length === 2) return honors.join('');
+      if (honors.length === 1) return `${honors[0]}x`;
+      return 'xx';
+    });
 }
 
 // ---- Small statistics helpers ----------------------------------------------
