@@ -6,5 +6,10 @@ dist/
 # Research datasets (regenerate with: npm run research:gen)
 research/data/
 
+# Bridge - World Championship data scrape: cached raw HTML + parsed datasets
+# (re-fetch with npm run bridge:scrape)
+Bridge - World Championship data scrape/cache/
+Bridge - World Championship data scrape/data/
+
 # Local Claude Code tooling config (machine-specific paths, local permissions)
 .claude/

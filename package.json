@@ -12,7 +12,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "research:gen": "vitest run -c vitest.research.config.ts gen",
-    "research:analyze": "vitest run -c vitest.research.config.ts analyze"
+    "research:analyze": "vitest run -c vitest.research.config.ts analyze",
+    "bridge:test": "vitest run -c bridge-wc.vitest.config.ts parse.test",
+    "bridge:scrape": "vitest run -c bridge-wc.vitest.config.ts scrape.task",
+    "bridge:flatten": "vitest run -c bridge-wc.vitest.config.ts flatten.task"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
