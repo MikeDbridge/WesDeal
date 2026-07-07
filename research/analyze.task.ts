@@ -84,7 +84,8 @@ function suitRanksOf(cards: number[]): number[][] {
 function loadRows(dir: string): Row[] {
   const rows: Row[] = [];
   for (const fn of readdirSync(dir).filter((f) => f.endsWith('.jsonl'))) {
-    const fMatch = /^deals-f(\d+)\.jsonl$/.exec(fn);
+    // deals-f<shard>[-r<run>].jsonl = filtered; anything else = uniform sample.
+    const fMatch = /^deals-f(\d+)(?:-r\d+)?\.jsonl$/.exec(fn);
     const shard = fMatch ? Number.parseInt(fMatch[1], 10) : -1;
     const uniform = shard === -1;
     for (const line of readFileSync(path.join(dir, fn), 'utf8').split('\n')) {

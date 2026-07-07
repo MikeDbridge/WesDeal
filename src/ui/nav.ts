@@ -1,8 +1,8 @@
 import { h } from './dom';
 
 /** Top navigation shared by the app's pages. */
-export function siteNav(active: 'deal' | 'odds'): HTMLElement {
-  const link = (href: string, label: string, sub: string, key: 'deal' | 'odds'): HTMLElement =>
+export function siteNav(active: 'deal' | 'odds' | 'lab'): HTMLElement {
+  const link = (href: string, label: string, sub: string, key: 'deal' | 'odds' | 'lab'): HTMLElement =>
     h('a', { href, class: 'nav-link' + (key === active ? ' active' : '') }, [
       h('span', { class: 'nav-name' }, [label]),
       h('span', { class: 'nav-sub' }, [sub]),
@@ -17,5 +17,6 @@ export function siteNav(active: 'deal' | 'odds'): HTMLElement {
     brand,
     link('./index.html', 'WesDeal', 'Deal generator', 'deal'),
     link('./odds.html', 'WesOdds', 'Suit break calculator', 'odds'),
+    link('./lab.html', 'WesLab', 'Double dummy lab', 'lab'),
   ]);
 }

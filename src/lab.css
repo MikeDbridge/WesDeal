@@ -1,0 +1,22 @@
+/* WesLab page — layout extras (core look comes from styles.css). */
+
+.lab-controls {
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 22px; margin-bottom: 12px;
+}
+.lab-field { display: flex; flex-direction: column; gap: 5px; }
+.lab-field-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+.lab-count { width: 90px; }
+.lab-select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
+
+.lab-run-bar { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.lab-progress { color: var(--muted); min-height: 20px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+.lab-results { margin-top: 10px; }
+.lab-stats { border-collapse: collapse; font-size: 13px; margin: 10px 0 14px; }
+.lab-stats th, .lab-stats td { padding: 3px 14px 3px 0; text-align: left; white-space: nowrap; }
+.lab-stats thead th { color: var(--muted); font-weight: 600; }
+.lab-stats tbody th { font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.lab-stats td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.lab-exports { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.lab-hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }

@@ -5,11 +5,19 @@
  * double-dummy table dd[strain][declarer] (strain 0=♠ 1=♥ 2=♦ 3=♣ 4=NT,
  * declarer 0=N 1=E 2=S 3=W). Features are recomputed from the PBN at analysis
  * time, so the solved dataset stays useful as the feature set evolves.
+ *
+ * The study-population rules (shapes, 1M-route exclusion) live in
+ * src/engine/study.ts so the WesLab page and this pipeline share one
+ * definition; they are re-exported here for the research scripts.
  */
 
 import { SUITS, RANK_LABELS, makeCard, HCP_BY_CARD, type Card, type Rank } from '../src/engine/cards';
 import { SEATS, type Seat } from '../src/engine/deal';
 import { knrPoints } from '../src/engine/knr';
+import { suitRanks } from '../src/engine/study';
+
+export { shapeClass, ntEligible, suitRanks, SHORT_VALUES_MIN } from '../src/engine/study';
+export type { ShapeClass } from '../src/engine/study';
 
 export interface StoredDeal {
   pbn: string;
@@ -79,76 +87,6 @@ export function handFeatures(cards: Card[]): HandFeatures {
   }
   const lengthPts = lengths.reduce((acc, l) => acc + Math.max(0, l - 4), 0);
   return { hcp, knr: knrPoints(cards), controls, bumrap, aces, tens, lengths, lengthPts };
-}
-
-/**
- * The study population: balanced or semi-balanced hands (user spec 2026-07-07).
- *   - 4333, 4432, 5332
- *   - 6322 with the six-card suit a minor
- *   - 4441 or 5431 with the singleton an A/K/Q in a minor
- *   - 5422, except exactly 5♠-4♥ ("almost never" NT-ish per user). Honor
- *     quality in the doubletons is NOT gated here — it's measured at analysis
- *     time (doubletonHonours), so the dataset stays unbiased for any tighter
- *     definition chosen later.
- * (7222 deliberately excluded.)
- */
-export type ShapeClass = '4333' | '4432' | '5332' | '6m322' | '4441' | '5431' | '5422';
-
-/** Per-suit rank lists (♠♥♦♣ order) for shape/honor questions. */
-function suitRanks(cards: Card[]): number[][] {
-  const suits: number[][] = [[], [], [], []];
-  for (const c of cards) suits[(c / 13) | 0].push((c % 13) + 2);
-  return suits;
-}
-
-const hcpOfRank = (r: number): number => (r >= 11 ? r - 10 : 0); // J=1 Q=2 K=3 A=4
-
-export function shapeClass(cards: Card[]): ShapeClass | null {
-  const suits = suitRanks(cards);
-  const len = suits.map((s) => s.length);
-  const pattern = [...len].sort((a, b) => b - a).join('');
-  if (pattern === '4333' || pattern === '4432' || pattern === '5332') return pattern;
-  if (pattern === '6322') return len[2] === 6 || len[3] === 6 ? '6m322' : null; // six-card minor
-  if (pattern === '4441' || pattern === '5431') {
-    const s = len.findIndex((l) => l === 1);
-    if (s < 2) return null; // singleton must be in a minor
-    return suits[s][0] >= 12 ? pattern : null; // and be A, K or Q
-  }
-  if (pattern === '5422') return len[0] === 5 && len[1] === 4 ? null : '5422'; // never 5♠-4♥
-  return null;
-}
-
-/** "A lot of values in the short suits" threshold for the 1M-route exception. */
-export const SHORT_VALUES_MIN = 6;
-
-/**
- * The 1M-opening-route exclusion (user 2026-07-07): with 15-16 HCP, a 5+ card
- * major and another 4+ card LOWER-ranking suit, the hand opens 1M and rebids
- * the second suit — so it leaves the NT-ish population — unless the values
- * outside those two long suits are substantial (≥ SHORT_VALUES_MIN HCP).
- */
-function opensOneMajorInstead(suits: number[][], hcp: number): boolean {
-  if (hcp < 15 || hcp > 16) return false;
-  const len = suits.map((s) => s.length);
-  for (let m = 0; m < 2; m++) {
-    if (len[m] < 5) continue;
-    for (let s = m + 1; s < 4; s++) {
-      if (len[s] < 4) continue;
-      let outside = 0;
-      for (let k = 0; k < 4; k++) {
-        if (k !== m && k !== s) outside += suits[k].reduce((a, r) => a + hcpOfRank(r), 0);
-      }
-      if (outside < SHORT_VALUES_MIN) return true;
-    }
-  }
-  return false;
-}
-
-export function ntEligible(cards: Card[]): boolean {
-  if (shapeClass(cards) === null) return false;
-  const suits = suitRanks(cards);
-  const hcp = suits.flat().reduce((a, r) => a + hcpOfRank(r), 0);
-  return !opensOneMajorInstead(suits, hcp);
 }
 
 /** Honor cards (T or higher) held in the hand's two-card suits (0–4 for 5422). */

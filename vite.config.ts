@@ -5,9 +5,9 @@ export default defineConfig({
   // Build to relative paths so the app can be opened from disk if desired.
   base: './',
   build: {
-    // Two pages: the deal generator (index) and the suit-break odds calculator.
+    // Three pages: deal generator (index), suit-break odds, double-dummy lab.
     rollupOptions: {
-      input: { main: 'index.html', odds: 'odds.html' },
+      input: { main: 'index.html', odds: 'odds.html', lab: 'lab.html' },
     },
   },
   test: {
