@@ -86,21 +86,41 @@ export function handFeatures(cards: Card[]): HandFeatures {
  *   - 4333, 4432, 5332
  *   - 6322 with the six-card suit a minor
  *   - 4441 or 5431 with the singleton an A/K/Q in a minor
- * (5422 and 7222 deliberately excluded.)
+ *   - 5422, except exactly 5♠-4♥ ("almost never" NT-ish per user). Honor
+ *     quality in the doubletons is NOT gated here — it's measured at analysis
+ *     time (doubletonHonours), so the dataset stays unbiased for any tighter
+ *     definition chosen later.
+ * (7222 deliberately excluded.)
  */
-export function ntEligible(cards: Card[]): boolean {
+export type ShapeClass = '4333' | '4432' | '5332' | '6m322' | '4441' | '5431' | '5422';
+
+export function shapeClass(cards: Card[]): ShapeClass | null {
   const suits: number[][] = [[], [], [], []];
   for (const c of cards) suits[(c / 13) | 0].push((c % 13) + 2);
   const len = suits.map((s) => s.length);
   const pattern = [...len].sort((a, b) => b - a).join('');
-  if (pattern === '4333' || pattern === '4432' || pattern === '5332') return true;
-  if (pattern === '6322') return len[2] === 6 || len[3] === 6; // six-card minor
+  if (pattern === '4333' || pattern === '4432' || pattern === '5332') return pattern;
+  if (pattern === '6322') return len[2] === 6 || len[3] === 6 ? '6m322' : null; // six-card minor
   if (pattern === '4441' || pattern === '5431') {
     const s = len.findIndex((l) => l === 1);
-    if (s < 2) return false; // singleton must be in a minor
-    return suits[s][0] >= 12; // and be A, K or Q
+    if (s < 2) return null; // singleton must be in a minor
+    return suits[s][0] >= 12 ? pattern : null; // and be A, K or Q
   }
-  return false;
+  if (pattern === '5422') return len[0] === 5 && len[1] === 4 ? null : '5422'; // never 5♠-4♥
+  return null;
+}
+
+export function ntEligible(cards: Card[]): boolean {
+  return shapeClass(cards) !== null;
+}
+
+/** Honor cards (T or higher) held in the hand's two-card suits (0–4 for 5422). */
+export function doubletonHonours(cards: Card[]): number {
+  const suits: number[][] = [[], [], [], []];
+  for (const c of cards) suits[(c / 13) | 0].push((c % 13) + 2);
+  let n = 0;
+  for (const s of suits) if (s.length === 2) n += s.filter((r) => r >= 10).length;
+  return n;
 }
 
 // ---- Small statistics helpers ----------------------------------------------
