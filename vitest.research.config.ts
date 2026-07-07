@@ -12,8 +12,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['research/**/*.task.ts'],
-    testTimeout: 3_600_000,
-    hookTimeout: 3_600_000,
+    testTimeout: 10_800_000,
+    hookTimeout: 10_800_000,
     pool: 'forks',
     poolOptions: { forks: { maxForks: 8, minForks: 1 } },
   },

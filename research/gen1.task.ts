@@ -1,4 +1,4 @@
 import { it } from 'vitest';
 import { runShard } from './gen.core';
 
-it('generate shard 1', () => runShard(1), 3_600_000);
+it('generate shard 1', () => runShard(1), 10_800_000);

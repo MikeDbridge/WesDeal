@@ -202,6 +202,108 @@ export function pearson(xs: number[], ys: number[]): number {
   return sxy / Math.sqrt(sxx * syy);
 }
 
+/** OLS with intercept via normal equations; returns [intercept, ...coefs]. */
+export function olsFit(X: number[][], y: number[]): number[] {
+  const k = X[0].length + 1;
+  const A = Array.from({ length: k }, () => new Array<number>(k).fill(0));
+  const b = new Array<number>(k).fill(0);
+  for (let i = 0; i < X.length; i++) {
+    const xi = [1, ...X[i]];
+    for (let p = 0; p < k; p++) {
+      b[p] += xi[p] * y[i];
+      for (let q = p; q < k; q++) A[p][q] += xi[p] * xi[q];
+    }
+  }
+  for (let p = 0; p < k; p++) for (let q = 0; q < p; q++) A[p][q] = A[q][p];
+  for (let col = 0; col < k; col++) {
+    let piv = col;
+    for (let r = col + 1; r < k; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r;
+    [A[col], A[piv]] = [A[piv], A[col]];
+    [b[col], b[piv]] = [b[piv], b[col]];
+    const d = A[col][col];
+    for (let q = col; q < k; q++) A[col][q] /= d;
+    b[col] /= d;
+    for (let r = 0; r < k; r++) {
+      if (r === col || A[r][col] === 0) continue;
+      const f = A[r][col];
+      for (let q = col; q < k; q++) A[r][q] -= f * A[col][q];
+      b[r] -= f * b[col];
+    }
+  }
+  return b;
+}
+
+export function olsPredict(beta: number[], x: number[]): number {
+  let s = beta[0];
+  for (let i = 0; i < x.length; i++) s += beta[i + 1] * x[i];
+  return s;
+}
+
+/** AUC — P(score of a making deal > score of a failing deal), ties count half. */
+export function auc(scores: number[], positive: boolean[]): number {
+  const idx = scores.map((_, i) => i).sort((a, b) => scores[a] - scores[b]);
+  const ranks = new Array<number>(scores.length).fill(0);
+  let i = 0;
+  while (i < idx.length) {
+    let j = i;
+    while (j + 1 < idx.length && scores[idx[j + 1]] === scores[idx[i]]) j++;
+    const avg = (i + j) / 2 + 1;
+    for (let t = i; t <= j; t++) ranks[idx[t]] = avg;
+    i = j + 1;
+  }
+  let nPos = 0;
+  let nNeg = 0;
+  let sumPos = 0;
+  for (let t = 0; t < positive.length; t++) {
+    if (positive[t]) {
+      nPos++;
+      sumPos += ranks[t];
+    } else nNeg++;
+  }
+  if (nPos === 0 || nNeg === 0) return NaN;
+  return (sumPos - (nPos * (nPos + 1)) / 2) / (nPos * nNeg);
+}
+
+/** The cut maximizing accuracy of "bid when score ≥ threshold". */
+export function bestThreshold(scores: number[], positive: boolean[]): { thr: number; acc: number } {
+  const idx = scores.map((_, i) => i).sort((a, b) => scores[a] - scores[b]);
+  const n = scores.length;
+  let totalPos = 0;
+  for (const p of positive) if (p) totalPos++;
+  let best = { thr: -Infinity, acc: totalPos / n }; // bid on everything
+  let negBelow = 0;
+  let posBelow = 0;
+  for (let c = 0; c < n; c++) {
+    if (positive[idx[c]]) posBelow++;
+    else negBelow++;
+    if (c + 1 < n && scores[idx[c + 1]] === scores[idx[c]]) continue;
+    const acc = (negBelow + (totalPos - posBelow)) / n;
+    if (acc > best.acc) {
+      best = { thr: c + 1 < n ? (scores[idx[c]] + scores[idx[c + 1]]) / 2 : scores[idx[c]] + 1e-9, acc };
+    }
+  }
+  return best;
+}
+
+/** Score at which P(success) crosses 50%, interpolated over rounded-score bins. */
+export function fiftyPct(scores: number[], positive: boolean[], minBin = 25): number | null {
+  const bins = new Map<number, { n: number; pos: number }>();
+  for (let i = 0; i < scores.length; i++) {
+    const key = Math.round(scores[i]);
+    const slot = bins.get(key) ?? { n: 0, pos: 0 };
+    slot.n++;
+    if (positive[i]) slot.pos++;
+    bins.set(key, slot);
+  }
+  const keys = [...bins.keys()].sort((a, b) => a - b).filter((k) => bins.get(k)!.n >= minBin);
+  for (let i = 0; i + 1 < keys.length; i++) {
+    const p1 = bins.get(keys[i])!.pos / bins.get(keys[i])!.n;
+    const p2 = bins.get(keys[i + 1])!.pos / bins.get(keys[i + 1])!.n;
+    if (p1 < 0.5 && p2 >= 0.5) return keys[i] + ((0.5 - p1) / (p2 - p1)) * (keys[i + 1] - keys[i]);
+  }
+  return null;
+}
+
 export interface LinFit {
   slope: number;
   intercept: number;
