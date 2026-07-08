@@ -16,6 +16,16 @@ describe('parseInline', () => {
   it('passes plain text through', () => {
     expect(parseInline('plain')).toEqual([{ t: 'text', s: 'plain' }]);
   });
+  it('parses markdown links', () => {
+    expect(parseInline('see [WesDeal](./index.html) now')).toEqual([
+      { t: 'text', s: 'see ' },
+      { t: 'link', s: 'WesDeal', href: './index.html' },
+      { t: 'text', s: ' now' },
+    ]);
+    expect(parseInline('[Dealer integration](#dealer-integration)')).toEqual([
+      { t: 'link', s: 'Dealer integration', href: '#dealer-integration' },
+    ]);
+  });
 });
 
 describe('parseReport', () => {

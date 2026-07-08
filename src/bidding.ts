@@ -45,6 +45,7 @@ function inlineNodes(inline: Inline[]): Array<Node | string> {
   for (const tok of inline) {
     if (tok.t === 'text') out.push(...suitColored(tok.s));
     else if (tok.t === 'bold') out.push(h('strong', {}, suitColored(tok.s)));
+    else if (tok.t === 'link') out.push(h('a', { href: tok.href, class: 'rep-link' }, [tok.s]));
     else out.push(h('code', { class: 'rep-code-inline', title: 'Click to copy' }, [tok.s]));
   }
   return out;

@@ -12,7 +12,8 @@
 export type Inline =
   | { t: 'text'; s: string }
   | { t: 'bold'; s: string }
-  | { t: 'code'; s: string };
+  | { t: 'code'; s: string }
+  | { t: 'link'; s: string; href: string };
 
 export type Block =
   | { t: 'h1' | 'h2' | 'h3'; text: string }
@@ -21,16 +22,20 @@ export type Block =
   | { t: 'table'; header: Inline[][]; rows: Inline[][][] }
   | { t: 'code'; text: string };
 
-/** Split a line into text / **bold** / `code` runs. */
+/** Split a line into text / **bold** / `code` / [link](href) runs. */
 export function parseInline(s: string): Inline[] {
   const out: Inline[] = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
   let last = 0;
   for (const m of s.matchAll(re)) {
     if (m.index! > last) out.push({ t: 'text', s: s.slice(last, m.index) });
     const tok = m[0];
     if (tok.startsWith('**')) out.push({ t: 'bold', s: tok.slice(2, -2) });
-    else out.push({ t: 'code', s: tok.slice(1, -1) });
+    else if (tok.startsWith('`')) out.push({ t: 'code', s: tok.slice(1, -1) });
+    else {
+      const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)!;
+      out.push({ t: 'link', s: link[1], href: link[2] });
+    }
     last = m.index! + tok.length;
   }
   if (last < s.length) out.push({ t: 'text', s: s.slice(last) });
