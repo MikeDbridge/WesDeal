@@ -161,8 +161,10 @@ export interface SeatFeatures {
   hcp: number;
   /** Suit lengths, engine order 0=♠ 1=♥ 2=♦ 3=♣. */
   len: number[];
-  /** Count of A/K/Q per suit (suit quality). */
+  /** Count of A/K/Q per suit. */
   akq: number[];
+  /** Count of A/K/Q/J/T per suit — the suit-quality metric (top(x,5)). */
+  akqjt: number[];
   /** Classic stopper per suit: A, or Kx+, or Qxx+. */
   stop: boolean[];
   balanced: boolean;
@@ -175,6 +177,7 @@ export function featuresFromPbn(pbn: string): SeatFeatures[] {
     let hcp = 0;
     const len = [0, 0, 0, 0];
     const akq = [0, 0, 0, 0];
+    const akqjt = [0, 0, 0, 0];
     const hasA = [false, false, false, false];
     const hasK = [false, false, false, false];
     const hasQ = [false, false, false, false];
@@ -184,6 +187,7 @@ export function featuresFromPbn(pbn: string): SeatFeatures[] {
       hcp += HCP_BY_CARD[c];
       len[suit]++;
       if (rank >= 12) akq[suit]++;
+      if (rank >= 10) akqjt[suit]++;
       if (rank === 14) hasA[suit] = true;
       else if (rank === 13) hasK[suit] = true;
       else if (rank === 12) hasQ[suit] = true;
@@ -194,7 +198,7 @@ export function featuresFromPbn(pbn: string): SeatFeatures[] {
     const sorted = [...len].sort((a, b) => b - a);
     const balanced =
       sorted[3] >= 2 && sorted[0] <= 5 && !(sorted[0] === 5 && sorted[1] === 4);
-    return { hcp, len, akq, stop, balanced };
+    return { hcp, len, akq, akqjt, stop, balanced };
   });
 }
 
@@ -375,12 +379,21 @@ export class Agg {
   ];
   /** A/K/Q count in a designated "bid suit" (suit bids only), 0..3. */
   akqHist = new Uint32Array(4);
+  /** A/K/Q/J/T count in the bid suit (0..5) — overall and by own strength. */
+  qualHist = new Uint32Array(6);
+  qualWeakHist = new Uint32Array(6); // hands with ≤10 HCP
+  qualSoundHist = new Uint32Array(6); // hands with 11+ HCP
   balanced = 0;
   /** Combined-suit length hists (for two-suited bids): min/max of majors/minors. */
   minMajHist = new Uint32Array(14);
   maxMajHist = new Uint32Array(14);
   minMinHist = new Uint32Array(14);
   maxMinHist = new Uint32Array(14);
+  /**
+   * Mutually-exclusive shape patterns for convention detection:
+   * 0 = both majors 4+, 1 = else a 5+ major, 2 = else a 5+ minor, 3 = rest.
+   */
+  patternHist = new Uint32Array(4);
   /** hcp × their-suit-length bucket cross-tab, when the context has "their suit". */
   hcpByTheirLen: Uint32Array | null = null; // 4 buckets × (MAX_HCP+1)
   /** Hands holding a classic stopper in their suit. */
@@ -395,12 +408,26 @@ export class Agg {
     this.n++;
     this.hcpHist[f.hcp]++;
     for (let s = 0; s < 4; s++) this.lenHist[s][f.len[s]]++;
-    if (bidSuit !== null && bidSuit < 4) this.akqHist[f.akq[bidSuit]]++;
+    if (bidSuit !== null && bidSuit < 4) {
+      this.akqHist[f.akq[bidSuit]]++;
+      this.qualHist[f.akqjt[bidSuit]]++;
+      if (f.hcp <= 10) this.qualWeakHist[f.akqjt[bidSuit]]++;
+      else this.qualSoundHist[f.akqjt[bidSuit]]++;
+    }
     if (f.balanced) this.balanced++;
     this.minMajHist[Math.min(f.len[0], f.len[1])]++;
     this.maxMajHist[Math.max(f.len[0], f.len[1])]++;
     this.minMinHist[Math.min(f.len[2], f.len[3])]++;
     this.maxMinHist[Math.max(f.len[2], f.len[3])]++;
+    const pattern =
+      Math.min(f.len[0], f.len[1]) >= 4
+        ? 0
+        : Math.max(f.len[0], f.len[1]) >= 5
+          ? 1
+          : Math.max(f.len[2], f.len[3]) >= 5
+            ? 2
+            : 3;
+    this.patternHist[pattern]++;
     if (theirSuit !== null && theirSuit < 4) {
       if (!this.hcpByTheirLen) this.hcpByTheirLen = new Uint32Array(4 * (MAX_HCP + 1));
       this.hcpByTheirLen[theirLenBucket(f.len[theirSuit]) * (MAX_HCP + 1) + f.hcp]++;
@@ -434,6 +461,11 @@ export class Agg {
     for (let s = 0; s < 4; s++)
       for (let l = 0; l < 14; l++) this.lenHist[s][l] += o.lenHist[s][l];
     for (let a = 0; a < 4; a++) this.akqHist[a] += o.akqHist[a];
+    for (let q = 0; q < 6; q++) {
+      this.qualHist[q] += o.qualHist[q];
+      this.qualWeakHist[q] += o.qualWeakHist[q];
+      this.qualSoundHist[q] += o.qualSoundHist[q];
+    }
     this.balanced += o.balanced;
     for (let l = 0; l < 14; l++) {
       this.minMajHist[l] += o.minMajHist[l];
@@ -441,6 +473,7 @@ export class Agg {
       this.minMinHist[l] += o.minMinHist[l];
       this.maxMinHist[l] += o.maxMinHist[l];
     }
+    for (let p = 0; p < 4; p++) this.patternHist[p] += o.patternHist[p];
     if (o.hcpByTheirLen) {
       if (!this.hcpByTheirLen) this.hcpByTheirLen = new Uint32Array(4 * (MAX_HCP + 1));
       for (let i = 0; i < o.hcpByTheirLen.length; i++)
@@ -622,8 +655,13 @@ export interface BidRule {
   /** The hand must satisfy `common` plus at least one branch. */
   anyOf: RuleBranch[];
   common: SuitCond[];
-  /** Minimum A/K/Q count in the bid suit, when the data demands quality. */
-  quality?: { suit: number; minTop3: number };
+  /** Suit-quality floor for every hand: A/K/Q/J/T count in the suit (top(x,5)). */
+  quality?: { suit: number; minTop5: number };
+  /**
+   * Extra quality demanded of WEAK hands only (≤10 HCP): sound values excuse a
+   * moderate suit, a light action needs the suit to carry it.
+   */
+  qualityWeak?: { suit: number; minTop5: number };
   /** Classic stopper required in this suit (NT actions). */
   stopper?: number;
   /** ≥80% of hands were balanced (HandConstraint.balanced; not in filterExpr). */
@@ -653,7 +691,12 @@ function stopperExpr(suit: number): string {
 
 function buildExpr(rule: Omit<BidRule, 'filterExpr'>): string {
   const commonParts = rule.common.map(suitCondExpr);
-  if (rule.quality) commonParts.push(`top(${SUIT_CHAR[rule.quality.suit]},3) >= ${rule.quality.minTop3}`);
+  if (rule.quality) commonParts.push(`top(${SUIT_CHAR[rule.quality.suit]},5) >= ${rule.quality.minTop5}`);
+  if (rule.qualityWeak) {
+    commonParts.push(
+      `(hcp >= 11 or top(${SUIT_CHAR[rule.qualityWeak.suit]},5) >= ${rule.qualityWeak.minTop5})`,
+    );
+  }
   if (rule.stopper !== undefined) commonParts.push(stopperExpr(rule.stopper));
   const branchExprs = rule.anyOf.map((b) => {
     const parts = [hcpExpr(b.hcp.min, b.hcp.max), ...(b.suit ?? []).map(suitCondExpr)];
@@ -672,12 +715,46 @@ function hcpRange(hist: ArrayLike<number>): { min: number; max: number } {
 }
 
 /**
- * Rule for a natural suit bid (opening, overcall, response). When the context
- * has "their suit" and enough data, the HCP minimum is split by length held in
- * their suit (shortage acts lighter, length needs more). A cue bid
- * (bidSuit === theirSuit) is derived as a two-suiter instead.
+ * Suit-quality clauses from the weak/sound strata: everyone needs the sound
+ * floor; hands of ≤10 HCP need the (higher) weak floor — light actions lean on
+ * the suit, sound values excuse a moderate one. Skipped for conventional bids.
  */
-export function deriveSuitBidRule(agg: Agg, bidSuit: number, theirSuit: number | null): BidRule {
+function qualityClauses(
+  agg: Agg,
+  bidSuit: number,
+): { quality?: BidRule['quality']; qualityWeak?: BidRule['qualityWeak'] } {
+  const total = agg.qualHist.reduce((a, b) => a + b, 0);
+  if (total < 25) return {};
+  const weakN = agg.qualWeakHist.reduce((a, b) => a + b, 0);
+  const soundN = agg.qualSoundHist.reduce((a, b) => a + b, 0);
+  if (weakN >= 25 && soundN >= 25) {
+    const weakMin = minLenAtCoverage(agg.qualWeakHist, 0.9);
+    const soundMin = minLenAtCoverage(agg.qualSoundHist, 0.9);
+    if (weakMin > soundMin) {
+      return {
+        quality: soundMin >= 1 ? { suit: bidSuit, minTop5: soundMin } : undefined,
+        qualityWeak: { suit: bidSuit, minTop5: weakMin },
+      };
+    }
+  }
+  const overall = minLenAtCoverage(agg.qualHist, 0.9);
+  return overall >= 1 ? { quality: { suit: bidSuit, minTop5: overall } } : {};
+}
+
+/**
+ * Rule for a suit bid (opening, overcall, response). When the context has
+ * "their suit" and enough data, the HCP minimum is split by length held in
+ * their suit (shortage acts lighter, length needs more). A cue bid
+ * (bidSuit === theirSuit) is derived as a two-suiter, and a suit bid over a
+ * NT opening is checked for conventional meanings (both majors / one long
+ * major / long minor) before being taken at face value.
+ */
+export function deriveSuitBidRule(
+  agg: Agg,
+  bidSuit: number,
+  theirSuit: number | null,
+  facingNT = false,
+): BidRule {
   const whole = hcpRange(agg.hcpHist);
   // Cue bid → two-suited: lengths live in the other suits.
   if (theirSuit !== null && bidSuit === theirSuit) {
@@ -713,14 +790,102 @@ export function deriveSuitBidRule(agg: Agg, bidSuit: number, theirSuit: number |
     return { ...rule, filterExpr: buildExpr(rule) };
   }
 
-  const common: SuitCond[] = [];
   const bidMin = minLenAtCoverage(agg.lenHist[bidSuit], 0.9);
+
+  // Suit bid over a NT opening whose own suit is NOT long: conventional.
+  // Detect the shape the field actually holds (defence-to-1NT conventions).
+  if (facingNT && bidMin < 4) {
+    const bothMaj = minLenAtCoverage(agg.minMajHist, 0.9);
+    if (bothMaj >= 4) {
+      const rule: Omit<BidRule, 'filterExpr'> = {
+        anyOf: [{ label: 'both majors', hcp: whole }],
+        common: [
+          { suit: 0, min: bothMaj },
+          { suit: 1, min: bothMaj },
+        ],
+      };
+      return { ...rule, filterExpr: buildExpr(rule) };
+    }
+    const oneMaj = minLenAtCoverage(agg.maxMajHist, 0.9);
+    if (oneMaj >= 5) {
+      const rule: Omit<BidRule, 'filterExpr'> = {
+        anyOf: [
+          { label: 'long ♠', hcp: whole, suit: [{ suit: 0, min: oneMaj }] },
+          { label: 'long ♥', hcp: whole, suit: [{ suit: 1, min: oneMaj }] },
+        ],
+        common: [],
+      };
+      return { ...rule, filterExpr: buildExpr(rule) };
+    }
+    const oneMin = minLenAtCoverage(agg.maxMinHist, 0.9);
+    if (oneMin >= 5) {
+      const rule: Omit<BidRule, 'filterExpr'> = {
+        anyOf: [
+          { label: 'long ♦', hcp: whole, suit: [{ suit: 2, min: oneMin }] },
+          { label: 'long ♣', hcp: whole, suit: [{ suit: 3, min: oneMin }] },
+        ],
+        common: [],
+      };
+      return { ...rule, filterExpr: buildExpr(rule) };
+    }
+    // No single shape covers 90% — the field plays a MIXTURE of treatments.
+    // Union the patterns that each cover ≥20% of the hands.
+    const patternN = agg.patternHist.reduce((a, b) => a + b, 0);
+    if (patternN >= 25) {
+      const share = (p: number): number => agg.patternHist[p] / patternN;
+      const branches: RuleBranch[] = [];
+      if (share(0) >= 0.2) {
+        branches.push({
+          label: 'both majors',
+          hcp: whole,
+          suit: [
+            { suit: 0, min: 4 },
+            { suit: 1, min: 4 },
+          ],
+        });
+      }
+      if (share(1) >= 0.2) {
+        branches.push(
+          { label: 'long ♠', hcp: whole, suit: [{ suit: 0, min: 5 }] },
+          { label: 'long ♥', hcp: whole, suit: [{ suit: 1, min: 5 }] },
+        );
+      }
+      if (share(2) >= 0.2) {
+        branches.push(
+          { label: 'long ♦', hcp: whole, suit: [{ suit: 2, min: 5 }] },
+          { label: 'long ♣', hcp: whole, suit: [{ suit: 3, min: 5 }] },
+        );
+      }
+      if (branches.length > 0) {
+        const rule: Omit<BidRule, 'filterExpr'> = { anyOf: branches, common: [] };
+        return { ...rule, filterExpr: buildExpr(rule) };
+      }
+    }
+    const rule: Omit<BidRule, 'filterExpr'> = {
+      anyOf: [{ label: 'conventional (shape varies)', hcp: whole }],
+      common: [],
+    };
+    return { ...rule, filterExpr: buildExpr(rule) };
+  }
+
+  const common: SuitCond[] = [];
   if (bidMin >= 3) common.push({ suit: bidSuit, min: bidMin });
-  const akqTotal = agg.akqHist.reduce((a, b) => a + b, 0);
-  const quality =
-    akqTotal >= 25 && (akqTotal - agg.akqHist[0]) / akqTotal >= 0.9
-      ? { suit: bidSuit, minTop3: 1 }
-      : undefined;
+  // Natural bid of a major over NT often carries a second suit (e.g. 5M+4m);
+  // 75% coverage — some of the field plays plain natural 2M.
+  if (facingNT && bidMin >= 4 && bidSuit <= 1) {
+    const secondMin = minLenAtCoverage(agg.maxMinHist, 0.75);
+    if (secondMin >= 4) {
+      const rule: Omit<BidRule, 'filterExpr'> = {
+        anyOf: [
+          { label: `with ♦${secondMin}+`, hcp: whole, suit: [{ suit: 2, min: secondMin }] },
+          { label: `with ♣${secondMin}+`, hcp: whole, suit: [{ suit: 3, min: secondMin }] },
+        ],
+        common,
+        ...qualityClauses(agg, bidSuit),
+      };
+      return { ...rule, filterExpr: buildExpr(rule) };
+    }
+  }
 
   let anyOf: RuleBranch[] = [{ label: 'any', hcp: whole }];
   if (theirSuit !== null && agg.hcpByTheirLen) {
@@ -744,7 +909,23 @@ export function deriveSuitBidRule(agg: Agg, bidSuit: number, theirSuit: number |
       ];
     }
   }
-  const rule: Omit<BidRule, 'filterExpr'> = { anyOf, common, quality };
+  const rule: Omit<BidRule, 'filterExpr'> = { anyOf, common, ...qualityClauses(agg, bidSuit) };
+  return { ...rule, filterExpr: buildExpr(rule) };
+}
+
+/**
+ * Rule for a response to partner's 1M after a takeout double when the action
+ * is, for most of the field, a raise in disguise (transfers / constructive vs
+ * weak raises): the real message is support + a strength band, and the named
+ * suit is incidental.
+ */
+export function deriveRaiseishRule(agg: Agg, partnerSuit: number): BidRule {
+  const whole = hcpRange(agg.hcpHist);
+  const supportMin = minLenAtCoverage(agg.lenHist[partnerSuit], 0.9);
+  const rule: Omit<BidRule, 'filterExpr'> = {
+    anyOf: [{ label: 'raise-equivalent (transfer/raise treatments)', hcp: whole }],
+    common: supportMin >= 3 ? [{ suit: partnerSuit, min: supportMin }] : [],
+  };
   return { ...rule, filterExpr: buildExpr(rule) };
 }
 

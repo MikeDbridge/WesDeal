@@ -39,6 +39,7 @@ import {
   deriveDoubleRule,
   deriveNtRule,
   deriveHcpRule,
+  deriveRaiseishRule,
   PairOpenings,
   classifyPair,
   median,
@@ -479,12 +480,6 @@ function fmtStats(agg: Agg): string {
   return `${st.p[0]}/${st.p[2]}/**${st.p[3]}**/${st.p[4]}/${st.p[6]}`;
 }
 
-function fmtLen(agg: Agg, suitIdx: number): string {
-  const st = histStats(agg.lenHist[suitIdx]);
-  if (st.n === 0) return '—';
-  return `${st.p[0]}–${st.p[6]} (med ${st.p[3]})`;
-}
-
 function pct(x: number, n: number): string {
   return n === 0 ? '—' : `${Math.round((100 * x) / n)}%`;
 }
@@ -505,7 +500,8 @@ interface Profile {
   freq: number | null;
   hcp: { mean: number; sd: number; min: number; max: number; p: number[]; hist: number[] };
   suitLen: Record<string, { p: number[]; hist: number[] }>;
-  akqBidSuit: number[] | null;
+  /** A/K/Q/J/T count in the bid suit: overall + weak (≤10 HCP) + sound (11+). */
+  qual: { hist: number[]; weak: number[]; sound: number[] } | null;
   balancedPct: number;
   /** % of hands with a classic stopper in their suit (competitive contexts). */
   stopperPct: number | null;
@@ -527,15 +523,60 @@ function trimHist(hist: ArrayLike<number>): number[] {
 /** Derive the dealer rule appropriate to this action in this context. */
 function deriveRule(family: string, key: string, action: string, agg: Agg): BidRule {
   const theirSuit = theirSuitFor(family, key);
+  const parts = key.split('|');
+  const opening = family === 'open' ? action : parts[0];
+  // A suit bid over a NT opening may be conventional (Landy/multi-style).
+  const facingNT =
+    TAKEOUT_X_FAMILIES.has(family) && isBid(opening) && bidParts(opening).strainIdx === 4;
   if (action === 'X' && TAKEOUT_X_FAMILIES.has(family) && theirSuit !== null) {
     return deriveDoubleRule(agg, theirSuit);
   }
   if (isBid(action)) {
     const { strainIdx } = bidParts(action);
-    if (strainIdx < 4) return deriveSuitBidRule(agg, strainIdx, theirSuit);
+    // After 1M (X), many pairs play transfers / graded raises (2NT = Jordan):
+    // when most hands hold 3+ of partner's major, the bid — suit or NT — is a
+    // raise in disguise and keys on support + strength band.
+    if (family === 'respInterf' && parts[1] === 'X' && isBid(parts[0])) {
+      const pSuit = bidParts(parts[0]).strainIdx;
+      if (pSuit <= 1 && agg.n >= 25) {
+        let support3 = 0;
+        for (let l = 3; l < 14; l++) support3 += agg.lenHist[pSuit][l];
+        if (support3 / agg.n >= 0.7) return deriveRaiseishRule(agg, pSuit);
+      }
+    }
+    if (strainIdx < 4) return deriveSuitBidRule(agg, strainIdx, theirSuit, facingNT);
     return deriveNtRule(agg, theirSuit);
   }
   return deriveHcpRule(agg); // P, XX, other doubles
+}
+
+/** Distribution cell: per-value percentages (≥2% shown, tails lumped). */
+function fmtDist(hist: ArrayLike<number>, suffix = ''): string {
+  let n = 0;
+  for (let v = 0; v < hist.length; v++) n += hist[v];
+  if (n === 0) return '—';
+  const pctOf = (c: number): number => (100 * c) / n;
+  let lo = -1;
+  let hi = -1;
+  for (let v = 0; v < hist.length; v++) {
+    if (pctOf(hist[v]) >= 2) {
+      if (lo === -1) lo = v;
+      hi = v;
+    }
+  }
+  if (lo === -1) return '—';
+  const parts: string[] = [];
+  let below = 0;
+  for (let v = 0; v < lo; v++) below += hist[v];
+  if (pctOf(below) >= 1) parts.push(`<${lo}:${Math.round(pctOf(below))}%`);
+  for (let v = lo; v <= hi; v++) {
+    const p = pctOf(hist[v]);
+    if (p >= 1) parts.push(`${v}${suffix}:${Math.round(p)}%`);
+  }
+  let above = 0;
+  for (let v = hi + 1; v < hist.length; v++) above += hist[v];
+  if (pctOf(above) >= 1) parts.push(`${hi + 1}+:${Math.round(pctOf(above))}%`);
+  return parts.join(' ');
 }
 
 function toProfile(
@@ -580,7 +621,14 @@ function toProfile(
       hist: trimHist(agg.hcpHist),
     },
     suitLen,
-    akqBidSuit: isBid(action) && bidParts(action).strainIdx < 4 ? [...agg.akqHist] : null,
+    qual:
+      isBid(action) && bidParts(action).strainIdx < 4
+        ? {
+            hist: trimHist(agg.qualHist),
+            weak: trimHist(agg.qualWeakHist),
+            sound: trimHist(agg.qualSoundHist),
+          }
+        : null,
     balancedPct: agg.n === 0 ? 0 : Number(((100 * agg.balanced) / agg.n).toFixed(1)),
     stopperPct: agg.theirN >= 25 ? Number(((100 * agg.theirStop) / agg.theirN).toFixed(1)) : null,
     hcpByTheirLen,
@@ -638,7 +686,7 @@ it('bidding-range study', () => {
   const lines = profiles.map((p) => JSON.stringify(p));
   writeFileSync(
     PROFILES_PATH,
-    `{"version":2,"source":"WBF/EBL championships 2023-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
+    `{"version":3,"source":"WBF/EBL championships 2023-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
   );
   console.log(`  ${profiles.length} profiles (all filter expressions compile) → ${PROFILES_PATH}`);
   console.log(`  report → ${REPORT_PATH}`);
@@ -799,12 +847,6 @@ function buildReport(
     const st = histStats(agg.hcpHist);
     return `${st.p[0]}–${st.p[6]} (med ${st.p[3]})`;
   };
-  const suitMin90 = (agg: Agg, suitIdx: number): number =>
-    minLenAtCoverage(agg.lenHist[suitIdx], 0.9);
-  const akq1plus = (agg: Agg): string => {
-    const total = agg.akqHist.reduce((a, b) => a + b, 0);
-    return total === 0 ? '—' : `${Math.round((100 * (total - agg.akqHist[0])) / total)}%`;
-  };
   const SUIT_GLYPH = ['♠', '♥', '♦', '♣'];
 
   // --- headline answers
@@ -814,7 +856,7 @@ function buildReport(
   add('app’s filter language (see Dealer integration). fav/unfav = medians at');
   add('favourable / unfavourable vulnerability. 1C/1D contexts face natural openings.');
   add();
-  add('| auction | n | HCP | fav | unfav | bid suit | ≥1 AKQ in suit | filter |');
+  add('| auction | n | HCP | fav | unfav | bid suit | suit qual (AKQJT) | filter |');
   add('|---|---|---|---|---|---|---|---|');
   const headline: Array<[string, string, string, string[] | 'all']> = [
     ['overOpen', '1C', '1H', ['nat', 'short']],
@@ -837,23 +879,21 @@ function buildReport(
     const fav = stat(family, key, action, stylesW, ['they']);
     const unfav = stat(family, key, action, stylesW, ['we']);
     let suitCell = '—';
+    let qualCell = '—';
     if (isBid(action)) {
       const si = bidParts(action).strainIdx;
       if (si < 4) {
-        const lenSt = histStats(agg.lenHist[si]);
-        suitCell = `${lenSt.p[0]}–${lenSt.p[6]} (med ${lenSt.p[3]})`;
+        suitCell = fmtDist(agg.lenHist[si]);
+        qualCell = fmtDist(agg.qualHist);
       }
     } else if (action === 'X') {
       const si = bidParts(key).strainIdx; // their suit
-      if (si < 4) {
-        const lenSt = histStats(agg.lenHist[si]);
-        suitCell = `their ${SUIT_GLYPH[si]}: ${lenSt.p[0]}–${lenSt.p[6]} (med ${lenSt.p[3]})`;
-      }
+      if (si < 4) suitCell = `their ${SUIT_GLYPH[si]}: ${fmtDist(agg.lenHist[si])}`;
     }
     const rule = deriveRule(family, key, action, agg);
     const label = `(${key}) ${action}`;
     add(
-      `| ${label} | ${agg.n} | ${range90(agg)} | ${fav.n >= 25 ? med(fav) : '—'} | ${unfav.n >= 25 ? med(unfav) : '—'} | ${suitCell} | ${isBid(action) && bidParts(action).strainIdx < 4 ? akq1plus(agg) : '—'} | \`${rule.filterExpr}\`${rule.balanced ? ' *+bal*' : ''} |`,
+      `| ${label} | ${agg.n} | ${range90(agg)} | ${fav.n >= 25 ? med(fav) : '—'} | ${unfav.n >= 25 ? med(unfav) : '—'} | ${suitCell} | ${qualCell} | \`${rule.filterExpr}\`${rule.balanced ? ' *+bal*' : ''} |`,
     );
   }
   add();
@@ -882,8 +922,22 @@ function buildReport(
     add(`  centre on ${med(merged)} HCP with p5 = ${histStats(merged.hcpHist).p[0]} — nearly every 11-count and many decent`);
     add(`  10-counts get opened. One-level overcalls ((1C) 1H) run ${range90(oc1)} HCP —`);
     add(`  the book "8–16" is real but the median sits ${med(merged) - med(oc1)} HCP below the median opening.`);
-    add(`- **Suit quality is near-mandatory for overcalls**: ${akq1plus(oc1)} of (1C) 1H overcalls`);
-    add(`  hold at least one of A/K/Q in the suit, and 90% hold 5+ cards.`);
+    {
+      const share = (hist: ArrayLike<number>, min: number): string => {
+        let num = 0;
+        let den = 0;
+        for (let q = 0; q < hist.length; q++) {
+          den += hist[q];
+          if (q >= min) num += hist[q];
+        }
+        return den === 0 ? '—' : `${Math.round((100 * num) / den)}%`;
+      };
+      add(`- **Suit quality is a weak-hand requirement.** Light (≤10 HCP) 1H overcalls of a`);
+      add(`  natural 1C hold 2+ of AKQJT in the suit ${share(oc1.qualWeakHist, 2)} of the time (3+: ${share(oc1.qualWeakHist, 3)});`);
+      add(`  sound ones (11+) get away with less — 2+ only ${share(oc1.qualSoundHist, 2)}. The derived filters`);
+      add(`  encode exactly that: a quality floor everyone meets, plus a higher bar that`);
+      add(`  only applies below 11 HCP (\`hcp >= 11 or top(h,5) >= …\`).`);
+    }
     add(`- **Takeout doubles are opening-strength, not 12+**: (1S) X runs ${range90(x1S)};`);
     add(`  the light tail (10–11) comes with shape.`);
     add(`- **The 1NT overcall is a strong NT**: (1H) 1NT = ${range90(nt1)}; balancing`);
@@ -895,6 +949,20 @@ function buildReport(
     add(`  hearts ${Math.round((100 * (mich.lenHist[1][0] + mich.lenHist[1][1] + mich.lenHist[1][2])) / Math.max(1, mich.n))}% of the time; (1M) 2NT is the two lowest suits, unbalanced.`);
     add(`- **Negative doubles start at ~7**: 1S (2H) X = ${range90(negX)}. Redouble after`);
     add(`  1C (X) shows ${range90(xx)}.`);
+    // Defence to 1NT: conventional shapes detected from the hands.
+    {
+      const twoC = stat('overOpen', '1NT', '2C', 'all');
+      const twoD = stat('overOpen', '1NT', '2D', 'all');
+      const shareHist = (hist: ArrayLike<number>, min: number, n: number): string =>
+        n === 0 ? '—' : `${Math.round((100 * [...Array(hist.length).keys()].filter((v) => v >= min).reduce((a, v) => a + (hist[v] as number), 0)) / n)}%`;
+      if (twoC.n >= 25 && twoD.n >= 25) {
+        add(`- **Defence to 1NT is conventional and the data shows it**: (1NT) 2C holds both`);
+        add(`  majors 4+ ${shareHist(twoC.minMajHist, 4, twoC.n)} of the time (clubs are incidental); (1NT) 2D has a 5+`);
+        add(`  major ${shareHist(twoD.maxMajHist, 5, twoD.n)} (6+ ${shareHist(twoD.maxMajHist, 6, twoD.n)}) — multi-style; 2M shows the major plus a 4+ minor.`);
+        add('  The derived rules detect these shapes instead of reading the bid suit at');
+        add('  face value (see the (1NT) ? section).');
+      }
+    }
     const styleCount = (pick: (s: PairStyle) => string, want: string): number =>
       [...styles.values()].filter((s) => pick(s) === want).length;
     const nMulti = styleCount((s) => s.twoDiamonds, 'multi');
@@ -1002,8 +1070,8 @@ function buildReport(
   ]) {
     add(`### ${seatGroup.join(' + ').replace(/seat/g, 'Seat ')}`);
     add();
-    add('| opening | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | %bal |');
-    add('|---|---|---|---|---|---|');
+    add('| opening | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) | %bal |');
+    add('|---|---|---|---|---|---|---|');
     const bids = new Set<string>();
     for (const key of seatGroup) {
       for (const a of actionsFor(cells, 'open', key)) if (isBid(a)) bids.add(a);
@@ -1017,19 +1085,15 @@ function buildReport(
         bid === '1C' ? ['nat', 'short'] : bid === '1D' ? ['nat'] : bid === '1NT' ? ['strong'] : bid === '2C' ? ['strong'] : bid === '2D' ? ['weak'] : ['nat'];
       const agg = new Agg();
       for (const key of seatGroup) {
-        const part = sumCells(cells, 'open', key, bid, 'all', styleFilter);
-        agg.n += part.n;
-        for (let h = 0; h < part.hcpHist.length; h++) agg.hcpHist[h] += part.hcpHist[h];
-        for (let s = 0; s < 4; s++)
-          for (let l = 0; l < 14; l++) agg.lenHist[s][l] += part.lenHist[s][l];
-        agg.balanced += part.balanced;
+        agg.mergeFrom(sumCells(cells, 'open', key, bid, 'all', styleFilter));
       }
       if (agg.n < 25) continue;
       const suitIdx = bidParts(bid).strainIdx;
-      const lenCell = suitIdx < 4 ? fmtLen(agg, suitIdx) : '—';
+      const lenCell = suitIdx < 4 ? fmtDist(agg.lenHist[suitIdx]) : '—';
+      const qualCell = suitIdx < 4 ? fmtDist(agg.qualHist) : '—';
       const deals = seatGroup.reduce((acc, key) => acc + dealCount('open', key, bid), 0);
       add(
-        `| ${bid} | ${agg.n} | ${deals} | ${fmtStats(agg)} | ${lenCell} | ${pct(agg.balanced, agg.n)} |`,
+        `| ${bid} | ${agg.n} | ${deals} | ${fmtStats(agg)} | ${lenCell} | ${qualCell} | ${pct(agg.balanced, agg.n)} |`,
       );
     }
     add();
@@ -1038,23 +1102,20 @@ function buildReport(
   // Preempts by vulnerability.
   add('### Preempts by vulnerability (all seats, natural-base pairs)');
   add();
-  add('| opening | vul | n | HCP p5/p25/med/p75/p95 | bid-suit len |');
-  add('|---|---|---|---|---|');
+  add('| opening | vul | n | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) |');
+  add('|---|---|---|---|---|---|');
   for (const bid of ['2H', '2S', '3C', '3D', '3H', '3S', '4C', '4D', '4H', '4S']) {
     for (const vul of ['they', 'none', 'both', 'we'] as RelVul[]) {
       const agg = new Agg();
       for (const key of ['seat1', 'seat2', 'seat3', 'seat4']) {
-        const part = sumCells(cells, 'open', key, bid, [vul], bid === '2D' ? ['weak'] : ['nat']);
-        agg.n += part.n;
-        for (let h = 0; h < part.hcpHist.length; h++) agg.hcpHist[h] += part.hcpHist[h];
-        for (let s = 0; s < 4; s++)
-          for (let l = 0; l < 14; l++) agg.lenHist[s][l] += part.lenHist[s][l];
-        agg.balanced += part.balanced;
+        agg.mergeFrom(sumCells(cells, 'open', key, bid, [vul], bid === '2D' ? ['weak'] : ['nat']));
       }
       if (agg.n < 25) continue;
       const suitIdx = bidParts(bid).strainIdx;
       const vulLabel = vul === 'they' ? 'fav' : vul === 'we' ? 'unfav' : vul;
-      add(`| ${bid} | ${vulLabel} | ${agg.n} | ${fmtStats(agg)} | ${fmtLen(agg, suitIdx)} |`);
+      add(
+        `| ${bid} | ${vulLabel} | ${agg.n} | ${fmtStats(agg)} | ${fmtDist(agg.lenHist[suitIdx])} | ${fmtDist(agg.qualHist)} |`,
+      );
     }
   }
   add();
@@ -1086,23 +1147,38 @@ function buildReport(
       const styleW = styleFor(key);
       const contextTotal = sliceTotal(totals, family, key, 'all', styleW);
       if (contextTotal < 50) continue;
+      // Partner's known suit, when the family has one (support tells the story
+      // for raises/transfers after 1M (X), and for advances of an overcall).
+      const keyParts = key.split('|');
+      const partnerBid =
+        family === 'respInterf' ? keyParts[0] : family === 'advance' ? keyParts[1] : null;
+      const partnerSuit =
+        partnerBid && isBid(partnerBid) && bidParts(partnerBid).strainIdx < 4
+          ? bidParts(partnerBid).strainIdx
+          : null;
       add(`### ${label}`);
       add();
-      add('| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | %bal | AKQ in suit (0/1/2/3) |');
-      add('|---|---|---|---|---|---|---|---|');
+      const partnerCol = partnerSuit !== null ? ` partner's ${SUIT_GLYPH[partnerSuit]} |` : '';
+      add(
+        `| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) | %bal |${partnerCol}`,
+      );
+      add(`|---|---|---|---|---|---|---|---|${partnerSuit !== null ? '---|' : ''}`);
       for (const action of actions) {
         const agg = sumCells(cells, family, key, action, 'all', styleW);
         if (agg.n < 25) continue;
         const suitIdx = isBid(action) ? bidParts(action).strainIdx : 4;
-        const lenCell = suitIdx < 4 ? fmtLen(agg, suitIdx) : '—';
-        const akqTotal = agg.akqHist.reduce((a, b) => a + b, 0);
-        const akqCell =
-          suitIdx < 4 && akqTotal > 0
-            ? [...agg.akqHist].map((c) => pct(c, akqTotal)).join('/')
-            : '—';
+        const lenCell =
+          suitIdx < 4
+            ? fmtDist(agg.lenHist[suitIdx])
+            : action === 'X' && theirSuitFor(family, key) !== null
+              ? `theirs: ${fmtDist(agg.lenHist[theirSuitFor(family, key)!])}`
+              : '—';
+        const qualCell = suitIdx < 4 ? fmtDist(agg.qualHist) : '—';
         const freq = contextTotal > 0 ? `${((100 * agg.n) / contextTotal).toFixed(1)}%` : '—';
+        const partnerCell =
+          partnerSuit !== null ? ` ${fmtDist(agg.lenHist[partnerSuit])} |` : '';
         add(
-          `| ${action} | ${freq} | ${agg.n} | ${dealCount(family, key, action)} | ${fmtStats(agg)} | ${lenCell} | ${pct(agg.balanced, agg.n)} | ${akqCell} |`,
+          `| ${action} | ${freq} | ${agg.n} | ${dealCount(family, key, action)} | ${fmtStats(agg)} | ${lenCell} | ${qualCell} | ${pct(agg.balanced, agg.n)} |${partnerCell}`,
         );
       }
       add();
@@ -1233,7 +1309,8 @@ function buildReport(
     'overOpen',
     keysWithData('overOpen', 150),
     (key) => (key === '1C' ? ['nat', 'short'] : key === '1D' ? ['nat'] : key === '2D' ? ['weak'] : 'all'),
-    'Every opening 1C–4S with enough data. For 1C/1D the tables face a NATURAL opening (strong-club and nebulous-1D openers tabulated separately below); (2D) faces a weak 2D.',
+    'Every opening 1C–4S with enough data. For 1C/1D the tables face a NATURAL opening (strong-club and nebulous-1D openers tabulated separately below); (2D) faces a weak 2D. ' +
+      'Suit actions over (1NT) are largely conventional — 2C = both majors, 2D = one long major (multi-style), 2M = the major + a minor — and their derived rules detect those shapes from the hands instead of reading the bid at face value.',
   );
 
   // How often does the direct seat act, by what the opening really is?
@@ -1312,14 +1389,14 @@ function buildReport(
   // Strong 1C faced.
   add('### (1C = strong, Precision-style) ? — for comparison');
   add();
-  add('| action | n | HCP p5/p25/med/p75/p95 | bid-suit len |');
-  add('|---|---|---|---|');
+  add('| action | n | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) |');
+  add('|---|---|---|---|---|');
   for (const action of actionsFor(cells, 'overOpen', '1C')) {
     const agg = sumCells(cells, 'overOpen', '1C', action, 'all', ['strong']);
     if (agg.n < 25) continue;
     const suitIdx = isBid(action) ? bidParts(action).strainIdx : 4;
     add(
-      `| ${action} | ${agg.n} | ${fmtStats(agg)} | ${suitIdx < 4 ? fmtLen(agg, suitIdx) : '—'} |`,
+      `| ${action} | ${agg.n} | ${fmtStats(agg)} | ${suitIdx < 4 ? fmtDist(agg.lenHist[suitIdx]) : '—'} | ${suitIdx < 4 ? fmtDist(agg.qualHist) : '—'} |`,
     );
   }
   add();
@@ -1349,7 +1426,8 @@ function buildReport(
       '1NT|X',
     ],
     naturalOpener,
-    'Key contexts: 1x (X) ? — redouble/new suits/jump raises; 1x (overcall) ? — negative doubles, raises, free bids. 1C/1D contexts use natural openers only.',
+    'Key contexts: 1x (X) ? — redouble/new suits/jump raises; 1x (overcall) ? — negative doubles, raises, free bids. 1C/1D contexts use natural openers only. ' +
+      'After 1M (X) much of the field plays transfers / graded raises (2M−1 constructive, 2M weak or vice versa), so read the **partner\'s suit** column: when most hands hold 3+ support, the bid is a raise in disguise and its derived rule keys on support + strength band, not the named suit.',
   );
 
   competitiveSection(
@@ -1385,25 +1463,15 @@ function buildReport(
   {
     const sumSeats = (bid: string, seats: string[], stylesW: string[] | 'all'): Agg => {
       const out = new Agg();
-      for (const s of seats) {
-        const part = stat('open', s, bid, stylesW);
-        out.n += part.n;
-        for (let h = 0; h < part.hcpHist.length; h++) out.hcpHist[h] += part.hcpHist[h];
-        for (let su = 0; su < 4; su++)
-          for (let l = 0; l < 14; l++) out.lenHist[su][l] += part.lenHist[su][l];
-      }
+      for (const s of seats) out.mergeFrom(stat('open', s, bid, stylesW));
       return out;
     };
     const s12 = ['seat1', 'seat2'];
     const rows: Array<[string, string, Agg]> = [
       ['1M opening (seats 1–2)', '12–21 (light 11s common in practice)', (() => {
-        const a = sumSeats('1H', s12, ['nat']);
-        const b = sumSeats('1S', s12, ['nat']);
         const m = new Agg();
-        for (const x of [a, b]) {
-          m.n += x.n;
-          for (let h = 0; h < x.hcpHist.length; h++) m.hcpHist[h] += x.hcpHist[h];
-        }
+        m.mergeFrom(sumSeats('1H', s12, ['nat']));
+        m.mergeFrom(sumSeats('1S', s12, ['nat']));
         return m;
       })()],
       ['1NT opening (strong-NT pairs)', '15–17', sumSeats('1NT', [...s12, 'seat3', 'seat4'], ['strong'])],
@@ -1461,6 +1529,13 @@ function buildReport(
   add('  and must stay in the filter).');
   add('- Overcalls split their-suit shortage (lighter HCP floor) from length');
   add('  (sounder), matching the observed gradient.');
+  add('- Suit quality uses `top(x,5)` (A/K/Q/J/T count): a floor everyone meets plus a');
+  add('  stricter bar that binds only below 11 HCP — sound values excuse a moderate');
+  add('  suit, a light action needs the suit to carry it.');
+  add('- Conventional actions are detected, not assumed: suit bids over (1NT) derive');
+  add('  as both-majors / one-long-major / long-minor shapes when that is what the');
+  add('  field holds, and 1M (X) responses that are raises in disguise (transfers,');
+  add('  graded raises) key on support for partner’s major.');
   add('- `rule.balanced` isn’t expressible in the filter language — set the seat’s');
   add('  Balanced checkbox alongside the expression.');
   add('- To deal a whole auction start (e.g. West opens 1H, North doubles), apply the');

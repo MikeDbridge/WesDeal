@@ -19,22 +19,24 @@ import {
   deriveSuitBidRule,
   deriveDoubleRule,
   deriveNtRule,
+  deriveRaiseishRule,
   type SeatFeatures,
   type MatchVp,
 } from '../research/bidding/lib';
 import { compileFilter, type HandContext } from '../src/engine/filter';
 
-/** Build SeatFeatures from suit lengths + hcp (stoppers/akq optional). */
+/** Build SeatFeatures from suit lengths + hcp (stoppers/quality optional). */
 function feat(
   len: [number, number, number, number],
   hcp: number,
-  opts: { akq?: number[]; stop?: boolean[] } = {},
+  opts: { akq?: number[]; akqjt?: number[]; stop?: boolean[] } = {},
 ): SeatFeatures {
   const sorted = [...len].sort((a, b) => b - a);
   return {
     hcp,
     len,
     akq: opts.akq ?? [1, 1, 1, 1],
+    akqjt: opts.akqjt ?? opts.akq ?? [1, 1, 1, 1],
     stop: opts.stop ?? [false, false, false, false],
     balanced: sorted[3] >= 2 && sorted[0] <= 5 && !(sorted[0] === 5 && sorted[1] === 4),
   };
@@ -201,6 +203,7 @@ describe('featuresFromPbn', () => {
     expect(f[0].hcp).toBe(17);
     expect(f[0].len).toEqual([3, 6, 3, 1]); // ♠3 ♥6 ♦3 ♣1
     expect(f[0].akq).toEqual([1, 2, 1, 1]);
+    expect(f[0].akqjt).toEqual([2, 3, 2, 1]); // KJ / KQJ / KT / A
     expect(f[0].balanced).toBe(false);
     expect(f[3].balanced).toBe(true); // 3=3=4=3
   });
@@ -307,24 +310,73 @@ describe('Agg cross-tabs and anatomy', () => {
 });
 
 describe('rule derivation', () => {
-  it('suit-bid rule splits shortage from length and compiles', () => {
+  it('suit-bid rule splits shortage from length, quality binds weak hands, compiles', () => {
     const agg = new Agg();
-    // 30 light overcalls short in their suit (♦), 30 sounder with length.
+    // 30 light overcalls short in their suit (♦) with GOOD suits, 30 sounder
+    // with length and only moderate suits.
     for (let i = 0; i < 30; i++) {
-      agg.add(feat([5, 3, 2, 3], 8 + (i % 3), { akq: [1, 0, 0, 0] }), 0, 2, false);
-      agg.add(feat([5, 2, 3, 3], 11 + (i % 4), { akq: [2, 0, 0, 0] }), 0, 2, false);
+      agg.add(feat([5, 3, 2, 3], 8 + (i % 3), { akqjt: [3, 0, 0, 0] }), 0, 2, false);
+      agg.add(feat([5, 2, 3, 3], 11 + (i % 4), { akqjt: [1, 0, 0, 0] }), 0, 2, false);
     }
     const rule = deriveSuitBidRule(agg, 0, 2);
     expect(rule.common).toContainEqual({ suit: 0, min: 5 });
     expect(rule.anyOf.length).toBe(2);
-    expect(rule.quality).toEqual({ suit: 0, minTop3: 1 });
-    // Short in diamonds and light → in; long and light → out; long and sound → in.
-    const aceOfSpades = [1 << 12, 0, 0, 0];
-    expect(passes(rule.filterExpr, [5, 3, 2, 3], 8, aceOfSpades)).toBe(true);
-    expect(passes(rule.filterExpr, [5, 2, 3, 3], 8, aceOfSpades)).toBe(false);
-    expect(passes(rule.filterExpr, [5, 2, 3, 3], 12, aceOfSpades)).toBe(true);
-    // No spade honour → out (quality).
-    expect(passes(rule.filterExpr, [5, 3, 2, 3], 9, [0, 0, 0, 0])).toBe(false);
+    // Everyone needs top(s,5) ≥ 1; weak hands need ≥ 3.
+    expect(rule.quality).toEqual({ suit: 0, minTop5: 1 });
+    expect(rule.qualityWeak).toEqual({ suit: 0, minTop5: 3 });
+    const akqSpades = [7 << 10, 0, 0, 0]; // A,K,Q of spades → top5 = 3
+    const aceOnly = [1 << 12, 0, 0, 0]; // top5 = 1
+    // Short in diamonds and light with a good suit → in; light good suit but long in theirs → out.
+    expect(passes(rule.filterExpr, [5, 3, 2, 3], 8, akqSpades)).toBe(true);
+    expect(passes(rule.filterExpr, [5, 2, 3, 3], 8, akqSpades)).toBe(false);
+    // Sound with length in theirs and a moderate suit → in.
+    expect(passes(rule.filterExpr, [5, 2, 3, 3], 12, aceOnly)).toBe(true);
+    // Light with a moderate suit → out (weak-hand quality bar).
+    expect(passes(rule.filterExpr, [5, 3, 2, 3], 8, aceOnly)).toBe(false);
+    // No honour at all → out for anyone.
+    expect(passes(rule.filterExpr, [5, 2, 3, 3], 12, [0, 0, 0, 0])).toBe(false);
+  });
+  it('detects conventional shapes over a 1NT opening', () => {
+    // Landy-ish 2C: both majors, clubs incidental.
+    const landy = new Agg();
+    for (let i = 0; i < 30; i++) {
+      landy.add(feat([5, 4, 2, 2], 9 + (i % 4)), 3, null, false);
+      landy.add(feat([4, 5, 2, 2], 9 + (i % 4)), 3, null, false);
+    }
+    const landyRule = deriveSuitBidRule(landy, 3, null, true);
+    expect(landyRule.common).toContainEqual({ suit: 0, min: 4 });
+    expect(landyRule.common).toContainEqual({ suit: 1, min: 4 });
+    expect(passes(landyRule.filterExpr, [4, 4, 3, 2], 10)).toBe(true);
+    expect(passes(landyRule.filterExpr, [2, 3, 3, 5], 10)).toBe(false);
+    // Multi-ish 2D: one long major, diamonds incidental.
+    const multi = new Agg();
+    for (let i = 0; i < 30; i++) {
+      multi.add(feat(i % 2 ? [6, 2, 3, 2] : [2, 6, 3, 2], 8 + (i % 4)), 2, null, false);
+    }
+    const multiRule = deriveSuitBidRule(multi, 2, null, true);
+    expect(multiRule.filterExpr).toContain(' or ');
+    expect(passes(multiRule.filterExpr, [6, 2, 3, 2], 9)).toBe(true);
+    expect(passes(multiRule.filterExpr, [2, 6, 3, 2], 9)).toBe(true);
+    expect(passes(multiRule.filterExpr, [3, 4, 4, 2], 9)).toBe(false);
+  });
+  it('unions mixed conventional treatments over 1NT', () => {
+    const agg = new Agg();
+    // 60% Landy-ish both majors, 40% natural long clubs — a field mixture.
+    for (let i = 0; i < 30; i++) agg.add(feat([4, 4, 3, 2], 9 + (i % 4)), 3, null, false);
+    for (let i = 0; i < 20; i++) agg.add(feat([2, 3, 2, 6], 9 + (i % 4)), 3, null, false);
+    const rule = deriveSuitBidRule(agg, 3, null, true);
+    expect(rule.anyOf.length).toBeGreaterThanOrEqual(2);
+    expect(passes(rule.filterExpr, [4, 4, 3, 2], 10)).toBe(true); // both majors
+    expect(passes(rule.filterExpr, [2, 3, 2, 6], 10)).toBe(true); // long clubs
+    expect(passes(rule.filterExpr, [3, 3, 4, 3], 10)).toBe(false); // neither
+  });
+  it('derives raise-equivalent rules on partner support', () => {
+    const agg = new Agg();
+    for (let i = 0; i < 30; i++) agg.add(feat([2, 3 + (i % 2), 4, 4], 5 + (i % 4)), 2, null, false);
+    const rule = deriveRaiseishRule(agg, 1);
+    expect(rule.common).toContainEqual({ suit: 1, min: 3 });
+    expect(passes(rule.filterExpr, [2, 3, 4, 4], 6)).toBe(true);
+    expect(passes(rule.filterExpr, [4, 2, 4, 3], 6)).toBe(false);
   });
   it('double rule has shape branches and a shape-free strong branch', () => {
     const agg = new Agg();
