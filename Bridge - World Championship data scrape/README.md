@@ -33,8 +33,17 @@ deals). See `TOURNAMENTS` in `scrape.ts`.
 - **Events**: the four national/world team divisions — Open, Women, Seniors,
   Mixed — plus the Open transnational. Not pairs / BAM. (Division-code map across
   the two naming schemes: BB=OPEN, VC=WOMEN, DOT=SEN, WUC=MIX.)
-- **Bidding**: present in newer sites (2025, and all knockouts); the older
-  round-robins (2017–2023) carry no auctions — the deal source is auto-detected.
+- **US — USBF USBC** (`usbf.org`, code `usbc26`, ingested by `usbf.ts` not the
+  WBF scraper): the US Bridge Championships publish LoveBridge **PBN** files (one
+  per round / KO segment) with full `[Deal]` + `[Auction]` + `[Play]` + per-seat
+  players + `[Room]`/`[Table]`. A match = (Round|segment, Table) with Open+Closed
+  rooms. Full auctions (a different US system population); DD is solved locally
+  (not in the file). PBN deals rotate their leading seat — normalised to
+  North-first on ingest. `npm run bridge:usbf` (env `USBF_PAGE`/`USBF_TOURN`/
+  `USBF_EVENTS`), then `WBF_TOURN=usbc26 npm run bridge:flatten`.
+- **Bidding**: present in newer sites (2025, and all knockouts) and all USBF PBN;
+  the older round-robins (2017–2023) carry no auctions — the deal source is
+  auto-detected.
 - **Combined data**: `data/_all/{contracts,matches,deals}.csv` concatenates every
   tournament (each row carries its `tournament` + `event`) for a single load.
   Rebuilt by hand after adding a tournament — concatenate each `data/<tourn>/`
