@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseReport, parseInline, slugify } from '../src/report-md';
+import { parseReport, parseInline, parseDistCell, slugify } from '../src/report-md';
 // The exact import the WesBids page uses — also proves the ?raw bundling path.
 import reportMd from '../research/bidding-report.md?raw';
 
@@ -100,6 +100,31 @@ describe('the real generated report', () => {
         expect(text).not.toContain('**');
       }
     }
+  });
+});
+
+describe('parseDistCell', () => {
+  it('parses plain distributions with anchors', () => {
+    const d = parseDistCell('4:3% 5:66% 6:23% 7:7%')!;
+    expect(d.prefix).toBe('');
+    expect(d.tokens.map((t) => t.anchor)).toEqual([4, 5, 6, 7]);
+    expect(d.tokens[1]).toEqual({ label: '5', anchor: 5, pct: 66 });
+  });
+  it('anchors lumped tails next to their neighbours', () => {
+    const d = parseDistCell('<5:2% 5:81% 6:15% 7+:2%')!;
+    expect(d.tokens.map((t) => t.label)).toEqual(['<5', '5', '6', '7+']);
+    expect(d.tokens.map((t) => t.anchor)).toEqual([4, 5, 6, 7]);
+  });
+  it('keeps prefixes like "their ♣:"', () => {
+    const d = parseDistCell('their ♣: 1:17% 2:27% 3:40%')!;
+    expect(d.prefix).toBe('their ♣:');
+    expect(d.tokens).toHaveLength(3);
+  });
+  it('rejects non-distribution text', () => {
+    expect(parseDistCell('7/9/11/13')).toBeNull();
+    expect(parseDistCell('66%')).toBeNull();
+    expect(parseDistCell('5:66% and prose')).toBeNull();
+    expect(parseDistCell('—')).toBeNull();
   });
 });
 

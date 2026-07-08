@@ -80,6 +80,28 @@ pre.rep-code {
 
 .suit-red { color: var(--red); }
 
+/* ---- Distribution cells (aligned value:percent slots) ---- */
+.rep-table td.dist-td { padding-top: 2px; padding-bottom: 2px; }
+.dist { display: inline-flex; align-items: center; gap: 6px; }
+.dist-prefix { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.dist-grid { display: inline-flex; gap: 1px; }
+.dist-slot {
+  display: inline-flex; flex-direction: column; align-items: center;
+  width: 27px; border-radius: 3px; padding: 1px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dist-slot.dist-empty { background: none; }
+.dist-label { font-size: 9px; line-height: 1.1; color: var(--muted); }
+.dist-pct { font-size: 11.5px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.dist-peak .dist-pct { font-weight: 700; }
+.dist-peak .dist-label { color: var(--ink); }
+
+@media (prefers-color-scheme: dark) {
+  /* Shading alpha is tuned for light backgrounds; keep text readable if the
+     user forces a dark UA stylesheet (the site itself is light-themed). */
+  .dist-slot { color: inherit; }
+}
+
 /* ---- Copy toast ---- */
 .bids-toast {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(8px);

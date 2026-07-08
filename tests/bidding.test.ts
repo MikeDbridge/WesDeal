@@ -20,6 +20,7 @@ import {
   deriveDoubleRule,
   deriveNtRule,
   deriveRaiseishRule,
+  textureIndex,
   type SeatFeatures,
   type MatchVp,
 } from '../research/bidding/lib';
@@ -29,7 +30,7 @@ import { compileFilter, type HandContext } from '../src/engine/filter';
 function feat(
   len: [number, number, number, number],
   hcp: number,
-  opts: { akq?: number[]; akqjt?: number[]; stop?: boolean[] } = {},
+  opts: { akq?: number[]; akqjt?: number[]; txi?: number[]; stop?: boolean[] } = {},
 ): SeatFeatures {
   const sorted = [...len].sort((a, b) => b - a);
   return {
@@ -37,9 +38,17 @@ function feat(
     len,
     akq: opts.akq ?? [1, 1, 1, 1],
     akqjt: opts.akqjt ?? opts.akq ?? [1, 1, 1, 1],
+    txi: opts.txi ?? [5, 5, 5, 5],
     stop: opts.stop ?? [false, false, false, false],
     balanced: sorted[3] >= 2 && sorted[0] <= 5 && !(sorted[0] === 5 && sorted[1] === 4),
   };
+}
+
+/** Rank set (index 2..14) from a rank list. */
+function rankSet(ranks: number[]): boolean[] {
+  const out = new Array<boolean>(15).fill(false);
+  for (const r of ranks) out[r] = true;
+  return out;
 }
 
 /** Evaluate a compiled filter expression against a simple hand. */
@@ -226,6 +235,28 @@ describe('histogram stats', () => {
     hist[6] = 25;
     expect(minLenAtCoverage(hist, 0.9)).toBe(5);
     expect(minLenAtCoverage(hist, 0.999)).toBe(4);
+  });
+});
+
+describe('textureIndex', () => {
+  it('scores solid tops at 10 regardless of length', () => {
+    expect(textureIndex(rankSet([14, 13, 12, 11, 10]), 5)).toBe(10);
+    expect(textureIndex(rankSet([14, 13, 12]), 3)).toBe(10);
+  });
+  it('rewards connectivity and top cards', () => {
+    const kqjt9 = textureIndex(rankSet([13, 12, 11, 10, 9]), 5);
+    const qjt98 = textureIndex(rankSet([12, 11, 10, 9, 8]), 5);
+    const kq743 = textureIndex(rankSet([13, 12, 7, 4, 3]), 5);
+    const a8532 = textureIndex(rankSet([14, 8, 5, 3, 2]), 5);
+    const rags = textureIndex(rankSet([11, 6, 4, 3, 2]), 5);
+    expect(kqjt9).toBeGreaterThan(qjt98);
+    expect(qjt98).toBeGreaterThan(kq743); // connected middle cards beat scattered honours+rags
+    expect(kq743).toBeGreaterThan(a8532);
+    expect(a8532).toBeGreaterThan(rags);
+    expect(rags).toBeLessThan(2);
+  });
+  it('scores an empty suit 0', () => {
+    expect(textureIndex(rankSet([]), 0)).toBe(0);
   });
 });
 

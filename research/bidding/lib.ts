@@ -163,11 +163,52 @@ export interface SeatFeatures {
   len: number[];
   /** Count of A/K/Q per suit. */
   akq: number[];
-  /** Count of A/K/Q/J/T per suit — the suit-quality metric (top(x,5)). */
+  /** Count of A/K/Q/J/T per suit — the filter-language quality clause (top(x,5)). */
   akqjt: number[];
+  /** Suit texture index per suit, 0–10 (see textureIndex). */
+  txi: number[];
   /** Classic stopper per suit: A, or Kx+, or Qxx+. */
   stop: boolean[];
   balanced: boolean;
+}
+
+/**
+ * Suit texture index, 0–10: how much of the suit's playing strength lives in
+ * its top cards and how connected they are.
+ *
+ * Cards A…7 carry weights 4.5/3.5/2.5/1.75/1.25/0.75/0.4/0.2 (top-card
+ * emphasis), plus 0.3 per touching pair held among them (KQJ beats K-Q-x-ish
+ * holdings of equal count). The raw score is normalised by the best possible
+ * holding of the same length (capped at 8 cards), so a solid AKQJT = 10.0
+ * regardless of length, QJT98 ≈ 5.3, KQ743 ≈ 4.4, A8532 ≈ 3.3, jack-high
+ * rags ≈ 1. Empty suits score 0.
+ */
+const TX_WEIGHT: Record<number, number> = {
+  14: 4.5, 13: 3.5, 12: 2.5, 11: 1.75, 10: 1.25, 9: 0.75, 8: 0.4, 7: 0.2,
+};
+
+function textureRaw(ranks: boolean[]): number {
+  let raw = 0;
+  for (let r = 7; r <= 14; r++) if (ranks[r]) raw += TX_WEIGHT[r];
+  for (let r = 8; r <= 14; r++) if (ranks[r] && ranks[r - 1]) raw += 0.3;
+  return raw;
+}
+
+/** Reference (best-possible) raw score per suit length. */
+const TX_REF: number[] = (() => {
+  const ref = [0];
+  for (let len = 1; len <= 13; len++) {
+    const ranks = new Array<boolean>(15).fill(false);
+    for (let i = 0; i < Math.min(len, 8); i++) ranks[14 - i] = true;
+    ref.push(textureRaw(ranks));
+  }
+  return ref;
+})();
+
+/** Texture index 0–10 from the set of held ranks (index 2..14) in one suit. */
+export function textureIndex(ranks: boolean[], len: number): number {
+  if (len === 0) return 0;
+  return Math.min(10, (10 * textureRaw(ranks)) / TX_REF[len]);
 }
 
 export function featuresFromPbn(pbn: string): SeatFeatures[] {
@@ -178,27 +219,29 @@ export function featuresFromPbn(pbn: string): SeatFeatures[] {
     const len = [0, 0, 0, 0];
     const akq = [0, 0, 0, 0];
     const akqjt = [0, 0, 0, 0];
-    const hasA = [false, false, false, false];
-    const hasK = [false, false, false, false];
-    const hasQ = [false, false, false, false];
+    const ranks = [
+      new Array<boolean>(15).fill(false),
+      new Array<boolean>(15).fill(false),
+      new Array<boolean>(15).fill(false),
+      new Array<boolean>(15).fill(false),
+    ];
     for (const c of cards) {
       const suit = (c / 13) | 0;
       const rank = (c % 13) + 2;
       hcp += HCP_BY_CARD[c];
       len[suit]++;
+      ranks[suit][rank] = true;
       if (rank >= 12) akq[suit]++;
       if (rank >= 10) akqjt[suit]++;
-      if (rank === 14) hasA[suit] = true;
-      else if (rank === 13) hasK[suit] = true;
-      else if (rank === 12) hasQ[suit] = true;
     }
     const stop = len.map(
-      (l, s) => hasA[s] || (hasK[s] && l >= 2) || (hasQ[s] && l >= 3),
+      (l, s) => ranks[s][14] || (ranks[s][13] && l >= 2) || (ranks[s][12] && l >= 3),
     );
+    const txi = len.map((l, s) => textureIndex(ranks[s], l));
     const sorted = [...len].sort((a, b) => b - a);
     const balanced =
       sorted[3] >= 2 && sorted[0] <= 5 && !(sorted[0] === 5 && sorted[1] === 4);
-    return { hcp, len, akq, akqjt, stop, balanced };
+    return { hcp, len, akq, akqjt, txi, stop, balanced };
   });
 }
 
@@ -383,6 +426,10 @@ export class Agg {
   qualHist = new Uint32Array(6);
   qualWeakHist = new Uint32Array(6); // hands with ≤10 HCP
   qualSoundHist = new Uint32Array(6); // hands with 11+ HCP
+  /** Bid-suit texture index ×10 (0..100) — overall and by own strength. */
+  txiHist = new Uint32Array(101);
+  txiWeakHist = new Uint32Array(101);
+  txiSoundHist = new Uint32Array(101);
   balanced = 0;
   /** Combined-suit length hists (for two-suited bids): min/max of majors/minors. */
   minMajHist = new Uint32Array(14);
@@ -411,8 +458,15 @@ export class Agg {
     if (bidSuit !== null && bidSuit < 4) {
       this.akqHist[f.akq[bidSuit]]++;
       this.qualHist[f.akqjt[bidSuit]]++;
-      if (f.hcp <= 10) this.qualWeakHist[f.akqjt[bidSuit]]++;
-      else this.qualSoundHist[f.akqjt[bidSuit]]++;
+      const t = Math.min(100, Math.round(10 * f.txi[bidSuit]));
+      this.txiHist[t]++;
+      if (f.hcp <= 10) {
+        this.qualWeakHist[f.akqjt[bidSuit]]++;
+        this.txiWeakHist[t]++;
+      } else {
+        this.qualSoundHist[f.akqjt[bidSuit]]++;
+        this.txiSoundHist[t]++;
+      }
     }
     if (f.balanced) this.balanced++;
     this.minMajHist[Math.min(f.len[0], f.len[1])]++;
@@ -465,6 +519,11 @@ export class Agg {
       this.qualHist[q] += o.qualHist[q];
       this.qualWeakHist[q] += o.qualWeakHist[q];
       this.qualSoundHist[q] += o.qualSoundHist[q];
+    }
+    for (let t = 0; t <= 100; t++) {
+      this.txiHist[t] += o.txiHist[t];
+      this.txiWeakHist[t] += o.txiWeakHist[t];
+      this.txiSoundHist[t] += o.txiSoundHist[t];
     }
     this.balanced += o.balanced;
     for (let l = 0; l < 14; l++) {

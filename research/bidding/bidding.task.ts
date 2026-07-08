@@ -480,6 +480,14 @@ function fmtStats(agg: Agg): string {
   return `${st.p[0]}/${st.p[2]}/**${st.p[3]}**/${st.p[4]}/${st.p[6]}`;
 }
 
+/** Texture cell: median (p25–p75) on the 0–10 scale. */
+function fmtTxi(agg: Agg): string {
+  const st = histStats(agg.txiHist);
+  if (st.n === 0) return '—';
+  const f = (v: number): string => (v / 10).toFixed(1);
+  return `**${f(st.p[3])}** (${f(st.p[2])}–${f(st.p[4])})`;
+}
+
 function pct(x: number, n: number): string {
   return n === 0 ? '—' : `${Math.round((100 * x) / n)}%`;
 }
@@ -502,6 +510,11 @@ interface Profile {
   suitLen: Record<string, { p: number[]; hist: number[] }>;
   /** A/K/Q/J/T count in the bid suit: overall + weak (≤10 HCP) + sound (11+). */
   qual: { hist: number[]; weak: number[]; sound: number[] } | null;
+  /**
+   * Bid-suit texture index percentiles [p5,p10,p25,p50,p75,p90,p95] on the
+   * 0–10 scale — overall + weak (≤10 HCP) + sound (11+) strata.
+   */
+  texture: { p: number[]; weak: number[]; sound: number[] } | null;
   balancedPct: number;
   /** % of hands with a classic stopper in their suit (competitive contexts). */
   stopperPct: number | null;
@@ -509,6 +522,12 @@ interface Profile {
   hcpByTheirLen: Record<string, { n: number; p: number[] }> | null;
   /** Derived dealer rule: structured branches + a compiled-checked filterExpr. */
   rule: BidRule;
+}
+
+/** Texture percentiles on the 0–10 scale (histogram is ×10). */
+function txPercentiles(hist: ArrayLike<number>): number[] {
+  const st = histStats(hist);
+  return st.n === 0 ? [] : st.p.map((v) => Number((v / 10).toFixed(1)));
 }
 
 /** Drop the trailing zeros of a histogram (index still = value). */
@@ -629,6 +648,14 @@ function toProfile(
             sound: trimHist(agg.qualSoundHist),
           }
         : null,
+    texture:
+      isBid(action) && bidParts(action).strainIdx < 4
+        ? {
+            p: txPercentiles(agg.txiHist),
+            weak: txPercentiles(agg.txiWeakHist),
+            sound: txPercentiles(agg.txiSoundHist),
+          }
+        : null,
     balancedPct: agg.n === 0 ? 0 : Number(((100 * agg.balanced) / agg.n).toFixed(1)),
     stopperPct: agg.theirN >= 25 ? Number(((100 * agg.theirStop) / agg.theirN).toFixed(1)) : null,
     hcpByTheirLen,
@@ -686,7 +713,7 @@ it('bidding-range study', () => {
   const lines = profiles.map((p) => JSON.stringify(p));
   writeFileSync(
     PROFILES_PATH,
-    `{"version":3,"source":"WBF/EBL championships 2023-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
+    `{"version":4,"source":"WBF/EBL championships 2023-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
   );
   console.log(`  ${profiles.length} profiles (all filter expressions compile) → ${PROFILES_PATH}`);
   console.log(`  report → ${REPORT_PATH}`);
@@ -856,7 +883,15 @@ function buildReport(
   add('app’s filter language (see Dealer integration). fav/unfav = medians at');
   add('favourable / unfavourable vulnerability. 1C/1D contexts face natural openings.');
   add();
-  add('| auction | n | HCP | fav | unfav | bid suit | suit qual (AKQJT) | filter |');
+  add('Legend, used throughout: **length dists** are per-length percentages (tails');
+  add('lumped as `<k`/`k+`). **texture** is a 0–10 suit-quality index — cards A…7');
+  add('weighted top-down plus a bonus per touching pair, normalised so a solid');
+  add('AKQJT-suit = 10 at any length (QJT98 ≈ 5.3, KQ743 ≈ 4.4, jack-high rags ≈ 1);');
+  add('shown as median (p25–p75). **%bal** counts strictly balanced shapes only:');
+  add('4-3-3-3, 4-4-3-2, 5-3-3-2 — no singleton or void, no 6-card suit, and 5-4');
+  add('patterns don’t count either.');
+  add();
+  add('| auction | n | HCP | fav | unfav | bid suit | texture | filter |');
   add('|---|---|---|---|---|---|---|---|');
   const headline: Array<[string, string, string, string[] | 'all']> = [
     ['overOpen', '1C', '1H', ['nat', 'short']],
@@ -884,7 +919,7 @@ function buildReport(
       const si = bidParts(action).strainIdx;
       if (si < 4) {
         suitCell = fmtDist(agg.lenHist[si]);
-        qualCell = fmtDist(agg.qualHist);
+        qualCell = fmtTxi(agg);
       }
     } else if (action === 'X') {
       const si = bidParts(key).strainIdx; // their suit
@@ -923,18 +958,11 @@ function buildReport(
     add(`  10-counts get opened. One-level overcalls ((1C) 1H) run ${range90(oc1)} HCP —`);
     add(`  the book "8–16" is real but the median sits ${med(merged) - med(oc1)} HCP below the median opening.`);
     {
-      const share = (hist: ArrayLike<number>, min: number): string => {
-        let num = 0;
-        let den = 0;
-        for (let q = 0; q < hist.length; q++) {
-          den += hist[q];
-          if (q >= min) num += hist[q];
-        }
-        return den === 0 ? '—' : `${Math.round((100 * num) / den)}%`;
-      };
+      const txMed = (hist: ArrayLike<number>): string =>
+        (histStats(hist).p[3] / 10).toFixed(1);
       add(`- **Suit quality is a weak-hand requirement.** Light (≤10 HCP) 1H overcalls of a`);
-      add(`  natural 1C hold 2+ of AKQJT in the suit ${share(oc1.qualWeakHist, 2)} of the time (3+: ${share(oc1.qualWeakHist, 3)});`);
-      add(`  sound ones (11+) get away with less — 2+ only ${share(oc1.qualSoundHist, 2)}. The derived filters`);
+      add(`  natural 1C carry a median suit texture of ${txMed(oc1.txiWeakHist)}/10; sound ones (11+) get away`);
+      add(`  with ${txMed(oc1.txiSoundHist)}/10 — the values carry a moderate suit. The derived filters`);
       add(`  encode exactly that: a quality floor everyone meets, plus a higher bar that`);
       add(`  only applies below 11 HCP (\`hcp >= 11 or top(h,5) >= …\`).`);
     }
@@ -1070,7 +1098,7 @@ function buildReport(
   ]) {
     add(`### ${seatGroup.join(' + ').replace(/seat/g, 'Seat ')}`);
     add();
-    add('| opening | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) | %bal |');
+    add('| opening | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal |');
     add('|---|---|---|---|---|---|---|');
     const bids = new Set<string>();
     for (const key of seatGroup) {
@@ -1090,7 +1118,7 @@ function buildReport(
       if (agg.n < 25) continue;
       const suitIdx = bidParts(bid).strainIdx;
       const lenCell = suitIdx < 4 ? fmtDist(agg.lenHist[suitIdx]) : '—';
-      const qualCell = suitIdx < 4 ? fmtDist(agg.qualHist) : '—';
+      const qualCell = suitIdx < 4 ? fmtTxi(agg) : '—';
       const deals = seatGroup.reduce((acc, key) => acc + dealCount('open', key, bid), 0);
       add(
         `| ${bid} | ${agg.n} | ${deals} | ${fmtStats(agg)} | ${lenCell} | ${qualCell} | ${pct(agg.balanced, agg.n)} |`,
@@ -1102,7 +1130,7 @@ function buildReport(
   // Preempts by vulnerability.
   add('### Preempts by vulnerability (all seats, natural-base pairs)');
   add();
-  add('| opening | vul | n | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) |');
+  add('| opening | vul | n | HCP p5/p25/med/p75/p95 | bid-suit len | texture |');
   add('|---|---|---|---|---|---|');
   for (const bid of ['2H', '2S', '3C', '3D', '3H', '3S', '4C', '4D', '4H', '4S']) {
     for (const vul of ['they', 'none', 'both', 'we'] as RelVul[]) {
@@ -1114,7 +1142,7 @@ function buildReport(
       const suitIdx = bidParts(bid).strainIdx;
       const vulLabel = vul === 'they' ? 'fav' : vul === 'we' ? 'unfav' : vul;
       add(
-        `| ${bid} | ${vulLabel} | ${agg.n} | ${fmtStats(agg)} | ${fmtDist(agg.lenHist[suitIdx])} | ${fmtDist(agg.qualHist)} |`,
+        `| ${bid} | ${vulLabel} | ${agg.n} | ${fmtStats(agg)} | ${fmtDist(agg.lenHist[suitIdx])} | ${fmtTxi(agg)} |`,
       );
     }
   }
@@ -1160,7 +1188,7 @@ function buildReport(
       add();
       const partnerCol = partnerSuit !== null ? ` partner's ${SUIT_GLYPH[partnerSuit]} |` : '';
       add(
-        `| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) | %bal |${partnerCol}`,
+        `| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal |${partnerCol}`,
       );
       add(`|---|---|---|---|---|---|---|---|${partnerSuit !== null ? '---|' : ''}`);
       for (const action of actions) {
@@ -1173,7 +1201,7 @@ function buildReport(
             : action === 'X' && theirSuitFor(family, key) !== null
               ? `theirs: ${fmtDist(agg.lenHist[theirSuitFor(family, key)!])}`
               : '—';
-        const qualCell = suitIdx < 4 ? fmtDist(agg.qualHist) : '—';
+        const qualCell = suitIdx < 4 ? fmtTxi(agg) : '—';
         const freq = contextTotal > 0 ? `${((100 * agg.n) / contextTotal).toFixed(1)}%` : '—';
         const partnerCell =
           partnerSuit !== null ? ` ${fmtDist(agg.lenHist[partnerSuit])} |` : '';
@@ -1389,14 +1417,14 @@ function buildReport(
   // Strong 1C faced.
   add('### (1C = strong, Precision-style) ? — for comparison');
   add();
-  add('| action | n | HCP p5/p25/med/p75/p95 | bid-suit len | suit qual (AKQJT) |');
+  add('| action | n | HCP p5/p25/med/p75/p95 | bid-suit len | texture |');
   add('|---|---|---|---|---|');
   for (const action of actionsFor(cells, 'overOpen', '1C')) {
     const agg = sumCells(cells, 'overOpen', '1C', action, 'all', ['strong']);
     if (agg.n < 25) continue;
     const suitIdx = isBid(action) ? bidParts(action).strainIdx : 4;
     add(
-      `| ${action} | ${agg.n} | ${fmtStats(agg)} | ${suitIdx < 4 ? fmtDist(agg.lenHist[suitIdx]) : '—'} | ${suitIdx < 4 ? fmtDist(agg.qualHist) : '—'} |`,
+      `| ${action} | ${agg.n} | ${fmtStats(agg)} | ${suitIdx < 4 ? fmtDist(agg.lenHist[suitIdx]) : '—'} | ${suitIdx < 4 ? fmtTxi(agg) : '—'} |`,
     );
   }
   add();

@@ -11,7 +11,14 @@ import './styles.css';
 import './bidding.css';
 import { h } from './ui/dom';
 import { siteNav } from './ui/nav';
-import { parseReport, slugify, type Block, type Inline } from './report-md';
+import {
+  parseReport,
+  parseDistCell,
+  slugify,
+  type Block,
+  type Inline,
+  type DistCell,
+} from './report-md';
 import reportMd from '../research/bidding-report.md?raw';
 
 // ---- Inline rendering -------------------------------------------------------
@@ -53,16 +60,77 @@ function cellIsNumeric(inline: Inline[]): boolean {
 
 // ---- Block rendering --------------------------------------------------------
 
+/**
+ * Render a distribution cell as slots anchored to the column-wide value range,
+ * so the same value lines up vertically across every row of the column. Slot
+ * shading scales with the percentage.
+ */
+function distCellEl(cell: DistCell, colMin: number, colMax: number): HTMLElement {
+  const slots: Array<Node | string> = [];
+  const byAnchor = new Map(cell.tokens.map((t) => [t.anchor, t]));
+  const maxPct = Math.max(...cell.tokens.map((t) => t.pct));
+  for (let a = colMin; a <= colMax; a++) {
+    const tok = byAnchor.get(a);
+    if (!tok) {
+      slots.push(h('span', { class: 'dist-slot dist-empty' }, []));
+      continue;
+    }
+    const alpha = 0.08 + 0.5 * (tok.pct / 100);
+    slots.push(
+      h(
+        'span',
+        {
+          class: 'dist-slot' + (tok.pct === maxPct ? ' dist-peak' : ''),
+          style: `background: rgba(29,111,66,${alpha.toFixed(3)})`,
+          title: `${tok.label}: ${tok.pct}%`,
+        },
+        [
+          h('span', { class: 'dist-label' }, [tok.label]),
+          h('span', { class: 'dist-pct' }, [String(tok.pct)]),
+        ],
+      ),
+    );
+  }
+  const parts: Array<Node | string> = [];
+  if (cell.prefix !== '') parts.push(h('span', { class: 'dist-prefix' }, suitColored(cell.prefix)));
+  parts.push(h('span', { class: 'dist-grid' }, slots));
+  return h('span', { class: 'dist' }, parts);
+}
+
 function tableEl(header: Inline[][], rows: Inline[][][]): HTMLElement {
   const thead = h('thead', {}, [h('tr', {}, header.map((c) => h('th', {}, inlineNodes(c))))]);
+  // Detect distribution cells and the value range per column, so slots align.
+  const nCols = header.length;
+  const dists: Array<Array<DistCell | null>> = rows.map((row) =>
+    row.map((c) => (c.some((t) => t.t !== 'text') ? null : parseDistCell(c.map((t) => t.s).join('')))),
+  );
+  const colMin: number[] = new Array(nCols).fill(Infinity);
+  const colMax: number[] = new Array(nCols).fill(-Infinity);
+  for (const row of dists) {
+    for (let i = 0; i < row.length; i++) {
+      const d = row[i];
+      if (!d) continue;
+      for (const t of d.tokens) {
+        colMin[i] = Math.min(colMin[i], t.anchor);
+        colMax[i] = Math.max(colMax[i], t.anchor);
+      }
+    }
+  }
   const tbody = h(
     'tbody',
     {},
-    rows.map((row) =>
+    rows.map((row, ri) =>
       h(
         'tr',
         {},
-        row.map((c) => h('td', { class: cellIsNumeric(c) ? 'num' : false }, inlineNodes(c))),
+        row.map((c, ci) => {
+          const d = dists[ri][ci];
+          // Very wide ranges would waste space — fall back to plain text.
+          if (d && colMax[ci] - colMin[ci] <= 11) {
+            return h('td', { class: 'dist-td' }, [distCellEl(d, colMin[ci], colMax[ci])]);
+          }
+          return h('td', { class: cellIsNumeric(c) ? 'num' : false }, inlineNodes(c));
+        }),
       ),
     ),
   );

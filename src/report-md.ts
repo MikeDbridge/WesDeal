@@ -142,3 +142,49 @@ export function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+// ---------------------------------------------------------------------------
+// Distribution cells ("4:3% 5:66% 6:23% 7:7%", optionally prefixed)
+// ---------------------------------------------------------------------------
+
+export interface DistToken {
+  /** Display label: "5", "<5", "7+". */
+  label: string;
+  /** Slot the token occupies ("<k" sits at k−1, "k+" at k). */
+  anchor: number;
+  pct: number;
+}
+
+export interface DistCell {
+  /** Text before the tokens, e.g. "their ♣:" (may be empty). */
+  prefix: string;
+  tokens: DistToken[];
+}
+
+const DIST_TOKEN_RE = /^(<(\d+)|(\d+)\+|(\d+)):(\d+)%$/;
+
+/**
+ * Parse a table cell that is a value:percent distribution. Returns null when
+ * the text isn't one (fewer than two tokens, or any word that isn't a token
+ * after the optional prefix).
+ */
+export function parseDistCell(text: string): DistCell | null {
+  const words = text.trim().split(/\s+/);
+  if (words.length < 2) return null;
+  const tokens: DistToken[] = [];
+  const prefixWords: string[] = [];
+  for (const word of words) {
+    const m = DIST_TOKEN_RE.exec(word);
+    if (!m) {
+      if (tokens.length > 0) return null; // prose after tokens → not a dist cell
+      prefixWords.push(word);
+      continue;
+    }
+    const pct = Number(m[5]);
+    if (m[2] !== undefined) tokens.push({ label: `<${m[2]}`, anchor: Number(m[2]) - 1, pct });
+    else if (m[3] !== undefined) tokens.push({ label: `${m[3]}+`, anchor: Number(m[3]), pct });
+    else tokens.push({ label: m[4], anchor: Number(m[4]), pct });
+  }
+  if (tokens.length < 2) return null;
+  return { prefix: prefixWords.join(' '), tokens };
+}
