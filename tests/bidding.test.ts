@@ -8,10 +8,45 @@ import {
   relVul,
   histStats,
   minLenAtCoverage,
+  maxLenAtCoverage,
   classifyPair,
   PairOpenings,
   median,
+  bottomTeams,
+  theirLenBucket,
+  hcpBand,
+  Agg,
+  deriveSuitBidRule,
+  deriveDoubleRule,
+  deriveNtRule,
+  type SeatFeatures,
+  type MatchVp,
 } from '../research/bidding/lib';
+import { compileFilter, type HandContext } from '../src/engine/filter';
+
+/** Build SeatFeatures from suit lengths + hcp (stoppers/akq optional). */
+function feat(
+  len: [number, number, number, number],
+  hcp: number,
+  opts: { akq?: number[]; stop?: boolean[] } = {},
+): SeatFeatures {
+  const sorted = [...len].sort((a, b) => b - a);
+  return {
+    hcp,
+    len,
+    akq: opts.akq ?? [1, 1, 1, 1],
+    stop: opts.stop ?? [false, false, false, false],
+    balanced: sorted[3] >= 2 && sorted[0] <= 5 && !(sorted[0] === 5 && sorted[1] === 4),
+  };
+}
+
+/** Evaluate a compiled filter expression against a simple hand. */
+function passes(expr: string, len: [number, number, number, number], hcp: number, mask?: number[]): boolean {
+  const r = compileFilter(expr);
+  if (r.error || !r.filter) throw new Error(`bad expr: ${expr} — ${r.error}`);
+  const ctx: HandContext = { hcp, knr: 0, controls: 0, len, mask: mask ?? [0, 0, 0, 0] };
+  return r.filter.predicate(ctx);
+}
 
 describe('parseCsv', () => {
   it('parses plain rows', () => {
@@ -188,6 +223,146 @@ describe('histogram stats', () => {
     hist[6] = 25;
     expect(minLenAtCoverage(hist, 0.9)).toBe(5);
     expect(minLenAtCoverage(hist, 0.999)).toBe(4);
+  });
+});
+
+describe('coverage helpers', () => {
+  it('maxLenAtCoverage returns the smallest sufficient cap', () => {
+    const hist = new Uint32Array(14);
+    hist[1] = 10;
+    hist[2] = 80;
+    hist[3] = 10;
+    expect(maxLenAtCoverage(hist, 0.9)).toBe(2);
+    expect(maxLenAtCoverage(hist, 0.95)).toBe(3);
+  });
+  it('buckets and bands', () => {
+    expect([0, 1, 2, 3, 4, 5].map(theirLenBucket)).toEqual([0, 0, 1, 2, 3, 3]);
+    expect([8, 10, 11, 13, 14, 16, 17, 25].map(hcpBand)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
+  });
+});
+
+describe('bottomTeams', () => {
+  it('flags the k weakest teams by average RR VP', () => {
+    const rows: MatchVp[] = [];
+    const teams = ['A', 'B', 'C', 'D'];
+    const strength: Record<string, number> = { A: 15, B: 12, C: 8, D: 5 };
+    for (let i = 0; i < teams.length; i++) {
+      for (let j = i + 1; j < teams.length; j++) {
+        rows.push({
+          tournament: 't',
+          event: 'OPEN',
+          stage: 'RR',
+          home: teams[i],
+          away: teams[j],
+          vpHome: strength[teams[i]],
+          vpAway: strength[teams[j]],
+        });
+      }
+    }
+    // KO rows must be ignored.
+    rows.push({ tournament: 't', event: 'OPEN', stage: 'FF', home: 'D', away: 'A', vpHome: null, vpAway: null });
+    const weak = bottomTeams(rows, 2);
+    expect(weak.has('t|OPEN|D')).toBe(true);
+    expect(weak.has('t|OPEN|C')).toBe(true);
+    expect(weak.has('t|OPEN|A')).toBe(false);
+  });
+});
+
+describe('Agg cross-tabs and anatomy', () => {
+  it('tracks hcp by their-suit length and stoppers', () => {
+    const agg = new Agg();
+    agg.add(feat([5, 2, 3, 3], 8, { stop: [false, true, false, false] }), 0, 1, false);
+    agg.add(feat([5, 4, 2, 2], 13), 0, 1, false);
+    expect(agg.theirN).toBe(2);
+    expect(agg.theirStop).toBe(1);
+    const short = histStats(agg.hcpForBuckets([0, 1])); // ≤2 hearts
+    const long = histStats(agg.hcpForBuckets([2, 3]));
+    expect(short.n).toBe(1);
+    expect(short.p[3]).toBe(8);
+    expect(long.n).toBe(1);
+    expect(long.p[3]).toBe(13);
+  });
+  it('tracks double anatomy per band (major opened → other major + both minors)', () => {
+    const agg = new Agg();
+    agg.add(feat([4, 1, 4, 4], 12), null, 1, true); // (1H) X classic shape
+    agg.add(feat([2, 4, 4, 3], 18), null, 1, true); // strong offshape
+    expect([...agg.xBandN!]).toEqual([0, 1, 0, 1]);
+    expect(agg.xMajMin![1 * 8 + 4]).toBe(1); // band 11-13: spades 4
+    expect(agg.xMajMin![3 * 8 + 2]).toBe(1); // band 17+: spades 2
+    expect(agg.xMinorMin![1 * 8 + 4]).toBe(1); // min(d,c)=4
+    expect(agg.xMinorMin![3 * 8 + 3]).toBe(1);
+  });
+  it('mergeFrom combines every part', () => {
+    const a = new Agg();
+    const b = new Agg();
+    a.add(feat([5, 2, 3, 3], 10), 0, 2, false);
+    b.add(feat([5, 3, 2, 3], 12), 0, 2, false);
+    b.add(feat([4, 1, 4, 4], 17), null, 2, true);
+    a.mergeFrom(b);
+    expect(a.n).toBe(3);
+    expect(a.theirN).toBe(3);
+    expect(a.xBandN![3]).toBe(1);
+    expect(histStats(a.hcpForBuckets([0, 1, 2, 3])).n).toBe(3);
+  });
+});
+
+describe('rule derivation', () => {
+  it('suit-bid rule splits shortage from length and compiles', () => {
+    const agg = new Agg();
+    // 30 light overcalls short in their suit (♦), 30 sounder with length.
+    for (let i = 0; i < 30; i++) {
+      agg.add(feat([5, 3, 2, 3], 8 + (i % 3), { akq: [1, 0, 0, 0] }), 0, 2, false);
+      agg.add(feat([5, 2, 3, 3], 11 + (i % 4), { akq: [2, 0, 0, 0] }), 0, 2, false);
+    }
+    const rule = deriveSuitBidRule(agg, 0, 2);
+    expect(rule.common).toContainEqual({ suit: 0, min: 5 });
+    expect(rule.anyOf.length).toBe(2);
+    expect(rule.quality).toEqual({ suit: 0, minTop3: 1 });
+    // Short in diamonds and light → in; long and light → out; long and sound → in.
+    const aceOfSpades = [1 << 12, 0, 0, 0];
+    expect(passes(rule.filterExpr, [5, 3, 2, 3], 8, aceOfSpades)).toBe(true);
+    expect(passes(rule.filterExpr, [5, 2, 3, 3], 8, aceOfSpades)).toBe(false);
+    expect(passes(rule.filterExpr, [5, 2, 3, 3], 12, aceOfSpades)).toBe(true);
+    // No spade honour → out (quality).
+    expect(passes(rule.filterExpr, [5, 3, 2, 3], 9, [0, 0, 0, 0])).toBe(false);
+  });
+  it('double rule has shape branches and a shape-free strong branch', () => {
+    const agg = new Agg();
+    for (let i = 0; i < 40; i++) agg.add(feat([4, 1, 4, 4], 11 + (i % 5)), null, 1, true);
+    for (let i = 0; i < 5; i++) agg.add(feat([2, 3, 4, 4], 18 + (i % 3)), null, 1, true);
+    const rule = deriveDoubleRule(agg, 1);
+    expect(rule.anyOf.length).toBeGreaterThanOrEqual(2);
+    expect(rule.anyOf.at(-1)!.suit).toBeUndefined(); // strength branch is shape-free
+    // Classic shape, moderate points → in.
+    expect(passes(rule.filterExpr, [4, 1, 4, 4], 12)).toBe(true);
+    // Flat with their-suit length, moderate → out; same hand very strong → in.
+    expect(passes(rule.filterExpr, [2, 4, 4, 3], 12)).toBe(false);
+    expect(passes(rule.filterExpr, [2, 4, 4, 3], 19)).toBe(true);
+  });
+  it('double rule splits shortage from length when the floors differ', () => {
+    const agg = new Agg();
+    // Short in theirs: light takeout doubles; 3 cards in theirs: sound ones.
+    for (let i = 0; i < 30; i++) agg.add(feat([4, 1, 4, 4], 10 + (i % 4)), null, 1, true);
+    for (let i = 0; i < 30; i++) agg.add(feat([4, 3, 3, 3], 14 + (i % 3)), null, 1, true);
+    for (let i = 0; i < 6; i++) agg.add(feat([3, 3, 4, 3], 19), null, 1, true);
+    const rule = deriveDoubleRule(agg, 1);
+    expect(rule.anyOf.length).toBe(3);
+    // Light with shortage → in; light with 3-card length → out; sound length → in.
+    expect(passes(rule.filterExpr, [4, 1, 4, 4], 10)).toBe(true);
+    expect(passes(rule.filterExpr, [4, 3, 3, 3], 10)).toBe(false);
+    expect(passes(rule.filterExpr, [4, 3, 3, 3], 14)).toBe(true);
+  });
+  it('NT rule demands the stopper when the data does', () => {
+    const agg = new Agg();
+    for (let i = 0; i < 30; i++) {
+      agg.add(feat([3, 3, 3, 4], 15 + (i % 3), { stop: [false, true, false, false] }), 4, 1, false);
+    }
+    const rule = deriveNtRule(agg, 1);
+    expect(rule.stopper).toBe(1);
+    expect(rule.balanced).toBe(true);
+    // Ace of hearts (bit 12 of mask[1]) satisfies has(h,a).
+    expect(passes(rule.filterExpr, [3, 3, 3, 4], 15, [0, 1 << 12, 0, 0])).toBe(true);
+    expect(passes(rule.filterExpr, [3, 3, 3, 4], 15, [0, 0, 0, 0])).toBe(false);
   });
 });
 
