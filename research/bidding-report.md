@@ -90,6 +90,11 @@ patterns don’t count either.
   hearts 99% of the time; (1M) 2NT is the two lowest suits, unbalanced.
 - **Negative doubles start at ~7**: 1S (2H) X = 7–15 (med 10). Redouble after
   1C (X) shows 6–16 (med 11).
+- **Transfer responses to 1C are mainstream**: of classified natural-club pairs,
+  134 play transfers vs 335 standard. Their 1C (P) 1D holds 4+ hearts 96%
+  of the time (4–15 (med 9) HCP), and 1S is the no-major hand (78% with no 4-card major, 4–18 (med 10)) — the
+  derived rules follow the shown suit, and the treatment carries on over a
+  double or 1D overcall (see the transfer-responder sections).
 - **Defence to 1NT is conventional and the data shows it**: (1NT) 2C holds both
   majors 4+ 89% of the time (clubs are incidental); (1NT) 2D has a 5+
   major 93% (6+ 85%) — multi-style; 2M shows the major plus a 4+ minor.
@@ -121,6 +126,8 @@ Each partnership is classified from its own openings (min 6 samples per bid).
 - 2C style: unknown 502, strong 150, natural 120
 - 2D style: unknown 368, multi 271, other 86, weak 47
 - natural base (1C natural/short and 1D not nebulous): yes 604, no 168
+- 1C response style (natural/short openers, from their own 1D/1H responses):
+  standard 335, transfer-walsh 134, insufficient data 131
 
 ## Openings (natural-base pairs)
 
@@ -1275,49 +1282,41 @@ By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 ## Responding after interference: partner opens, RHO acts
 
-Key contexts: 1x (X) ? — redouble/new suits/jump raises; 1x (overcall) ? — negative doubles, raises, free bids. 1C/1D contexts use natural openers only. After 1M (X) much of the field plays transfers / graded raises (2M−1 constructive, 2M weak or vice versa), so read the **partner's suit** column: when most hands hold 3+ support, the bid is a raise in disguise and its derived rule keys on support + strength band, not the named suit.
+Key contexts: 1x (X) ? — redouble/new suits/jump raises; 1x (overcall) ? — negative doubles, raises, free bids. 1C contexts show STANDARD responders (transfer-response pairs are tabulated separately below); 1D contexts use natural openers. After 1M (X) much of the field plays transfers / graded raises (2M−1 constructive, 2M weak or vice versa), so read the **partner's suit** column: when most hands hold 3+ support, the bid is a raise in disguise and its derived rule keys on support + strength band, not the named suit.
 
 ### 1C (X) ?
 
 | action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal | partner's ♣ |
 |---|---|---|---|---|---|---|---|---|
-| P | 31.3% | 495 | 100 | 0/3/**4**/5/7 | — | — | 65% | <2:2% 2:45% 3:32% 4:18% 5:3% |
-| 1H | 17.2% | 272 | 89 | 4/6/**7**/8/9 | 1:11% 2:11% 3:23% 4:36% 5:12% 6:6% | **3.4** (1.1–4.4) | 31% | 1:20% 2:29% 3:26% 4:12% 5:9% 6:4% |
-| 1D | 16.8% | 266 | 86 | 4/5/**7**/8/12 | 1:3% 2:15% 3:14% 4:14% 5:38% 6:16% | **3.5** (1.7–4.8) | 23% | 0:2% 1:18% 2:36% 3:17% 4:20% 5:1% 6:5% |
-| 1S | 14.8% | 234 | 68 | 4/6/**7**/8/11 | 1:3% 2:9% 3:19% 4:39% 5:19% 6:9% 7:3% | **3.0** (1.6–3.8) | 43% | 1:11% 2:30% 3:23% 4:16% 5:20% |
-| XX | 7.7% | 122 | 57 | 6/10/**11**/12/16 | — | — | 56% | 0:10% 1:5% 2:15% 3:38% 4:18% 5:15% |
-| 2C | 2.7% | 42 | 31 | 4/6/**7**/7/9 | 1:7% 4:40% 5:45% 6:7% | **2.5** (1.3–4.0) | 55% | 1:7% 4:40% 5:45% 6:7% |
-| 2S | 2.2% | 34 | 10 | 1/1/**4**/6/8 | 1:3% 4:3% 5:9% 6:56% 7:29% | **2.3** (2.3–3.4) | 0% | 0:3% 2:76% 3:6% 4:9% 5:6% |
-| 1NT | 1.6% | 26 | 15 | 6/7/**8**/9/9 | — | — | 88% | 1:4% 3:19% 4:62% 5:12% 6:4% |
-| 2D | 1.8% | 29 | 13 | 1/6/**6**/8/10 | 1:3% 3:34% 4:14% 5:21% 6:28% | **3.7** (2.1–4.2) | 3% | 1:34% 2:38% 3:7% 4:10% 5:10% |
-| 2H | 1.6% | 25 | 12 | 1/3/**5**/6/8 | 2:40% 3:16% 4:8% 6:36% | **1.6** (0.2–4.6) | 0% | 1:20% 2:76% 3:4% |
+| P | 32.1% | 321 | 100 | 0/3/**4**/5/7 | — | — | 64% | <2:2% 2:45% 3:31% 4:19% 5:3% |
+| 1H | 16.3% | 163 | 89 | 4/6/**7**/8/9 | 1:9% 2:9% 3:12% 4:46% 5:16% 6:9% | **3.4** (1.6–4.4) | 26% | 1:24% 2:25% 3:22% 4:14% 5:7% 6:7% |
+| 1D | 16.4% | 164 | 86 | 4/5/**7**/8/10 | <2:2% 2:8% 3:9% 4:13% 5:46% 6:22% | **4.0** (2.2–5.1) | 27% | 0:2% 1:17% 2:34% 3:18% 4:24% 5:1% 6:3% |
+| 1S | 15.8% | 158 | 68 | 4/6/**7**/8/11 | <2:2% 2:4% 3:11% 4:44% 5:24% 6:9% 7:5% | **3.2** (1.7–3.9) | 35% | 1:12% 2:35% 3:22% 4:9% 5:21% |
+| XX | 7.4% | 74 | 57 | 9/10/**11**/12/16 | — | — | 57% | 0:7% 1:5% 2:18% 3:36% 4:22% 5:12% |
+| 2C | 3.2% | 32 | 31 | 4/6/**7**/7/9 | 1:9% 4:41% 5:41% 6:9% | **2.5** (1.5–4.0) | 56% | 1:9% 4:41% 5:41% 6:9% |
 
 By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 | action | vul | n | HCP p5/p25/med/p75/p95 |
 |---|---|---|---|
-| 1H | none | 92 | 5/6/**6**/8/9 |
-| 1H | fav | 68 | 4/6/**8**/8/10 |
-| 1H | unfav | 44 | 4/6/**8**/8/13 |
-| 1H | both | 68 | 4/6/**7**/8/10 |
-| 1D | none | 74 | 4/5/**8**/9/10 |
-| 1D | fav | 105 | 4/6/**7**/8/10 |
-| 1D | unfav | 41 | 3/6/**8**/12/12 |
-| 1D | both | 46 | 4/5/**5**/8/10 |
-| 1S | none | 92 | 5/6/**7**/8/9 |
-| 1S | fav | 55 | 1/6/**7**/8/8 |
-| 1S | unfav | 33 | 4/6/**7**/8/11 |
-| 1S | both | 54 | 6/7/**7**/9/11 |
-| XX | fav | 28 | 4/9/**10**/16/16 |
-| XX | unfav | 25 | 6/11/**11**/12/14 |
-| XX | both | 49 | 9/11/**11**/11/12 |
+| 1H | none | 55 | 5/6/**6**/7/8 |
+| 1H | fav | 46 | 4/6/**8**/8/9 |
+| 1H | unfav | 26 | 4/6/**8**/8/13 |
+| 1H | both | 36 | 4/5/**7**/8/9 |
+| 1D | none | 49 | 4/5/**8**/9/11 |
+| 1D | fav | 66 | 4/6/**6**/8/10 |
+| 1D | both | 29 | 4/5/**5**/8/10 |
+| 1S | none | 66 | 5/6/**7**/8/9 |
+| 1S | fav | 29 | 1/6/**8**/8/10 |
+| 1S | both | 42 | 6/7/**7**/9/11 |
+| XX | both | 30 | 9/10/**11**/11/11 |
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `1H` → `hcp in 4..9`
-- `1D` → `hcp in 4..12`
-- `1S` → `hcp in 4..11`
-- `XX` → `hcp in 6..16`
+- `1D` → `d >= 3 and hcp in 4..10`
+- `1S` → `s >= 3 and hcp in 4..11`
+- `XX` → `hcp in 9..16`
 
 ### 1D (X) ?
 
@@ -1443,54 +1442,42 @@ Dealer filters (paste into the custom filter box; derived from the data):
 
 | action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal | partner's ♣ |
 |---|---|---|---|---|---|---|---|---|
-| X | 41.4% | 995 | 140 | 5/8/**9**/11/16 | theirs: <1:2% 1:18% 2:36% 3:26% 4:17% 5+:1% | — | 49% | <1:2% 1:14% 2:23% 3:43% 4:9% 5:10% |
-| P | 27.2% | 652 | 121 | 1/3/**5**/6/8 | — | — | 61% | 1:9% 2:29% 3:30% 4:26% 5:5% 6+:1% |
-| 1NT | 8.8% | 211 | 31 | 7/8/**10**/10/10 | — | — | 97% | 2:4% 3:63% 4:27% 5:5% |
-| 2H | 6.2% | 148 | 49 | 6/10/**10**/11/13 | 3:11% 5:38% 6:28% 7:11% 8:10% | **4.0** (2.9–5.5) | 17% | 0:10% 1:15% 2:35% 3:32% 4:5% 5+:2% |
-| 2D | 5.4% | 129 | 46 | 6/9/**10**/13/14 | 1:9% 2:31% 3:11% 4:19% 5:26% 6:4% 7+:2% | **3.3** (1.5–5.4) | 30% | 0:4% 1:21% 2:26% 3:43% 4:5% |
-| 2C | 3.5% | 85 | 41 | 5/7/**8**/10/14 | 1:5% 2:5% 3:19% 4:41% 5:24% 6:7% | **2.8** (2.3–4.2) | 42% | 1:5% 2:5% 3:19% 4:41% 5:24% 6:7% |
-| 2S | 2.1% | 51 | 22 | 8/8/**13**/13/15 | <1:2% 1:27% 2:43% 3:22% 4:6% | **0.2** (0.0–3.0) | 61% | 1:6% 3:20% 4:37% 5:8% 6:29% |
-| 3NT | 1.9% | 46 | 8 | 14/14/**14**/14/15 | — | — | 96% | 1:4% 2:4% 3:83% 4:9% |
-| 3C | 1.3% | 31 | 9 | 6/6/**7**/8/8 | 4:10% 5:58% 6:32% | **2.7** (2.5–2.8) | 6% | 4:10% 5:58% 6:32% |
+| X | 41.1% | 590 | 140 | 5/8/**9**/11/16 | theirs: <1:2% 1:19% 2:35% 3:27% 4:15% 5+:1% | — | 50% | <1:2% 1:15% 2:20% 3:44% 4:9% 5:9% |
+| P | 27.1% | 389 | 121 | 1/4/**5**/6/8 | — | — | 58% | 1:9% 2:32% 3:26% 4:25% 5:6% 6+:2% |
+| 1NT | 8.5% | 122 | 31 | 7/8/**10**/10/10 | — | — | 97% | <2:2% 2:3% 3:66% 4:23% 5:6% |
+| 2H | 6.3% | 91 | 49 | 6/10/**10**/11/14 | <3:1% 3:14% 5:37% 6:25% 7:11% 8:11% | **4.2** (2.9–5.5) | 20% | 0:9% 1:16% 2:33% 3:32% 4:9% 5+:1% |
+| 2D | 5.3% | 76 | 46 | 6/8/**10**/13/14 | 1:5% 2:29% 3:9% 4:20% 5:29% 6:5% 7:3% | **3.3** (1.5–5.4) | 28% | 0:3% 1:25% 2:20% 3:47% 4:5% |
+| 2C | 3.8% | 54 | 41 | 5/7/**7**/9/14 | <2:2% 2:7% 3:17% 4:44% 5:24% 6:6% | **2.8** (2.3–4.2) | 41% | <2:2% 2:7% 3:17% 4:44% 5:24% 6:6% |
+| 2S | 2.2% | 31 | 22 | 8/10/**13**/13/15 | 0:3% 1:23% 2:42% 3:23% 4:10% | **0.2** (0.0–3.0) | 65% | 1:6% 3:16% 4:48% 5:3% 6:26% |
+| 3NT | 2.1% | 30 | 8 | 14/14/**14**/14/17 | — | — | 93% | 1:7% 2:3% 3:83% 4:7% |
 
 By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 | action | vul | n | HCP p5/p25/med/p75/p95 |
 |---|---|---|---|
-| X | none | 226 | 6/8/**9**/11/13 |
-| X | fav | 135 | 4/5/**6**/10/11 |
-| X | unfav | 316 | 9/10/**10**/11/16 |
-| X | both | 318 | 6/7/**8**/9/13 |
-| 1NT | fav | 74 | 6/8/**8**/8/8 |
-| 1NT | both | 110 | 10/10/**10**/10/10 |
-| 2H | none | 54 | 6/8/**10**/10/15 |
-| 2H | fav | 29 | 5/10/**10**/10/13 |
-| 2H | unfav | 30 | 10/11/**11**/11/12 |
-| 2H | both | 35 | 7/9/**12**/13/13 |
-| 2D | none | 54 | 6/8/**10**/11/15 |
-| 2D | unfav | 25 | 7/10/**10**/11/14 |
-| 2D | both | 34 | 6/9/**13**/13/14 |
-| 2C | unfav | 25 | 4/7/**7**/10/13 |
-| 2C | both | 27 | 6/6/**8**/9/14 |
-| 2S | none | 35 | 8/8/**13**/14/15 |
+| X | none | 121 | 6/8/**9**/11/14 |
+| X | fav | 71 | 5/5/**6**/11/11 |
+| X | unfav | 190 | 9/10/**10**/11/16 |
+| X | both | 208 | 6/7/**8**/9/15 |
+| 1NT | fav | 40 | 7/8/**8**/8/8 |
+| 1NT | both | 65 | 10/10/**10**/10/10 |
+| 2H | none | 35 | 6/8/**10**/10/15 |
+| 2D | none | 35 | 6/8/**10**/13/15 |
 
 HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 | action | 0–1 | 2 | 3 | 4+ |
 |---|---|---|---|---|
-| X | 9/**9**/11 (202) | 7/**9**/11 (359) | 7/**10**/10 (257) | 8/**9**/10 (177) |
-| 1NT | — | — | 8/**8**/10 (129) | 8/**10**/10 (80) |
-| 2H | 6/**9**/10 (17) | 10/**11**/12 (78) | 7/**11**/13 (19) | 8/**10**/10 (34) |
-| 2D | 9/**11**/11 (15) | 10/**10**/13 (54) | 7/**9**/11 (32) | 8/**10**/14 (28) |
+| X | 9/**9**/11 (124) | 7/**8**/11 (209) | 7/**10**/11 (162) | 8/**9**/10 (95) |
+| 1NT | — | — | 8/**8**/10 (68) | 10/**10**/10 (53) |
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 5..16`
 - `1NT` → `(has(s,a) or (has(s,k) and s >= 2) or (has(s,q) and s >= 3)) and hcp in 7..10` *(+ balanced)*
-- `2H` → `h >= 3 and top(h,5) >= 1 and ((hcp in 6..13 and s <= 2) or (hcp in 7..13 and s in 3..4))`
+- `2H` → `h >= 3 and top(h,5) >= 1 and (hcp >= 11 or top(h,5) >= 2) and ((hcp in 6..14 and s <= 2) or (hcp in 7..14 and s in 3..4))`
 - `2D` → `hcp in 6..14`
 - `2C` → `c >= 3 and hcp in 5..14`
-- `2S` → `((hcp in 8..15 and d >= 4) or (hcp in 8..15 and c >= 4))`
 
 ### 1D (1S) ?
 
@@ -1538,7 +1525,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 - `1NT` → `hcp in 6..10`
 - `2H` → `h >= 5 and top(h,5) >= 1 and ((hcp in 5..14 and s <= 2) or (hcp in 6..14 and s in 3..5))`
 - `2C` → `top(c,5) >= 1 and ((hcp in 5..13 and s <= 2) or (hcp in 6..13 and s in 3..4))`
-- `2S` → `((hcp in 9..14 and d >= 4) or (hcp in 9..14 and c >= 4))`
+- `2S` → `d >= 4 and hcp in 9..14`
 
 ### 1H (1S) ?
 
@@ -1588,7 +1575,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `2H` → `h >= 3 and ((hcp in 4..10 and s <= 2) or (hcp in 6..10 and s in 3..6))`
+- `2H` → `hcp in 4..10`
 - `X` → `hcp in 6..14`
 - `2S` → `hcp in 9..17`
 - `2NT` → `hcp in 8..17`
@@ -1599,51 +1586,46 @@ Dealer filters (paste into the custom filter box; derived from the data):
 
 | action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal | partner's ♣ |
 |---|---|---|---|---|---|---|---|---|
-| X | 32.7% | 671 | 132 | 6/7/**9**/10/15 | theirs: 1:15% 2:50% 3:26% 4:5% 5:3% | — | 54% | 1:4% 2:32% 3:32% 4:27% 5:4% |
-| 1S | 19.3% | 396 | 106 | 7/7/**9**/10/15 | 1:4% 2:24% 3:30% 4:7% 5:22% 6:12% | **3.2** (1.6–4.6) | 42% | 1:5% 2:15% 3:16% 4:51% 5:13% |
-| P | 15.7% | 322 | 97 | 2/4/**5**/7/8 | — | — | 62% | 1:2% 2:13% 3:37% 4:36% 5:11% |
-| 2C | 7.4% | 151 | 50 | 5/7/**7**/10/13 | 1:3% 2:7% 3:5% 4:40% 5:44% 6+:1% | **3.2** (2.5–4.9) | 13% | 1:3% 2:7% 3:5% 4:40% 5:44% 6+:1% |
-| 1NT | 5.7% | 117 | 37 | 7/7/**8**/9/10 | — | — | 71% | 2:3% 3:15% 4:53% 5:29% |
-| 2H | 5.2% | 106 | 40 | 8/9/**11**/13/15 | 1:30% 2:18% 3:43% 4:8% | **3.3** (0.9–4.0) | 29% | 1:5% 2:11% 3:20% 4:28% 5:35% |
-| 2D | 5.0% | 102 | 33 | 6/10/**11**/12/15 | 4:4% 5:50% 6:37% 7:8% | **4.3** (3.3–4.8) | 13% | 1:7% 2:17% 3:6% 4:56% 5:14% |
-| 3C | 4.6% | 94 | 15 | 5/5/**6**/8/8 | 4:4% 5:91% 6:4% | **3.2** (2.3–6.2) | 0% | 4:4% 5:91% 6:4% |
-| 2S | 1.5% | 31 | 16 | 6/9/**11**/12/15 | 1:13% 2:29% 3:16% 4:3% 6:39% | **4.8** (2.9–7.8) | 13% | 1:3% 2:26% 3:16% 4:10% 5:42% 8:3% |
+| X | 30.7% | 382 | 132 | 6/8/**9**/10/15 | theirs: 1:14% 2:51% 3:26% 4:5% 5:3% | — | 58% | 1:3% 2:29% 3:35% 4:29% 5:3% |
+| 1S | 19.1% | 238 | 106 | 7/7/**9**/10/14 | 1:3% 2:20% 3:26% 4:8% 5:27% 6:15% | **3.3** (2.1–4.8) | 40% | 1:6% 2:17% 3:18% 4:51% 5:8% |
+| P | 15.6% | 194 | 97 | 2/4/**5**/7/7 | — | — | 57% | 1:3% 2:10% 3:38% 4:37% 5:12% |
+| 2C | 7.6% | 94 | 50 | 5/7/**7**/9/12 | 1:2% 2:3% 3:4% 4:36% 5:54% | **3.1** (2.5–3.9) | 10% | 1:2% 2:3% 3:4% 4:36% 5:54% |
+| 1NT | 6.1% | 76 | 37 | 7/8/**9**/9/10 | — | — | 74% | 2:3% 3:14% 4:55% 5:28% |
+| 2H | 6.0% | 74 | 40 | 8/9/**12**/14/15 | 1:31% 2:18% 3:45% 4:7% | **3.3** (0.9–4.7) | 36% | 1:7% 2:7% 3:16% 4:35% 5:34% 6+:1% |
+| 2D | 5.6% | 69 | 33 | 6/10/**12**/12/15 | <5:3% 5:51% 6:39% 7:7% | **4.3** (3.7–4.8) | 14% | 1:6% 2:19% 3:9% 4:52% 5:13% 6+:1% |
+| 3C | 5.1% | 64 | 15 | 5/5/**6**/8/8 | 4:6% 5:91% 6:3% | **3.2** (2.3–6.2) | 0% | 4:6% 5:91% 6:3% |
 
 By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 | action | vul | n | HCP p5/p25/med/p75/p95 |
 |---|---|---|---|
-| X | none | 167 | 5/7/**8**/9/11 |
-| X | fav | 194 | 6/8/**9**/11/15 |
-| X | unfav | 159 | 6/8/**9**/10/13 |
-| X | both | 151 | 6/8/**9**/11/15 |
-| 1S | none | 124 | 7/7/**9**/11/14 |
-| 1S | fav | 124 | 7/7/**10**/13/15 |
-| 1S | unfav | 58 | 6/7/**8**/10/12 |
-| 1S | both | 90 | 6/7/**8**/10/12 |
-| 2C | none | 41 | 7/9/**10**/12/14 |
-| 2C | fav | 44 | 5/7/**7**/7/12 |
-| 2C | unfav | 40 | 6/6/**7**/8/11 |
-| 2C | both | 26 | 4/5/**7**/9/12 |
-| 1NT | none | 67 | 7/8/**9**/9/10 |
-| 1NT | both | 39 | 6/7/**8**/8/10 |
-| 2H | none | 48 | 9/9/**12**/12/14 |
-| 2D | none | 61 | 10/10/**12**/12/13 |
+| X | none | 77 | 6/7/**8**/9/11 |
+| X | fav | 114 | 6/8/**9**/11/17 |
+| X | unfav | 90 | 6/8/**9**/10/13 |
+| X | both | 101 | 6/9/**10**/12/15 |
+| 1S | none | 84 | 7/7/**8**/11/14 |
+| 1S | fav | 73 | 7/7/**10**/11/15 |
+| 1S | unfav | 29 | 6/8/**9**/10/12 |
+| 1S | both | 52 | 7/7/**8**/9/10 |
+| 2C | fav | 28 | 5/5/**7**/7/10 |
+| 2C | unfav | 29 | 6/6/**8**/8/11 |
+| 1NT | none | 45 | 7/9/**9**/9/10 |
+| 1NT | both | 26 | 7/8/**8**/8/10 |
+| 2H | none | 30 | 9/10/**12**/14/14 |
+| 2D | none | 40 | 10/10/**12**/12/14 |
 
 HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 | action | 0–1 | 2 | 3 | 4+ |
 |---|---|---|---|---|
-| X | 6/**7**/10 (105) | 8/**9**/10 (334) | 8/**9**/10 (175) | 8/**9**/10 (57) |
-| 1S | 8/**10**/12 (88) | 7/**8**/10 (139) | 8/**9**/12 (113) | 7/**7**/9 (56) |
-| 2C | 6/**8**/11 (43) | 7/**7**/11 (57) | 5/**7**/8 (26) | 7/**7**/9 (25) |
-| 1NT | — | — | 8/**8**/8 (44) | 7/**9**/9 (69) |
+| X | 6/**7**/10 (56) | 8/**9**/10 (195) | 7/**9**/10 (100) | 9/**10**/13 (31) |
+| 1S | 8/**10**/12 (55) | 7/**7**/10 (91) | 8/**9**/11 (62) | 7/**7**/9 (30) |
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 6..15`
-- `1S` → `((hcp in 6..15 and h <= 2) or (hcp in 7..15 and h in 3..4))`
-- `2C` → `c >= 3 and (hcp >= 11 or top(c,5) >= 1) and hcp in 5..13`
+- `1S` → `((hcp in 6..14 and h <= 2) or (hcp in 7..14 and h in 3..4))`
+- `2C` → `c >= 4 and top(c,5) >= 1 and hcp in 5..12`
 - `1NT` → `(has(h,a) or (has(h,k) and h >= 2) or (has(h,q) and h >= 3)) and hcp in 7..10`
 - `2H` → `hcp in 8..15`
 - `2D` → `d >= 5 and top(d,5) >= 1 and hcp in 6..15`
@@ -1730,10 +1712,10 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `2S` → `s >= 3 and hcp in 4..9`
+- `2S` → `hcp in 4..9`
 - `3S` → `s >= 4 and hcp in 1..7`
 - `X` → `hcp in 7..15`
-- `3H` → `((hcp in 8..13 and d >= 4) or (hcp in 8..13 and c >= 4))`
+- `3H` → `hcp in 8..13`
 - `4S` → `s >= 4 and hcp in 5..11`
 
 ### 1H (2D) ?
@@ -1763,7 +1745,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 5..14`
-- `2H` → `h >= 3 and hcp in 6..10`
+- `2H` → `hcp in 6..10`
 - `2S` → `s >= 5 and top(s,5) >= 2 and hcp in 7..14`
 
 ### 1S (2D) ?
@@ -1802,7 +1784,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `2S` → `s >= 3 and top(s,5) >= 1 and ((hcp in 1..8 and d <= 2) or (hcp in 4..8 and d == 3))`
+- `2S` → `hcp in 1..8`
 - `4S` → `s >= 4 and top(s,5) >= 1 and hcp in 5..7`
 - `X` → `hcp in 6..10`
 - `2H` → `h >= 5 and top(h,5) >= 1 and hcp in 5..13`
@@ -1860,7 +1842,7 @@ By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 6..12`
-- `2S` → `s >= 3 and hcp in 4..10`
+- `2S` → `h >= 4 and hcp in 4..10`
 
 ### 1D (2C) ?
 
@@ -1926,6 +1908,95 @@ Dealer filters (paste into the custom filter box; derived from the data):
 - `2C` → `hcp in 1..9`
 - `2D` → `d >= 3 and hcp in 1..8`
 - `2H` → `h >= 3 and hcp in 1..10`
+
+## Transfer responses over interference: 1C (…) ? by transfer-walsh pairs
+
+Pairs whose 1C responses are transfers keep them on over a double or 1D overcall: X/1D = hearts, 1H = spades, 1S = no major. The derived rules key on the suit actually held.
+
+### 1C (X) ? — transfer responders
+
+| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal | partner's ♣ |
+|---|---|---|---|---|---|---|---|---|
+| P | 31.0% | 133 | 100 | 0/3/**4**/5/8 | — | — | 65% | <2:2% 2:47% 3:32% 4:17% 5:2% |
+| 1H | 20.0% | 86 | 89 | 3/6/**7**/8/9 | 1:19% 2:19% 3:45% 4:15% 5:2% | **3.6** (0.4–4.7) | 42% | <1:1% 1:10% 2:35% 3:33% 4:8% 5:13% |
+| 1D | 17.7% | 76 | 86 | 4/5/**8**/8/12 | 1:5% 2:33% 3:28% 4:16% 5:13% 6:5% | **2.8** (0.9–4.0) | 14% | 1:21% 2:45% 3:11% 4:11% 5:1% 6:12% |
+| 1S | 11.2% | 48 | 68 | 4/6/**7**/7/9 | 1:6% 2:25% 3:54% 4:6% 5:4% 6:4% | **2.3** (1.5–3.5) | 58% | 1:10% 2:8% 3:25% 4:38% 5:19% |
+| XX | 9.1% | 39 | 57 | 4/8/**11**/11/16 | — | — | 46% | 0:15% 1:5% 2:10% 3:31% 4:15% 5:23% |
+
+By vulnerability (fav = they vul, we not; unfav = we vul, they not):
+
+| action | vul | n | HCP p5/p25/med/p75/p95 |
+|---|---|---|---|
+| 1H | none | 31 | 3/6/**7**/8/8 |
+| 1D | fav | 31 | 4/6/**8**/8/10 |
+
+Dealer filters (paste into the custom filter box; derived from the data):
+
+- `1H` → `s >= 4 and hcp in 3..9`
+- `1D` → `h >= 4 and hcp in 4..12`
+
+### 1C (1D) ? — transfer responders
+
+| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal | partner's ♣ |
+|---|---|---|---|---|---|---|---|---|
+| X | 31.7% | 111 | 109 | 4/7/**8**/10/14 | theirs: 1:17% 2:55% 3:14% 4:11% 5:3% | — | 50% | 1:9% 2:18% 3:43% 4:15% 5:5% 6:9% |
+| 1H | 23.4% | 82 | 83 | 6/8/**9**/10/12 | 1:5% 2:18% 3:45% 4:20% 5:9% 6:4% | **3.5** (0.7–4.7) | 40% | 1:4% 2:27% 3:46% 4:7% 5:11% 6:5% |
+| P | 13.1% | 46 | 81 | 2/3/**5**/7/10 | — | — | 59% | 2:20% 3:37% 4:26% 5:13% 6:4% |
+| 1S | 10.3% | 36 | 63 | 6/7/**8**/10/11 | 1:8% 2:6% 3:44% 4:31% 5:6% 6:6% | **2.4** (1.5–5.6) | 61% | 1:6% 2:19% 3:19% 4:6% 5:50% |
+
+By vulnerability (fav = they vul, we not; unfav = we vul, they not):
+
+| action | vul | n | HCP p5/p25/med/p75/p95 |
+|---|---|---|---|
+| X | none | 43 | 5/8/**8**/9/12 |
+| X | fav | 34 | 4/7/**8**/10/10 |
+| 1H | none | 30 | 6/7/**8**/9/11 |
+
+HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
+
+| action | 0–1 | 2 | 3 | 4+ |
+|---|---|---|---|---|
+| X | 4/**7**/8 (19) | 8/**9**/11 (61) | 9/**9**/12 (16) | 6/**7**/9 (15) |
+
+Dealer filters (paste into the custom filter box; derived from the data):
+
+- `X` → `hcp in 4..14`
+- `1H` → `s >= 4 and hcp in 6..12`
+
+### 1C (1H) ? — transfer responders
+
+| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal | partner's ♣ |
+|---|---|---|---|---|---|---|---|---|
+| X | 38.4% | 228 | 132 | 5/7/**9**/10/14 | theirs: 1:17% 2:48% 3:25% 4:7% 5:3% | — | 47% | 1:7% 2:33% 3:34% 4:21% 5:4% |
+| 1S | 20.9% | 124 | 106 | 6/7/**9**/10/13 | <1:2% 1:6% 2:39% 3:42% 4:5% 5:4% 6:2% | **2.4** (0.4–3.9) | 49% | 2:8% 3:10% 4:54% 5:27% |
+| P | 14.5% | 86 | 97 | 2/4/**6**/7/8 | — | — | 69% | <2:1% 2:17% 3:33% 4:35% 5:13% 6+:1% |
+| 2C | 6.4% | 38 | 50 | 6/7/**10**/12/15 | 1:5% 2:18% 3:8% 4:32% 5:32% 6:3% 8:3% | **3.3** (2.5–6.2) | 13% | 1:5% 2:18% 3:8% 4:32% 5:32% 6:3% 8:3% |
+| 1NT | 4.6% | 27 | 37 | 7/7/**8**/9/10 | — | — | 59% | 2:4% 3:19% 4:41% 5:37% |
+
+By vulnerability (fav = they vul, we not; unfav = we vul, they not):
+
+| action | vul | n | HCP p5/p25/med/p75/p95 |
+|---|---|---|---|
+| X | none | 71 | 5/7/**8**/9/12 |
+| X | fav | 65 | 6/7/**9**/10/14 |
+| X | unfav | 51 | 6/8/**9**/10/13 |
+| X | both | 41 | 6/7/**9**/11/15 |
+| 1S | none | 26 | 7/9/**10**/10/14 |
+| 1S | fav | 42 | 7/7/**9**/13/13 |
+| 1S | unfav | 25 | 6/7/**8**/10/12 |
+| 1S | both | 31 | 6/7/**8**/10/12 |
+
+HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
+
+| action | 0–1 | 2 | 3 | 4+ |
+|---|---|---|---|---|
+| X | 7/**7**/10 (41) | 8/**9**/9 (109) | 8/**9**/10 (56) | 7/**8**/9 (22) |
+| 1S | 8/**8**/11 (22) | 7/**9**/10 (35) | 8/**10**/13 (43) | 7/**7**/9 (24) |
+
+Dealer filters (paste into the custom filter box; derived from the data):
+
+- `X` → `hcp in 5..14`
+- `1S` → `c >= 4 and hcp in 6..13`
 
 ## Advancing partner’s direct action: (1x) act (…) ?
 
@@ -2246,63 +2317,56 @@ Dealer filters (paste into the custom filter box; derived from the data):
 
 ## Uncontested responses: 1x (P) ?
 
-Partner opened (natural style), RHO passed. Responder ranges.
+Partner opened (natural style), RHO passed. Responder ranges. The 1C row shows STANDARD responders; transfer-walsh pairs (1D = ♥, 1H = ♠, 1S = no-major NT-ish) are tabulated separately below.
 
 ### 1C (P) ?
 
 | action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal |
 |---|---|---|---|---|---|---|---|
-| 1H | 32.7% | 3185 | 602 | 5/7/**10**/12/15 | 1:3% 2:8% 3:16% 4:45% 5:18% 6:7% 7:2% | **3.6** (2.3–4.8) | 50% |
-| 1D | 27.1% | 2637 | 619 | 4/6/**9**/13/17 | 1:4% 2:13% 3:17% 4:28% 5:22% 6:11% 7:4% | **3.5** (1.9–5.4) | 55% |
-| 1S | 25.3% | 2462 | 489 | 5/8/**10**/12/17 | 2:5% 3:12% 4:40% 5:32% 6:8% 7+:3% | **3.8** (2.5–5.1) | 52% |
-| 1NT | 4.4% | 432 | 224 | 7/9/**10**/11/16 | — | — | 94% |
-| 2C | 3.0% | 295 | 140 | 8/12/**15**/15/20 | <1:2% 1:5% 2:10% 3:6% 4:17% 5:33% 6:26% 7+:1% | **5.3** (3.8–7.2) | 51% |
-| 2D | 1.5% | 144 | 123 | 5/9/**13**/15/19 | 1:5% 2:12% 3:15% 4:2% 5:28% 6:27% 7:10% | **4.9** (3.5–5.7) | 23% |
-| P | 2.2% | 212 | 51 | 1/2/**4**/4/5 | — | — | 72% |
-| 2H | 1.0% | 99 | 77 | 4/7/**10**/14/15 | 0:2% 1:2% 2:22% 3:23% 4:18% 5:6% 6:18% 7:8% | **3.5** (1.5–5.4) | 29% |
-| 2NT | 0.8% | 77 | 54 | 10/12/**12**/15/16 | — | — | 92% |
-| 2S | 0.6% | 63 | 47 | 4/7/**11**/12/17 | 2:10% 3:29% 5:13% 6:30% 7:10% 8:10% | **4.4** (3.6–5.8) | 27% |
-| 3NT | 0.5% | 45 | 19 | 12/12/**14**/15/15 | — | — | 100% |
-| 3D | 0.4% | 40 | 11 | 5/5/**7**/7/13 | 0:3% 2:5% 3:3% 4:3% 6:10% 7:75% 8:3% | **4.2** (2.6–5.3) | 0% |
-| 3C | 0.3% | 31 | 15 | 6/6/**7**/8/10 | 5:39% 6:61% | **3.8** (2.8–4.1) | 3% |
+| 1H | 32.9% | 1972 | 602 | 5/7/**10**/12/15 | 4:61% 5:25% 6:10% 7:3% | **3.8** (2.7–4.9) | 52% |
+| 1D | 24.4% | 1462 | 619 | 3/6/**10**/13/17 | 1:2% 2:6% 3:12% 4:28% 5:29% 6:16% 7:6% | **4.1** (2.4–5.5) | 56% |
+| 1S | 28.3% | 1700 | 489 | 5/8/**10**/12/16 | 4:49% 5:38% 6:10% 7+:3% | **3.9** (2.9–5.1) | 49% |
+| 1NT | 4.8% | 289 | 224 | 7/8/**10**/10/15 | — | — | 95% |
+| 2C | 2.8% | 167 | 140 | 8/12/**15**/15/20 | <2:2% 2:5% 3:5% 4:23% 5:35% 6:28% 7+:2% | **5.7** (4.0–7.8) | 59% |
+| 2D | 1.4% | 82 | 123 | 5/9/**13**/17/19 | 1:6% 2:5% 3:10% 5:29% 6:40% 7:10% | **5.1** (3.9–6.1) | 22% |
+| P | 1.9% | 113 | 51 | 2/2/**4**/4/5 | — | — | 73% |
+| 2H | 1.0% | 63 | 77 | 6/8/**12**/15/15 | 2:22% 3:30% 4:16% 5:5% 6:16% 7:11% | **4.6** (2.4–5.5) | 46% |
+| 2NT | 0.6% | 34 | 54 | 10/11/**12**/14/15 | — | — | 91% |
+| 2S | 0.7% | 41 | 47 | 4/10/**11**/12/17 | 2:12% 3:32% 5:10% 6:24% 7:10% 8:12% | **4.4** (2.4–6.6) | 37% |
+| 3NT | 0.4% | 27 | 19 | 12/12/**14**/15/15 | — | — | 100% |
 
 By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 | action | vul | n | HCP p5/p25/med/p75/p95 |
 |---|---|---|---|
-| 1H | none | 664 | 5/8/**10**/13/14 |
-| 1H | fav | 1113 | 5/7/**9**/11/15 |
-| 1H | unfav | 505 | 5/7/**10**/12/14 |
-| 1H | both | 903 | 4/7/**10**/12/16 |
-| 1D | none | 595 | 4/6/**9**/13/17 |
-| 1D | fav | 822 | 3/6/**9**/13/17 |
-| 1D | unfav | 434 | 4/7/**11**/14/19 |
-| 1D | both | 786 | 4/6/**9**/12/16 |
-| 1S | none | 592 | 5/8/**10**/13/14 |
-| 1S | fav | 857 | 4/8/**10**/12/18 |
-| 1S | unfav | 449 | 4/8/**10**/12/17 |
-| 1S | both | 564 | 6/9/**10**/12/16 |
-| 1NT | none | 169 | 7/9/**10**/10/13 |
-| 1NT | fav | 66 | 7/9/**11**/14/18 |
-| 1NT | unfav | 76 | 8/8/**9**/14/19 |
-| 1NT | both | 121 | 8/9/**10**/10/15 |
-| 2C | none | 48 | 7/11/**13**/14/21 |
-| 2C | fav | 79 | 5/13/**14**/15/18 |
-| 2C | unfav | 121 | 12/15/**15**/20/20 |
-| 2C | both | 47 | 8/10/**13**/15/15 |
-| 2D | none | 41 | 5/9/**13**/16/18 |
-| 2D | fav | 30 | 4/7/**14**/17/17 |
-| 2D | unfav | 41 | 4/7/**15**/19/19 |
-| 2D | both | 32 | 6/10/**12**/13/17 |
+| 1H | none | 376 | 6/8/**10**/14/15 |
+| 1H | fav | 703 | 6/7/**9**/11/15 |
+| 1H | unfav | 287 | 6/8/**10**/12/14 |
+| 1H | both | 606 | 4/7/**10**/13/16 |
+| 1D | none | 364 | 3/5/**7**/13/17 |
+| 1D | fav | 417 | 2/5/**11**/13/17 |
+| 1D | unfav | 259 | 4/6/**12**/15/19 |
+| 1D | both | 422 | 3/6/**9**/12/15 |
+| 1S | none | 395 | 6/8/**10**/13/14 |
+| 1S | fav | 615 | 4/8/**10**/12/18 |
+| 1S | unfav | 301 | 4/8/**10**/11/16 |
+| 1S | both | 389 | 6/9/**10**/12/16 |
+| 1NT | none | 129 | 7/9/**10**/10/11 |
+| 1NT | fav | 29 | 7/9/**9**/11/18 |
+| 1NT | unfav | 46 | 8/8/**8**/10/19 |
+| 1NT | both | 85 | 8/8/**10**/10/15 |
+| 2C | none | 26 | 7/9/**12**/14/21 |
+| 2C | fav | 42 | 7/13/**14**/15/18 |
+| 2C | unfav | 75 | 12/15/**15**/20/20 |
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `1H` → `hcp in 5..15`
-- `1D` → `hcp in 4..17`
-- `1S` → `s >= 3 and (hcp >= 11 or top(s,5) >= 1) and hcp in 5..17`
-- `1NT` → `hcp in 7..16` *(+ balanced)*
-- `2C` → `top(c,5) >= 1 and hcp in 8..20`
-- `2D` → `top(d,5) >= 1 and hcp in 5..19`
+- `1H` → `h >= 4 and top(h,5) >= 1 and hcp in 5..15`
+- `1D` → `d >= 3 and hcp in 3..17`
+- `1S` → `s >= 4 and top(s,5) >= 1 and hcp in 5..16`
+- `1NT` → `hcp in 7..15` *(+ balanced)*
+- `2C` → `c >= 3 and top(c,5) >= 1 and hcp in 8..20`
+- `2D` → `hcp in 5..19`
 
 ### 1D (P) ?
 
@@ -2410,7 +2474,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 - `1S` → `s >= 4 and hcp in 5..17`
 - `2C` → `hcp in 9..18`
 - `1NT` → `hcp in 4..13`
-- `2H` → `h >= 3 and hcp in 5..10`
+- `2H` → `hcp in 5..10`
 - `2NT` → `hcp in 9..15`
 - `2D` → `d >= 4 and top(d,5) >= 1 and hcp in 9..17`
 
@@ -2467,7 +2531,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 
 - `1NT` → `hcp in 4..11`
 - `2C` → `top(c,5) >= 1 and hcp in 9..17`
-- `2S` → `s >= 3 and hcp in 4..10`
+- `2S` → `hcp in 4..10`
 - `2D` → `d >= 4 and top(d,5) >= 1 and hcp in 9..18`
 - `2NT` → `hcp in 8..15`
 - `2H` → `h >= 5 and top(h,5) >= 2 and hcp in 10..17`
@@ -2523,11 +2587,59 @@ By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `2C` → `hcp in 6..14`
-- `2H` → `hcp in 4..17`
-- `2D` → `hcp in 3..16`
+- `2H` → `s >= 5 and hcp in 4..17`
+- `2D` → `h >= 5 and hcp in 3..16`
 - `3NT` → `hcp in 8..14`
 - `2NT` → `hcp in 5..16`
 - `3C` → `hcp in 7..16`
+
+## Transfer responses to 1C: 1C (P) ? by transfer-walsh pairs
+
+Detected per partnership from the hands (4+ of the next suit in essentially every 1D/1H response). The derived rules key on the suit actually shown: 1D = hearts, 1H = spades. The field’s 1S is the no-major hand but diamond-flavoured — 4+ diamonds in most, and wider than 5–11.
+
+### 1C (P) ? — transfer responders
+
+| action | freq | n | deals | HCP p5/p25/med/p75/p95 | bid-suit len | texture | %bal |
+|---|---|---|---|---|---|---|---|
+| 1H | 34.4% | 991 | 602 | 4/7/**10**/12/15 | 0:2% 1:8% 2:26% 3:50% 4:10% 5:3% | **3.0** (1.1–4.5) | 49% |
+| 1D | 34.6% | 998 | 619 | 4/7/**9**/12/15 | 1:8% 2:26% 3:26% 4:28% 5:9% 6:3% | **3.0** (1.5–4.9) | 52% |
+| 1S | 15.9% | 458 | 489 | 4/8/**10**/13/18 | 0:2% 1:3% 2:24% 3:62% 4:5% 5:3% 6+:1% | **3.0** (1.5–4.3) | 65% |
+| 1NT | 4.1% | 117 | 224 | 8/10/**11**/14/18 | — | — | 90% |
+| 2C | 3.5% | 101 | 140 | 8/12/**14**/15/20 | 0:4% 1:11% 2:20% 3:9% 4:5% 5:27% 6:24% | **4.4** (2.9–6.3) | 33% |
+| 2D | 1.8% | 51 | 123 | 4/7/**13**/15/19 | <2:2% 2:25% 3:25% 4:4% 5:27% 6:6% 7:10% | **4.8** (2.6–5.6) | 25% |
+| P | 2.3% | 66 | 51 | 1/2/**4**/4/5 | — | — | 77% |
+| 2H | 1.1% | 31 | 77 | 4/5/**8**/11/15 | 0:6% 1:6% 2:26% 3:13% 4:19% 5:10% 6:16% 7:3% | **2.2** (0.5–3.5) | 0% |
+
+By vulnerability (fav = they vul, we not; unfav = we vul, they not):
+
+| action | vul | n | HCP p5/p25/med/p75/p95 |
+|---|---|---|---|
+| 1H | none | 236 | 5/7/**10**/12/14 |
+| 1H | fav | 329 | 3/7/**9**/11/17 |
+| 1H | unfav | 189 | 5/7/**9**/11/14 |
+| 1H | both | 237 | 6/8/**10**/12/16 |
+| 1D | none | 190 | 5/8/**9**/13/15 |
+| 1D | fav | 352 | 5/7/**9**/11/16 |
+| 1D | unfav | 147 | 5/8/**10**/12/15 |
+| 1D | both | 309 | 4/6/**10**/12/15 |
+| 1S | none | 120 | 5/7/**10**/14/17 |
+| 1S | fav | 134 | 4/8/**11**/13/17 |
+| 1S | unfav | 91 | 5/8/**12**/15/19 |
+| 1S | both | 113 | 4/8/**9**/12/13 |
+| 1NT | none | 30 | 8/10/**11**/12/14 |
+| 1NT | fav | 36 | 6/10/**13**/15/18 |
+| 1NT | both | 27 | 8/10/**10**/11/16 |
+| 2C | fav | 30 | 6/11/**13**/14/17 |
+| 2C | unfav | 36 | 10/13/**15**/15/20 |
+
+Dealer filters (paste into the custom filter box; derived from the data):
+
+- `1H` → `s >= 4 and hcp in 4..15`
+- `1D` → `h >= 4 and hcp in 4..15`
+- `1S` → `d >= 4 and hcp in 4..18`
+- `1NT` → `hcp in 8..18` *(+ balanced)*
+- `2C` → `hcp in 8..20`
+- `2D` → `hcp in 4..19`
 
 ## Book vs field
 
@@ -2549,8 +2661,7 @@ at the bottom of ranges, and vulnerability is the biggest modifier for preempts.
 | Michaels (1H) 2H | 8–12 or 16+, 5-5 | 8–14 (med 12), n=375 |
 | unusual 2NT (1S) 2NT | weak or 17+, 5-5 minors | 7–21 (med 11), n=111 |
 | negative double 1S (2H) X | 7+ (level-adjusted) | 7–15 (med 10), n=82 |
-| redouble 1C (X) XX | 10+ | 6–16 (med 11), n=122 |
-| new suit response 1C (P) 1H | 6+ | 5–15 (med 10), n=3185 |
+| new suit response 1C (P) 1H (std responders) | 6+ | 5–15 (med 10), n=1972 |
 
 ## Dealer integration
 

@@ -40,6 +40,8 @@ import {
   deriveNtRule,
   deriveHcpRule,
   deriveRaiseishRule,
+  deriveRespSuitRule,
+  classifyRespStyle,
   PairOpenings,
   classifyPair,
   median,
@@ -272,6 +274,68 @@ function detectStyles(tables: TableRow[], feats: Map<string, SeatFeatures[]>): M
 }
 
 /**
+ * Detect each pair's 1C RESPONSE style (transfer walsh vs standard) from
+ * their own uncontested 1D/1H responses to a natural/short 1C: transfer pairs
+ * hold 4+ of the next suit up essentially always. Tags: 'xfer' | 'std' |
+ * 'unkresp' (not enough evidence).
+ */
+function detectRespStyles(
+  tables: TableRow[],
+  feats: Map<string, SeatFeatures[]>,
+  styles: Map<string, PairStyle>,
+): Map<string, string> {
+  interface Samples {
+    n1D: number;
+    h4: number;
+    n1H: number;
+    s4: number;
+  }
+  const samples = new Map<string, Samples>();
+  for (const t of tables) {
+    let o = -1;
+    for (let i = 0; i < t.calls.length && i < 4; i++) {
+      if (t.calls[i] !== 'P') {
+        o = i;
+        break;
+      }
+    }
+    if (o === -1 || t.calls[o] !== '1C') continue;
+    if (t.calls.length <= o + 2 || t.calls[o + 1] !== 'P') continue;
+    const resp = t.calls[o + 2];
+    if (resp !== '1D' && resp !== '1H') continue;
+    const openerSeat = (t.dealerIdx + o) % 4;
+    const pair = openerSeat % 2 === 0 ? t.nsPair : t.ewPair;
+    if (pair === '?') continue;
+    const oneClub = styles.get(pair)?.oneClub;
+    if (oneClub !== 'natural' && oneClub !== 'short') continue;
+    const f = feats.get(t.pbn)![(openerSeat + 2) % 4];
+    let s = samples.get(pair);
+    if (!s) {
+      s = { n1D: 0, h4: 0, n1H: 0, s4: 0 };
+      samples.set(pair, s);
+    }
+    if (resp === '1D') {
+      s.n1D++;
+      if (f.len[1] >= 4) s.h4++;
+    } else {
+      s.n1H++;
+      if (f.len[0] >= 4) s.s4++;
+    }
+  }
+  const out = new Map<string, string>();
+  for (const [pair, s] of samples) {
+    const cls = classifyRespStyle(
+      s.n1D,
+      s.n1D > 0 ? s.h4 / s.n1D : 0,
+      s.n1H,
+      s.n1H > 0 ? s.s4 / s.n1H : 0,
+    );
+    out.set(pair, cls === 'unknown' ? 'unkresp' : cls);
+  }
+  return out;
+}
+
+/**
  * Style tag for an opening bid made by a pair (conditions all derived
  * contexts). Short tags shared by the aggregation keys and the report:
  * nat/short/strong/polish (1C), nat/neb (1D), strong/weak (1NT), strong/nat
@@ -354,6 +418,7 @@ function aggregate(
   tables: TableRow[],
   feats: Map<string, SeatFeatures[]>,
   styles: Map<string, PairStyle>,
+  respStyles: Map<string, string>,
   weakTeams: Set<string>,
 ): Cells {
   const map = new Map<CellKey, Agg>();
@@ -385,7 +450,7 @@ function aggregate(
         default:
           openerPair = otherPair; // overOpen, balance, sandwich, advance
       }
-      const style =
+      let style =
         ctx.family === 'open' && !isBid(ctx.action)
           ? styles.get(actorPair)?.naturalBase
             ? 'nat'
@@ -393,6 +458,15 @@ function aggregate(
               ? 'oth'
               : 'unk'
           : styleTag(openBid, styles.get(openerPair));
+      // Responses to a natural/short 1C split by the pair's RESPONSE style
+      // (transfer walsh vs standard) instead of the opening style.
+      if (
+        (ctx.family === 'resp' || ctx.family === 'respInterf') &&
+        openBid === '1C' &&
+        (style === 'nat' || style === 'short')
+      ) {
+        style = respStyles.get(actorPair) ?? 'unkresp';
+      }
       const cellKey = `${ctx.family}|${ctx.key}|${ctx.action}|${vul}|${style}`;
       let agg = map.get(cellKey);
       if (!agg) {
@@ -430,7 +504,7 @@ function sumCells(
   const vulList: string[] = vuls === 'all' ? ['none', 'we', 'they', 'both'] : vuls;
   const styleList =
     stylesWanted === 'all'
-      ? ['nat', 'short', 'strong', 'polish', 'neb', 'weak', 'multi', 'other', 'oth', 'unk']
+      ? ['nat', 'short', 'strong', 'polish', 'neb', 'weak', 'multi', 'other', 'oth', 'unk', 'xfer', 'std', 'unkresp']
       : stylesWanted;
   for (const vul of vulList) {
     for (const style of styleList) {
@@ -563,7 +637,14 @@ function deriveRule(family: string, key: string, action: string, agg: Agg): BidR
         if (support3 / agg.n >= 0.7) return deriveRaiseishRule(agg, pSuit);
       }
     }
-    if (strainIdx < 4) return deriveSuitBidRule(agg, strainIdx, theirSuit, facingNT);
+    if (strainIdx < 4) {
+      // Responses may be transfers (1C-1D = hearts, continued over intervention):
+      // key on the suit actually held when the named suit isn't it.
+      if (family === 'resp' || family === 'respInterf') {
+        return deriveRespSuitRule(agg, strainIdx, theirSuit);
+      }
+      return deriveSuitBidRule(agg, strainIdx, theirSuit, facingNT);
+    }
     return deriveNtRule(agg, theirSuit);
   }
   return deriveHcpRule(agg); // P, XX, other doubles
@@ -690,13 +771,19 @@ it('bidding-range study', () => {
 
   console.log('pass 1: partnership system detection…');
   const styles = detectStyles(tables, feats);
+  const respStyles = detectRespStyles(tables, feats, styles);
+  {
+    const c = { xfer: 0, std: 0, unkresp: 0 };
+    for (const v of respStyles.values()) c[v as keyof typeof c]++;
+    console.log(`  1C response styles: std ${c.std}, xfer ${c.xfer}, unknown ${c.unkresp}`);
+  }
 
   console.log('pass 2: context aggregation…');
-  const cells = aggregate(tables, feats, styles, weakTeams);
+  const cells = aggregate(tables, feats, styles, respStyles, weakTeams);
   console.log(`  ${cells.map.size} context cells; ${cells.excluded} weak-team calls excluded`);
 
   console.log('writing report + profiles…');
-  const report = buildReport(tables, counters, coverage, styles, cells, weakTeams);
+  const report = buildReport(tables, counters, coverage, styles, respStyles, cells, weakTeams);
   writeFileSync(REPORT_PATH, report);
 
   const profiles = buildProfiles(cells);
@@ -744,7 +831,7 @@ function sliceTotal(
   const vulList: string[] = vuls === 'all' ? ['none', 'we', 'they', 'both'] : vuls;
   const styleList =
     stylesWanted === 'all'
-      ? ['nat', 'short', 'strong', 'polish', 'neb', 'weak', 'multi', 'other', 'oth', 'unk']
+      ? ['nat', 'short', 'strong', 'polish', 'neb', 'weak', 'multi', 'other', 'oth', 'unk', 'xfer', 'std', 'unkresp']
       : stylesWanted;
   let total = 0;
   for (const vul of vulList)
@@ -781,8 +868,8 @@ function buildProfiles(cells: Cells): Profile[] {
     const all = sumCells(cells, family, key, action, 'all', 'all');
     if (all.n >= 25)
       out.push(toProfile(family, key, action, label, 'all', 'all', all, freqOf(all, 'all', 'all')));
-    // … per style (all vuls) for the style-sensitive openings …
-    for (const style of ['nat', 'short', 'strong', 'polish', 'neb', 'weak', 'multi']) {
+    // … per style (all vuls) for the style-sensitive openings and responses …
+    for (const style of ['nat', 'short', 'strong', 'polish', 'neb', 'weak', 'multi', 'xfer', 'std']) {
       const styled = sumCells(cells, family, key, action, 'all', [style]);
       if (styled.n >= 25 && styled.n < all.n) {
         out.push(
@@ -810,6 +897,7 @@ function buildReport(
   counters: Map<string, number>,
   coverage: Map<string, number>,
   styles: Map<string, PairStyle>,
+  respStyles: Map<string, string>,
   cells: Cells,
   weakTeams: Set<string>,
 ): string {
@@ -952,7 +1040,7 @@ function buildReport(
     const wjoUnfav = stat('overOpen', '1C', '2H', ['nat', 'short'], ['we']);
     const mich = stat('overOpen', '1H', '2H', 'all');
     const negX = stat('respInterf', '1S|2H', 'X', 'all');
-    const xx = stat('respInterf', '1C|X', 'XX', ['nat', 'short']);
+    const xx = stat('respInterf', '1C|X', 'XX', ['std', 'xfer', 'unkresp']);
     add(`- **The field opens light and overcalls light.** Natural 1M openings in seats 1–2`);
     add(`  centre on ${med(merged)} HCP with p5 = ${histStats(merged.hcpHist).p[0]} — nearly every 11-count and many decent`);
     add(`  10-counts get opened. One-level overcalls ((1C) 1H) run ${range90(oc1)} HCP —`);
@@ -977,6 +1065,24 @@ function buildReport(
     add(`  hearts ${Math.round((100 * (mich.lenHist[1][0] + mich.lenHist[1][1] + mich.lenHist[1][2])) / Math.max(1, mich.n))}% of the time; (1M) 2NT is the two lowest suits, unbalanced.`);
     add(`- **Negative doubles start at ~7**: 1S (2H) X = ${range90(negX)}. Redouble after`);
     add(`  1C (X) shows ${range90(xx)}.`);
+    // Transfer responses to 1C.
+    {
+      const c = { xfer: 0, std: 0, unkresp: 0 };
+      for (const v of respStyles.values()) c[v as keyof typeof c]++;
+      const x1d = stat('resp', '1C', '1D', ['xfer']);
+      const x1s = stat('resp', '1C', '1S', ['xfer']);
+      if (x1d.n >= 25) {
+        const h4 = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13].reduce((a, l) => a + x1d.lenHist[1][l], 0);
+        const noMaj = [0, 1, 2, 3].reduce((a, l) => a + x1s.maxMajHist[l], 0);
+        add(`- **Transfer responses to 1C are mainstream**: of classified natural-club pairs,`);
+        add(`  ${c.xfer} play transfers vs ${c.std} standard. Their 1C (P) 1D holds 4+ hearts ${Math.round((100 * h4) / x1d.n)}%`);
+        add(`  of the time (${range90(x1d)} HCP), and 1S is the no-major hand${
+          x1s.n >= 25 ? ` (${Math.round((100 * noMaj) / Math.max(1, x1s.n))}% with no 4-card major, ${range90(x1s)})` : ''
+        } — the`);
+        add('  derived rules follow the shown suit, and the treatment carries on over a');
+        add('  double or 1D overcall (see the transfer-responder sections).');
+      }
+    }
     // Defence to 1NT: conventional shapes detected from the hands.
     {
       const twoC = stat('overOpen', '1NT', '2C', 'all');
@@ -1078,6 +1184,12 @@ function buildReport(
   add(`- 2C style: ${fmtCensus(census((s) => s.twoClubs))}`);
   add(`- 2D style: ${fmtCensus(census((s) => s.twoDiamonds))}`);
   add(`- natural base (1C natural/short and 1D not nebulous): ${fmtCensus(census((s) => (s.naturalBase ? 'yes' : 'no')))}`);
+  {
+    const c = { xfer: 0, std: 0, unkresp: 0 };
+    for (const v of respStyles.values()) c[v as keyof typeof c]++;
+    add(`- 1C response style (natural/short openers, from their own 1D/1H responses):`);
+    add(`  standard ${c.std}, transfer-walsh ${c.xfer}, insufficient data ${c.unkresp}`);
+  }
   add();
 
   const dealCount = (family: string, key: string, action: string): number =>
@@ -1155,6 +1267,7 @@ function buildReport(
     keys: string[],
     styleFor: (key: string) => string[] | 'all',
     note = '',
+    labelSuffix = '',
   ): void => {
     add(`## ${title}`);
     add();
@@ -1165,13 +1278,14 @@ function buildReport(
     for (const key of keys) {
       const actions = actionsFor(cells, family, key);
       if (actions.length === 0) continue;
-      const label = contextLabel({
-        family: family as CallContext['family'],
-        key,
-        action: '?',
-        seatPos: 0,
-        passedHand: false,
-      });
+      const label =
+        contextLabel({
+          family: family as CallContext['family'],
+          key,
+          action: '?',
+          seatPos: 0,
+          passedHand: false,
+        }) + labelSuffix;
       const styleW = styleFor(key);
       const contextTotal = sliceTotal(totals, family, key, 'all', styleW);
       if (contextTotal < 50) continue;
@@ -1443,6 +1557,13 @@ function buildReport(
     return open === '1C' ? ['nat', 'short'] : open === '1D' ? ['nat'] : 'all';
   };
 
+  // For 1C contexts in the RESPONSE families, cells are tagged by the
+  // responder's treatment (std/xfer/unkresp), not the opening style.
+  const respStyleFor = (key: string): string[] | 'all' => {
+    const open = key.split('|')[0];
+    return open === '1C' ? ['std'] : open === '1D' ? ['nat'] : 'all';
+  };
+
   competitiveSection(
     'Responding after interference: partner opens, RHO acts',
     'respInterf',
@@ -1453,9 +1574,18 @@ function buildReport(
       '1S|2H', '1H|2D', '1S|2D', '1H|2C', '1S|2C', '1D|2C',
       '1NT|X',
     ],
-    naturalOpener,
-    'Key contexts: 1x (X) ? — redouble/new suits/jump raises; 1x (overcall) ? — negative doubles, raises, free bids. 1C/1D contexts use natural openers only. ' +
+    respStyleFor,
+    'Key contexts: 1x (X) ? — redouble/new suits/jump raises; 1x (overcall) ? — negative doubles, raises, free bids. 1C contexts show STANDARD responders (transfer-response pairs are tabulated separately below); 1D contexts use natural openers. ' +
       'After 1M (X) much of the field plays transfers / graded raises (2M−1 constructive, 2M weak or vice versa), so read the **partner\'s suit** column: when most hands hold 3+ support, the bid is a raise in disguise and its derived rule keys on support + strength band, not the named suit.',
+  );
+
+  competitiveSection(
+    'Transfer responses over interference: 1C (…) ? by transfer-walsh pairs',
+    'respInterf',
+    ['1C|X', '1C|1D', '1C|1H'],
+    () => ['xfer'],
+    'Pairs whose 1C responses are transfers keep them on over a double or 1D overcall: X/1D = hearts, 1H = spades, 1S = no major. The derived rules key on the suit actually held.',
+    ' — transfer responders',
   );
 
   competitiveSection(
@@ -1475,8 +1605,17 @@ function buildReport(
     'resp',
     ['1C', '1D', '1H', '1S', '1NT'],
     (key) =>
-      key === '1C' ? ['nat', 'short'] : key === '1D' ? ['nat'] : key === '1NT' ? ['strong'] : ['nat'],
-    'Partner opened (natural style), RHO passed. Responder ranges.',
+      key === '1C' ? ['std'] : key === '1D' ? ['nat'] : key === '1NT' ? ['strong'] : ['nat'],
+    'Partner opened (natural style), RHO passed. Responder ranges. The 1C row shows STANDARD responders; transfer-walsh pairs (1D = ♥, 1H = ♠, 1S = no-major NT-ish) are tabulated separately below.',
+  );
+
+  competitiveSection(
+    'Transfer responses to 1C: 1C (P) ? by transfer-walsh pairs',
+    'resp',
+    ['1C'],
+    () => ['xfer'],
+    'Detected per partnership from the hands (4+ of the next suit in essentially every 1D/1H response). The derived rules key on the suit actually shown: 1D = hearts, 1H = spades. The field’s 1S is the no-major hand but diamond-flavoured — 4+ diamonds in most, and wider than 5–11.',
+    ' — transfer responders',
   );
 
   // --- book comparison
@@ -1514,7 +1653,7 @@ function buildReport(
       ['unusual 2NT (1S) 2NT', 'weak or 17+, 5-5 minors', stat('overOpen', '1S', '2NT', 'all')],
       ['negative double 1S (2H) X', '7+ (level-adjusted)', stat('respInterf', '1S|2H', 'X', 'all')],
       ['redouble 1C (X) XX', '10+', stat('respInterf', '1C|X', 'XX', ['nat', 'short'])],
-      ['new suit response 1C (P) 1H', '6+', stat('resp', '1C', '1H', ['nat', 'short'])],
+      ['new suit response 1C (P) 1H (std responders)', '6+', stat('resp', '1C', '1H', ['std'])],
     ];
     for (const [label, book, agg] of rows) {
       if (agg.n < 25) continue;

@@ -694,6 +694,34 @@ export function bottomTeams(rows: MatchVp[], k: number): Set<string> {
 }
 
 // ---------------------------------------------------------------------------
+// 1C response-style detection (transfer walsh)
+// ---------------------------------------------------------------------------
+
+/**
+ * Classify a pair's responses to their (natural/short) 1C opening: 'xfer'
+ * (transfer responses: 1D = hearts, 1H = spades, 1S = no-major NT-ish) vs
+ * 'std' (natural). Driven by what the pair actually held: transfer pairs hold
+ * 4+ of the NEXT suit in essentially every 1D/1H response; natural pairs
+ * rarely do.
+ */
+export function classifyRespStyle(
+  n1D: number,
+  hearts4Share: number,
+  n1H: number,
+  spades4Share: number,
+): 'xfer' | 'std' | 'unknown' {
+  if (n1D >= 3) {
+    if (hearts4Share >= 0.75) return 'xfer';
+    if (hearts4Share <= 0.45) return 'std';
+  }
+  if (n1H >= 3) {
+    if (spades4Share >= 0.75) return 'xfer';
+    if (spades4Share <= 0.45) return 'std';
+  }
+  return 'unknown';
+}
+
+// ---------------------------------------------------------------------------
 // Rule derivation (dealer filters)
 // ---------------------------------------------------------------------------
 
@@ -1089,6 +1117,67 @@ export function deriveHcpRule(agg: Agg): BidRule {
     common: [],
   };
   return { ...rule, filterExpr: buildExpr(rule) };
+}
+
+/**
+ * Rule for a suit response that may be a transfer: when the named suit is NOT
+ * what the field holds, key on the suit they actually hold (1C-1D = hearts),
+ * or on "no 4-card major" (the transfer-walsh 1S), before falling back to the
+ * plain natural derivation.
+ */
+export function deriveRespSuitRule(agg: Agg, bidSuit: number, theirSuit: number | null): BidRule {
+  if (agg.n >= 25) {
+    const share4 = (s: number): number => {
+      let c = 0;
+      for (let l = 4; l < 14; l++) c += agg.lenHist[s][l];
+      return c / agg.n;
+    };
+    if (share4(bidSuit) < 0.5) {
+      const whole = hcpRange(agg.hcpHist);
+      // No-major NT-ish response (transfer-walsh 1S) — checked BEFORE the
+      // single-suit case: no-major hands often carry 4+ diamonds, which would
+      // otherwise masquerade as a diamond transfer.
+      let noMaj = 0;
+      for (let l = 0; l <= 3; l++) noMaj += agg.maxMajHist[l];
+      if (noMaj / agg.n >= 0.8) {
+        const rule: Omit<BidRule, 'filterExpr'> = {
+          anyOf: [{ label: 'no 4-card major, NT-ish', hcp: whole }],
+          common: [
+            { suit: 0, max: 3 },
+            { suit: 1, max: 3 },
+          ],
+          balanced: agg.balanced / agg.n >= 0.8 ? true : undefined,
+        };
+        return { ...rule, filterExpr: buildExpr(rule) };
+      }
+      // The real suit, if there is one.
+      let best = -1;
+      let bestShare = 0;
+      for (let s = 0; s < 4; s++) {
+        if (s === bidSuit) continue;
+        const sh = share4(s);
+        if (sh > bestShare) {
+          best = s;
+          bestShare = sh;
+        }
+      }
+      if (bestShare >= 0.8) {
+        const min = minLenAtCoverage(agg.lenHist[best], 0.9);
+        const rule: Omit<BidRule, 'filterExpr'> = {
+          anyOf: [{ label: `transfer: shows ${SUIT_CHAR[best]}`, hcp: whole }],
+          common: [{ suit: best, min: Math.max(4, min) }],
+        };
+        return { ...rule, filterExpr: buildExpr(rule) };
+      }
+      // Mixed treatments — an honest HCP-only rule.
+      const rule: Omit<BidRule, 'filterExpr'> = {
+        anyOf: [{ label: 'treatments vary (see suit dists)', hcp: whole }],
+        common: [],
+      };
+      return { ...rule, filterExpr: buildExpr(rule) };
+    }
+  }
+  return deriveSuitBidRule(agg, bidSuit, theirSuit);
 }
 
 // ---------------------------------------------------------------------------
