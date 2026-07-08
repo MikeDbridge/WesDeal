@@ -12,22 +12,31 @@ so it supports much more (player/team analysis, lead stats, bidding, scoring).
 
 ## What's covered
 
-Nine championships, 2017–2026 (~324k contracts / 18k deals). See `TOURNAMENTS`
-in `scrape.ts`.
+Nine championships plus two transnationals, 2017–2026 (~327k contracts / 18k
+deals). See `TOURNAMENTS` in `scrape.ts`.
 
 - **World Team Championships** (`worldbridge.org`, codes `BB/VC/DOT/WUC`, RR +
   knockout QF/SF/FF): `lyon17` (3 events, no Mixed), `wuhan19`, `salso22`
   (Salsomaggiore, the postponed "2021" edition), `marrakech23`, `herning25`.
+- **World Transnational Open Teams** (`worldbridge.org`, code `TNOT`): the open
+  field that runs alongside the world championship — a large mixed-strength
+  Swiss qualifier then a knockout. We scrape only the **knockout finals** (phase
+  `16` = Round of 16, then `QF/SF/FF`); the transnational KO tournid is the team
+  Bermuda-Bowl KO id + 7, and `rrTournid: 0` skips the Swiss. `herning25tn`
+  (bidding present), `marrakech23tn` (contracts only — the 2023 transnational
+  recorded no auctions).
 - **European Team Championships** (`eurobridge.org`, codes `OPEN/WOMEN/SEN/MIX`,
   **round-robin only**, long variable round counts): `ostend18` (3 events),
   `madeira22`, `euchamp24` (Herning), `riga26`.
 - **Events**: the four national/world team divisions — Open, Women, Seniors,
-  Mixed. Not pairs / transnational / BAM. (Division-code map across the two
-  naming schemes: BB=OPEN, VC=WOMEN, DOT=SEN, WUC=MIX.)
+  Mixed — plus the Open transnational. Not pairs / BAM. (Division-code map across
+  the two naming schemes: BB=OPEN, VC=WOMEN, DOT=SEN, WUC=MIX.)
 - **Bidding**: present in newer sites (2025, and all knockouts); the older
   round-robins (2017–2023) carry no auctions — the deal source is auto-detected.
 - **Combined data**: `data/_all/{contracts,matches,deals}.csv` concatenates every
   tournament (each row carries its `tournament` + `event`) for a single load.
+  Rebuilt by hand after adding a tournament — concatenate each `data/<tourn>/`
+  CSV, keeping one header (there is no `_all` build script).
 
 ## Running it
 

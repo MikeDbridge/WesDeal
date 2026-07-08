@@ -108,6 +108,28 @@ export const TOURNAMENTS: Record<string, Tournament> = {
     dealSource: 'boardacross',
   },
 
+  // ---- World Transnational Open Teams — the huge open field runs a Swiss
+  //      qualifier (weak/mixed strength, excluded) then a knockout from the
+  //      Round of 16 onward (world-class). We scrape only the knockout: the
+  //      transnational KO tournid is the team Bermuda-Bowl KO id + 7, phase
+  //      "16"/"32" for the earlier rounds. rrTournid 0 skips the Swiss. ----
+  herning25tn: {
+    key: 'herning25tn',
+    name: '14th World Transnational Open Teams (Herning 2025)',
+    base: 'https://db.worldbridge.org/Repository/tourn/herning.25/Microsite/Asp',
+    events: [{ code: 'TNOT', name: 'Transnational Open Teams', rrTournid: 0, koTournid: 2561 }],
+    koPhases: ['16', 'QF', 'SF', 'FF'],
+    dealSource: 'auto',
+  },
+  marrakech23tn: {
+    key: 'marrakech23tn',
+    name: '13th World Transnational Open Teams (Marrakech 2023)',
+    base: 'https://db.worldbridge.org/repository/tourn/marrakech.23/microsite/Asp',
+    events: [{ code: 'TNOT', name: 'Transnational Open Teams', rrTournid: 0, koTournid: 2361 }],
+    koPhases: ['16', 'QF', 'SF', 'FF'],
+    dealSource: 'auto',
+  },
+
   // ---- World Team Championships (older) — dealSource 'auto' resolves the deal
   //      page per round; KO tournid = RR + 3 (Lyon, 3 events) or + 4 (rest). ----
   lyon17: {
@@ -447,8 +469,11 @@ async function scrapeTournament(
 
   for (const ev of events) {
     // Round-robin: use an explicit spec if given, else auto-detect the last
-    // round (round counts vary by event, especially in the Euros).
-    const rounds = roundsOverride ?? Array.from({ length: MAX_ROUNDS }, (_, i) => i + 1);
+    // round (round counts vary by event, especially in the Euros). rrTournid 0
+    // means the event has no round-robin we want (e.g. a knockout-only
+    // transnational whose Swiss qualifier is deliberately skipped).
+    const rounds =
+      ev.rrTournid === 0 ? [] : (roundsOverride ?? Array.from({ length: MAX_ROUNDS }, (_, i) => i + 1));
     let emptyStreak = 0;
     for (const round of rounds) {
       const out = path.join(dir, `${ev.code}-RR-r${round}.jsonl`);

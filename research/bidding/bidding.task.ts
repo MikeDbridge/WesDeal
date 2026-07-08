@@ -72,6 +72,18 @@ const PROFILES_PATH = path.join(import.meta.dirname, 'bid-profiles.json');
 const SEAT_IDX: Record<string, number> = { N: 0, E: 1, S: 2, W: 3 };
 const SUIT_NAMES = ['S', 'H', 'D', 'C'];
 
+/**
+ * Big open / transnational events run a large mixed-strength Swiss qualifier
+ * before a knockout. Per the study policy, only their knockout FINALS (Round
+ * of 16 onward) are world-class enough to include — the qualifier is excluded.
+ * We only scrape their KO, so this is also a guard against future Swiss data
+ * leaking into the ranges. Team-championship tournaments are unaffected: their
+ * round-robin is a top-nations field and stays in (subject to the bottom-team
+ * strength filter).
+ */
+const FINALS_ONLY_TOURNAMENTS = new Set(['herning25tn', 'marrakech23tn']);
+const FINALS_STAGES = new Set(['16', 'QF', 'SF', 'FF']);
+
 // ---------------------------------------------------------------------------
 // Data loading
 // ---------------------------------------------------------------------------
@@ -178,6 +190,11 @@ function loadTables(): LoadResult {
     if (line.trim() === '') continue;
     bump(counters, 'rows');
     const f = parseCsv(line + '\n')[0];
+    // Finals-only policy for big open/transnational fields (see the constant).
+    if (FINALS_ONLY_TOURNAMENTS.has(f[iTourn]) && !FINALS_STAGES.has(f[iStage])) {
+      bump(counters, 'non-finals-excluded');
+      continue;
+    }
     const auction = f[iAuction];
     if (!auction || auction.trim() === '') {
       bump(counters, 'no-auction');
@@ -956,6 +973,10 @@ function buildReport(
   add(`  round-robin VP) are excluded as actors — ${weakTeams.size} teams, ${cells.excluded}`);
   add('  calls dropped. Their opponents’ calls still count, and their systems are');
   add('  still classified (needed to condition actions against them).');
+  add('- Transnational events (`*tn`) are the World Transnational Open Teams, whose');
+  add('  large mixed-strength Swiss qualifier is excluded; only their knockout finals');
+  add('  (Round of 16 onward) are included. Marrakech 2023’s transnational carried no');
+  add('  bidding (contracts only) so contributes nothing here; Herning 2025’s does.');
   add();
   add('Caveats: passed-out deals never reach the dataset (the site records them as');
   add('"Pass" with no auction), so 4th-seat pass frequencies are unobservable. The');
