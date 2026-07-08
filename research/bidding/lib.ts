@@ -409,6 +409,36 @@ export interface XShapeInput {
   minorMin: number;
 }
 
+/**
+ * Interpretable hand-type partition for responder hands — the rows of the
+ * reverse-engineered "what does each bid show" matrices, and the components
+ * multi-way response rules are decomposed into.
+ */
+export const RESP_TYPES = [
+  '≤4 HCP',
+  '5–11 · 4♥ only',
+  '5–11 · 4♠ only',
+  '5–11 · 4-4+ majors',
+  '5–11 · no 4M',
+  '12+ · 4♥ only',
+  '12+ · 4♠ only',
+  '12+ · 4-4+ majors',
+  '12+ · no 4M bal',
+  '12+ · no 4M unbal',
+] as const;
+
+export function respHandType(f: SeatFeatures): number {
+  if (f.hcp <= 4) return 0;
+  const h4 = f.len[1] >= 4;
+  const s4 = f.len[0] >= 4;
+  const gf = f.hcp >= 12;
+  if (h4 && s4) return gf ? 7 : 3;
+  if (h4) return gf ? 5 : 1;
+  if (s4) return gf ? 6 : 2;
+  if (!gf) return 4;
+  return f.balanced ? 8 : 9;
+}
+
 /** Streaming aggregate for one context×action×vul cell. */
 export class Agg {
   n = 0;
@@ -441,6 +471,8 @@ export class Agg {
    * 0 = both majors 4+, 1 = else a 5+ major, 2 = else a 5+ minor, 3 = rest.
    */
   patternHist = new Uint32Array(4);
+  /** Hand-type counts (RESP_TYPES) — powers the 1C-complex decision matrices. */
+  respTypeHist = new Uint32Array(RESP_TYPES.length);
   /** hcp × their-suit-length bucket cross-tab, when the context has "their suit". */
   hcpByTheirLen: Uint32Array | null = null; // 4 buckets × (MAX_HCP+1)
   /** Hands holding a classic stopper in their suit. */
@@ -482,6 +514,7 @@ export class Agg {
             ? 2
             : 3;
     this.patternHist[pattern]++;
+    this.respTypeHist[respHandType(f)]++;
     if (theirSuit !== null && theirSuit < 4) {
       if (!this.hcpByTheirLen) this.hcpByTheirLen = new Uint32Array(4 * (MAX_HCP + 1));
       this.hcpByTheirLen[theirLenBucket(f.len[theirSuit]) * (MAX_HCP + 1) + f.hcp]++;
@@ -533,6 +566,7 @@ export class Agg {
       this.maxMinHist[l] += o.maxMinHist[l];
     }
     for (let p = 0; p < 4; p++) this.patternHist[p] += o.patternHist[p];
+    for (let r = 0; r < RESP_TYPES.length; r++) this.respTypeHist[r] += o.respTypeHist[r];
     if (o.hcpByTheirLen) {
       if (!this.hcpByTheirLen) this.hcpByTheirLen = new Uint32Array(4 * (MAX_HCP + 1));
       for (let i = 0; i < o.hcpByTheirLen.length; i++)
@@ -1120,10 +1154,11 @@ export function deriveHcpRule(agg: Agg): BidRule {
 }
 
 /**
- * Rule for a suit response that may be a transfer: when the named suit is NOT
- * what the field holds, key on the suit they actually hold (1C-1D = hearts),
- * or on "no 4-card major" (the transfer-walsh 1S), before falling back to the
- * plain natural derivation.
+ * Rule for a suit response that may be conventional: when the named suit is
+ * NOT what the field holds, decompose the hands into interpretable components
+ * (RESP_TYPES) and union the ones covering ≥12% — a transfer 1D comes out as
+ * "hearts", and a multi-way 1S as "weak no-major OR GF no-major OR GF with a
+ * long minor". Falls back to the plain natural derivation for real suits.
  */
 export function deriveRespSuitRule(agg: Agg, bidSuit: number, theirSuit: number | null): BidRule {
   if (agg.n >= 25) {
@@ -1134,42 +1169,94 @@ export function deriveRespSuitRule(agg: Agg, bidSuit: number, theirSuit: number 
     };
     if (share4(bidSuit) < 0.5) {
       const whole = hcpRange(agg.hcpHist);
-      // No-major NT-ish response (transfer-walsh 1S) — checked BEFORE the
-      // single-suit case: no-major hands often carry 4+ diamonds, which would
-      // otherwise masquerade as a diamond transfer.
-      let noMaj = 0;
-      for (let l = 0; l <= 3; l++) noMaj += agg.maxMajHist[l];
-      if (noMaj / agg.n >= 0.8) {
-        const rule: Omit<BidRule, 'filterExpr'> = {
-          anyOf: [{ label: 'no 4-card major, NT-ish', hcp: whole }],
-          common: [
-            { suit: 0, max: 3 },
-            { suit: 1, max: 3 },
-          ],
-          balanced: agg.balanced / agg.n >= 0.8 ? true : undefined,
-        };
-        return { ...rule, filterExpr: buildExpr(rule) };
+      const t = agg.respTypeHist;
+      const share = (idxs: number[]): number =>
+        idxs.reduce((a, i) => a + t[i], 0) / agg.n;
+      const CUT = 0.12;
+      const hearts = share([1, 5]);
+      const spades = share([2, 6]);
+      const bothM = share([3, 7]);
+      const nomWeak = share([4]);
+      const nomGfBal = share([8]);
+      const nomGfUnbal = share([9]);
+      // A branch's HCP span comes from the bands that actually contribute
+      // (e.g. only GF hands route 4♥ through a transfer-walsh 1S).
+      const bandSpan = (weakIdx: number, gfIdx: number): { min: number; max: number } => {
+        const w = share([weakIdx]) >= 0.06;
+        const g = share([gfIdx]) >= 0.06;
+        if (w && !g) return { min: whole.min, max: 11 };
+        if (g && !w) return { min: 12, max: whole.max };
+        return whole;
+      };
+      const branches: RuleBranch[] = [];
+      if (hearts >= CUT) {
+        branches.push({
+          label: `hearts (${Math.round(100 * (hearts + bothM))}%)`,
+          hcp: bandSpan(1, 5),
+          suit: [{ suit: 1, min: 4 }],
+        });
       }
-      // The real suit, if there is one.
-      let best = -1;
-      let bestShare = 0;
-      for (let s = 0; s < 4; s++) {
-        if (s === bidSuit) continue;
-        const sh = share4(s);
-        if (sh > bestShare) {
-          best = s;
-          bestShare = sh;
+      if (spades >= CUT) {
+        branches.push({
+          label: `spades (${Math.round(100 * (spades + bothM))}%)`,
+          hcp: bandSpan(2, 6),
+          suit: [{ suit: 0, min: 4 }],
+        });
+      }
+      // Both-majors hands ride along with a hearts/spades branch; only a
+      // dedicated both-majors bid needs its own branch.
+      if (bothM >= CUT && hearts < CUT && spades < CUT) {
+        branches.push({
+          label: `both majors (${Math.round(100 * bothM)}%)`,
+          hcp: bandSpan(3, 7),
+          suit: [
+            { suit: 0, min: 4 },
+            { suit: 1, min: 4 },
+          ],
+        });
+      }
+      const noM: SuitCond[] = [
+        { suit: 0, max: 3 },
+        { suit: 1, max: 3 },
+      ];
+      if (nomWeak >= CUT && nomGfBal >= CUT) {
+        branches.push({
+          label: `no 4M, all ranges (${Math.round(100 * (nomWeak + nomGfBal))}%)`,
+          hcp: whole,
+          suit: noM,
+        });
+      } else if (nomWeak >= CUT) {
+        branches.push({
+          label: `no 4M, limited (${Math.round(100 * nomWeak)}%)`,
+          hcp: { min: whole.min, max: 11 },
+          suit: noM,
+        });
+      } else if (nomGfBal >= CUT) {
+        branches.push({
+          label: `no 4M, GF balanced (${Math.round(100 * nomGfBal)}%)`,
+          hcp: { min: 12, max: whole.max },
+          suit: noM,
+        });
+      }
+      if (nomGfUnbal >= CUT) {
+        // Which long minor those GF hands carry.
+        for (const minor of [2, 3]) {
+          let m5 = 0;
+          for (let l = 5; l < 14; l++) m5 += agg.lenHist[minor][l];
+          if (m5 / agg.n >= 0.08) {
+            branches.push({
+              label: `GF, 5+${SUIT_CHAR[minor]} (${Math.round(100 * nomGfUnbal)}% unbal GF)`,
+              hcp: { min: 12, max: whole.max },
+              suit: [{ suit: minor, min: 5 }],
+            });
+          }
         }
       }
-      if (bestShare >= 0.8) {
-        const min = minLenAtCoverage(agg.lenHist[best], 0.9);
-        const rule: Omit<BidRule, 'filterExpr'> = {
-          anyOf: [{ label: `transfer: shows ${SUIT_CHAR[best]}`, hcp: whole }],
-          common: [{ suit: best, min: Math.max(4, min) }],
-        };
+      if (branches.length > 0) {
+        const rule: Omit<BidRule, 'filterExpr'> = { anyOf: branches, common: [] };
         return { ...rule, filterExpr: buildExpr(rule) };
       }
-      // Mixed treatments — an honest HCP-only rule.
+      // Nothing dominant — an honest HCP-only rule.
       const rule: Omit<BidRule, 'filterExpr'> = {
         anyOf: [{ label: 'treatments vary (see suit dists)', hcp: whole }],
         common: [],

@@ -22,6 +22,7 @@ import {
   deriveRaiseishRule,
   deriveRespSuitRule,
   classifyRespStyle,
+  respHandType,
   textureIndex,
   type SeatFeatures,
   type MatchVp,
@@ -415,22 +416,44 @@ describe('rule derivation', () => {
     const agg = new Agg();
     for (let i = 0; i < 30; i++) agg.add(feat([3, 4 + (i % 2), 3, 2], 6 + (i % 6)), 2, null, false);
     const rule = deriveRespSuitRule(agg, 2, null);
-    expect(rule.common).toContainEqual({ suit: 1, min: 4 });
+    expect(rule.anyOf.some((b) => (b.suit ?? []).some((c) => c.suit === 1 && c.min === 4))).toBe(true);
     expect(passes(rule.filterExpr, [3, 4, 3, 3], 8)).toBe(true);
     expect(passes(rule.filterExpr, [3, 2, 5, 3], 8)).toBe(false); // real diamonds ≠ transfer
-    // Transfer-walsh 1S: no 4-card major, NT-ish.
+    // Transfer-walsh 1S: no 4-card major, limited.
     const nt = new Agg();
     for (let i = 0; i < 30; i++) nt.add(feat([3, 3, 4, 3], 6 + (i % 5)), 0, null, false);
     const ntRule = deriveRespSuitRule(nt, 0, null);
-    expect(ntRule.common).toContainEqual({ suit: 0, max: 3 });
-    expect(ntRule.common).toContainEqual({ suit: 1, max: 3 });
     expect(passes(ntRule.filterExpr, [3, 3, 4, 3], 8)).toBe(true);
     expect(passes(ntRule.filterExpr, [4, 3, 3, 3], 8)).toBe(false);
+    expect(passes(ntRule.filterExpr, [3, 3, 4, 3], 14)).toBe(false); // limited: 12+ absent from data
     // Natural responses fall through to the plain derivation.
     const nat = new Agg();
     for (let i = 0; i < 30; i++) nat.add(feat([2, 3, 5, 3], 7 + (i % 5), { akqjt: [0, 0, 2, 0] }), 2, null, false);
     const natRule = deriveRespSuitRule(nat, 2, null);
     expect(natRule.common).toContainEqual({ suit: 2, min: 5 });
+  });
+  it('partitions responder hands into interpretable types', () => {
+    expect(respHandType(feat([3, 3, 4, 3], 3))).toBe(0); // ≤4 HCP
+    expect(respHandType(feat([3, 4, 3, 3], 8))).toBe(1); // 5-11, 4♥ only
+    expect(respHandType(feat([4, 3, 3, 3], 8))).toBe(2);
+    expect(respHandType(feat([4, 4, 3, 2], 6))).toBe(3);
+    expect(respHandType(feat([3, 3, 4, 3], 8))).toBe(4);
+    expect(respHandType(feat([3, 4, 3, 3], 13))).toBe(5);
+    expect(respHandType(feat([3, 3, 4, 3], 14))).toBe(8); // GF bal no 4M
+    expect(respHandType(feat([3, 3, 6, 1], 14))).toBe(9); // GF unbal no 4M
+  });
+  it('decomposes a multi-way 1S into its components', () => {
+    const agg = new Agg();
+    // 50% weak no-major, 25% GF balanced, 25% GF with long diamonds.
+    for (let i = 0; i < 30; i++) agg.add(feat([3, 3, 4, 3], 6 + (i % 6)), 0, null, false);
+    for (let i = 0; i < 15; i++) agg.add(feat([3, 3, 4, 3], 12 + (i % 4)), 0, null, false);
+    for (let i = 0; i < 15; i++) agg.add(feat([2, 3, 6, 2], 13 + (i % 4)), 0, null, false);
+    const rule = deriveRespSuitRule(agg, 0, null);
+    expect(rule.anyOf.length).toBeGreaterThanOrEqual(2);
+    expect(passes(rule.filterExpr, [3, 3, 4, 3], 7)).toBe(true); // weak no-major
+    expect(passes(rule.filterExpr, [3, 3, 4, 3], 14)).toBe(true); // GF bal
+    expect(passes(rule.filterExpr, [2, 3, 6, 2], 14)).toBe(true); // GF diamonds
+    expect(passes(rule.filterExpr, [4, 4, 3, 2], 8)).toBe(false); // majors → not this bid
   });
   it('derives raise-equivalent rules on partner support', () => {
     const agg = new Agg();

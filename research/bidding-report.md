@@ -1525,7 +1525,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 - `1NT` → `hcp in 6..10`
 - `2H` → `h >= 5 and top(h,5) >= 1 and ((hcp in 5..14 and s <= 2) or (hcp in 6..14 and s in 3..5))`
 - `2C` → `top(c,5) >= 1 and ((hcp in 5..13 and s <= 2) or (hcp in 6..13 and s in 3..4))`
-- `2S` → `d >= 4 and hcp in 9..14`
+- `2S` → `((hcp in 9..11 and s >= 4) or (hcp in 9..14 and s <= 3 and h <= 3) or (hcp in 12..14 and d >= 5) or (hcp in 12..14 and c >= 5))`
 
 ### 1H (1S) ?
 
@@ -1575,9 +1575,9 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `2H` → `hcp in 4..10`
+- `2H` → `((hcp in 4..11 and h >= 4) or (hcp in 4..11 and s >= 4) or (hcp in 4..11 and s <= 3 and h <= 3))`
 - `X` → `hcp in 6..14`
-- `2S` → `hcp in 9..17`
+- `2S` → `((hcp in 9..17 and h >= 4) or (hcp in 9..17 and s <= 3 and h <= 3))`
 - `2NT` → `hcp in 8..17`
 - `3H` → `h >= 4 and hcp in 2..8`
 - `2D` → `d >= 3 and top(d,5) >= 1 and hcp in 6..17`
@@ -1627,7 +1627,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 - `1S` → `((hcp in 6..14 and h <= 2) or (hcp in 7..14 and h in 3..4))`
 - `2C` → `c >= 4 and top(c,5) >= 1 and hcp in 5..12`
 - `1NT` → `(has(h,a) or (has(h,k) and h >= 2) or (has(h,q) and h >= 3)) and hcp in 7..10`
-- `2H` → `hcp in 8..15`
+- `2H` → `((hcp in 8..11 and s >= 4) or (hcp in 8..15 and s <= 3 and h <= 3) or (hcp in 12..15 and d >= 5) or (hcp in 12..15 and c >= 5))`
 - `2D` → `d >= 5 and top(d,5) >= 1 and hcp in 6..15`
 
 ### 1D (1H) ?
@@ -1676,7 +1676,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 - `1S` → `s >= 3 and hcp in 4..13`
 - `2D` → `d >= 4 and top(d,5) >= 1 and hcp in 4..10`
 - `2C` → `c >= 4 and top(c,5) >= 1 and hcp in 7..19`
-- `2H` → `hcp in 7..13`
+- `2H` → `((hcp in 7..13 and h >= 4) or (hcp in 7..13 and s >= 4) or (hcp in 7..11 and s <= 3 and h <= 3))`
 - `1NT` → `(has(h,a) or (has(h,k) and h >= 2) or (has(h,q) and h >= 3)) and hcp in 7..11` *(+ balanced)*
 
 ### 1S (2H) ?
@@ -1712,10 +1712,10 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `2S` → `hcp in 4..9`
+- `2S` → `((hcp in 4..11 and h >= 4) or (hcp in 4..11 and s >= 4) or (hcp in 4..11 and s <= 3 and h <= 3))`
 - `3S` → `s >= 4 and hcp in 1..7`
 - `X` → `hcp in 7..15`
-- `3H` → `hcp in 8..13`
+- `3H` → `((hcp in 8..11 and s >= 4) or (hcp in 8..11 and s <= 3 and h <= 3))`
 - `4S` → `s >= 4 and hcp in 5..11`
 
 ### 1H (2D) ?
@@ -1745,7 +1745,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 5..14`
-- `2H` → `hcp in 6..10`
+- `2H` → `((hcp in 6..11 and s >= 4) or (hcp in 6..11 and s <= 3 and h <= 3))`
 - `2S` → `s >= 5 and top(s,5) >= 2 and hcp in 7..14`
 
 ### 1S (2D) ?
@@ -1784,7 +1784,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `2S` → `hcp in 1..8`
+- `2S` → `((hcp in 1..11 and h >= 4) or (hcp in 1..11 and s <= 3 and h <= 3))`
 - `4S` → `s >= 4 and top(s,5) >= 1 and hcp in 5..7`
 - `X` → `hcp in 6..10`
 - `2H` → `h >= 5 and top(h,5) >= 1 and hcp in 5..13`
@@ -1818,7 +1818,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 6..13`
-- `3C` → `hcp in 7..13`
+- `3C` → `((hcp in 7..11 and h >= 4) or (hcp in 7..13 and s >= 4))`
 - `2NT` → `hcp in 7..13`
 
 ### 1S (2C) ?
@@ -1842,7 +1842,7 @@ By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 6..12`
-- `2S` → `h >= 4 and hcp in 4..10`
+- `2S` → `(hcp in 4..11 and h >= 4)`
 
 ### 1D (2C) ?
 
@@ -1876,7 +1876,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 6..12`
 - `2H` → `h >= 5 and top(h,5) >= 1 and hcp in 7..12`
-- `2D` → `hcp in 5..12`
+- `2D` → `((hcp in 5..11 and h >= 4) or (hcp in 5..11 and s >= 4))`
 
 ### 1NT (X) ?
 
@@ -1932,8 +1932,8 @@ By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `1H` → `s >= 4 and hcp in 3..9`
-- `1D` → `h >= 4 and hcp in 4..12`
+- `1H` → `(hcp in 3..11 and s >= 4)`
+- `1D` → `(hcp in 4..11 and h >= 4)`
 
 ### 1C (1D) ? — transfer responders
 
@@ -1961,7 +1961,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 4..14`
-- `1H` → `s >= 4 and hcp in 6..12`
+- `1H` → `(hcp in 6..12 and s >= 4)`
 
 ### 1C (1H) ? — transfer responders
 
@@ -1996,7 +1996,7 @@ HCP by length held in their suit — p25/**med**/p75 (n). Shortage acts lighter:
 Dealer filters (paste into the custom filter box; derived from the data):
 
 - `X` → `hcp in 5..14`
-- `1S` → `c >= 4 and hcp in 6..13`
+- `1S` → `((hcp in 6..11 and h >= 4) or (hcp in 6..11 and s <= 3 and h <= 3))`
 
 ## Advancing partner’s direct action: (1x) act (…) ?
 
@@ -2474,7 +2474,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 - `1S` → `s >= 4 and hcp in 5..17`
 - `2C` → `hcp in 9..18`
 - `1NT` → `hcp in 4..13`
-- `2H` → `hcp in 5..10`
+- `2H` → `((hcp in 5..11 and s >= 4) or (hcp in 5..11 and s <= 3 and h <= 3))`
 - `2NT` → `hcp in 9..15`
 - `2D` → `d >= 4 and top(d,5) >= 1 and hcp in 9..17`
 
@@ -2531,7 +2531,7 @@ Dealer filters (paste into the custom filter box; derived from the data):
 
 - `1NT` → `hcp in 4..11`
 - `2C` → `top(c,5) >= 1 and hcp in 9..17`
-- `2S` → `hcp in 4..10`
+- `2S` → `((hcp in 4..11 and h >= 4) or (hcp in 4..11 and s <= 3 and h <= 3))`
 - `2D` → `d >= 4 and top(d,5) >= 1 and hcp in 9..18`
 - `2NT` → `hcp in 8..15`
 - `2H` → `h >= 5 and top(h,5) >= 2 and hcp in 10..17`
@@ -2586,16 +2586,16 @@ By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `2C` → `hcp in 6..14`
-- `2H` → `s >= 5 and hcp in 4..17`
-- `2D` → `h >= 5 and hcp in 3..16`
+- `2C` → `((hcp in 6..11 and h >= 4) or (hcp in 6..11 and s >= 4))`
+- `2H` → `(hcp in 4..17 and s >= 4)`
+- `2D` → `(hcp in 3..16 and h >= 4)`
 - `3NT` → `hcp in 8..14`
 - `2NT` → `hcp in 5..16`
-- `3C` → `hcp in 7..16`
+- `3C` → `((hcp in 7..11 and h >= 4) or (hcp in 7..16 and s >= 4) or (hcp in 7..16 and s <= 3 and h <= 3))`
 
 ## Transfer responses to 1C: 1C (P) ? by transfer-walsh pairs
 
-Detected per partnership from the hands (4+ of the next suit in essentially every 1D/1H response). The derived rules key on the suit actually shown: 1D = hearts, 1H = spades. The field’s 1S is the no-major hand but diamond-flavoured — 4+ diamonds in most, and wider than 5–11.
+Detected per partnership from the hands (4+ of the next suit in essentially every 1D/1H response). The derived rules key on the suit actually shown: 1D = hearts, 1H = spades. The field’s 1S is multi-way — see the decision matrices below for its components.
 
 ### 1C (P) ? — transfer responders
 
@@ -2634,12 +2634,95 @@ By vulnerability (fav = they vul, we not; unfav = we vul, they not):
 
 Dealer filters (paste into the custom filter box; derived from the data):
 
-- `1H` → `s >= 4 and hcp in 4..15`
-- `1D` → `h >= 4 and hcp in 4..15`
-- `1S` → `d >= 4 and hcp in 4..18`
+- `1H` → `(hcp in 4..15 and s >= 4)`
+- `1D` → `(hcp in 4..15 and h >= 4)`
+- `1S` → `((hcp in 12..18 and h >= 4) or (hcp in 4..18 and s <= 3 and h <= 3))`
 - `1NT` → `hcp in 8..18` *(+ balanced)*
 - `2C` → `hcp in 8..20`
-- `2D` → `hcp in 4..19`
+- `2D` → `((hcp in 4..19 and h >= 4) or (hcp in 12..19 and s <= 3 and h <= 3) or (hcp in 12..19 and d >= 5) or (hcp in 12..19 and c >= 5))`
+
+## Reverse-engineering the 1C complex: what does each bid show?
+
+Single 1C-auction bids are multi-way (a transfer-walsh 1S = weak no-major OR
+GF balanced OR GF with a minor; 1C (1D) X may be 4-4 majors or just hearts), so
+face-value stats can’t isolate hand types. These matrices invert the question:
+for each **hand type** the responder can hold, what did they actually bid?
+Rows are mutually exclusive hand types, cells are P(action | hand type) as %.
+Read the ambiguity off the table: the `4♠ only` and `4-4 majors` rows show
+whether X/1D carries spades, and the `no 4M` rows show where the NT-ish and
+GF hands route. (Next steps: the same inversion per partnership, and
+cross-checking against the published convention cards.)
+
+### 1C (P) ? — standard responders
+
+| hand type | n | 1H | 1S | 1D | 1NT | 2C | P | 2D | other |
+|---|---|---|---|---|---|---|---|---|---|
+| ≤4 HCP | 417 | 14% | 17% | 43% | · | · | 22% | 1% | 2% |
+| 5–11 · 4♥ only | 1037 | 88% | · | 9% | · | · | 1% | · | 1% |
+| 5–11 · 4♠ only | 1125 | · | 84% | 14% | · | · | · | 1% | 1% |
+| 5–11 · 4-4+ majors | 588 | 61% | 28% | 7% | · | 1% | · | · | 3% |
+| 5–11 · no 4M | 793 | · | · | 54% | 32% | 2% | 1% | 2% | 9% |
+| 12+ · 4♥ only | 635 | 65% | · | 30% | · | 1% | · | 2% | 2% |
+| 12+ · 4♠ only | 564 | · | 83% | 10% | 1% | 1% | · | 1% | 3% |
+| 12+ · 4-4+ majors | 288 | 76% | 16% | 3% | 1% | 3% | · | · | · |
+| 12+ · no 4M bal | 412 | · | · | 54% | 3% | 19% | · | 4% | 19% |
+| 12+ · no 4M unbal | 143 | · | 1% | 54% | · | 31% | · | 11% | 2% |
+
+### 1C (X) ? — standard responders
+
+| hand type | n | P | 1D | 1H | 1S | XX | 2C | 2D | other |
+|---|---|---|---|---|---|---|---|---|---|
+| ≤4 HCP | 275 | 79% | 8% | 3% | 3% | · | 1% | 1% | 5% |
+| 5–11 · 4♥ only | 197 | 15% | 28% | 39% | 2% | 4% | 2% | 5% | 6% |
+| 5–11 · 4♠ only | 236 | 10% | 7% | 19% | 45% | 13% | · | · | 6% |
+| 5–11 · 4-4+ majors | 59 | 8% | 8% | 49% | 25% | 7% | 2% | · | · |
+| 5–11 · no 4M | 204 | 24% | 29% | · | 12% | 5% | 12% | 3% | 14% |
+
+### 1C (1D) ? — standard responders
+
+| hand type | n | 1H | X | 1S | P | 3C | 2C | 2H | other |
+|---|---|---|---|---|---|---|---|---|---|
+| ≤4 HCP | 102 | 10% | 7% | 3% | 60% | 2% | 1% | 11% | 7% |
+| 5–11 · 4♥ only | 155 | 46% | 38% | · | 7% | · | · | 1% | 8% |
+| 5–11 · 4♠ only | 152 | 28% | 5% | 41% | 9% | · | · | 8% | 11% |
+| 5–11 · 4-4+ majors | 149 | 15% | 45% | 21% | 3% | · | 12% | 1% | 3% |
+| 5–11 · no 4M | 193 | · | · | 13% | 14% | 37% | 25% | · | 11% |
+| 12+ · 4♠ only | 39 | 41% | 13% | 41% | · | · | · | 5% | · |
+
+### 1C (P) ? — transfer-walsh responders
+
+| hand type | n | 1D | 1H | 1S | 1NT | 2C | P | 2D | other |
+|---|---|---|---|---|---|---|---|---|---|
+| ≤4 HCP | 198 | 26% | 28% | 12% | 1% | 1% | 28% | 2% | 4% |
+| 5–11 · 4♥ only | 455 | 93% | 2% | 1% | · | · | · | 2% | 2% |
+| 5–11 · 4♠ only | 628 | 2% | 94% | 2% | · | 1% | · | · | 2% |
+| 5–11 · 4-4+ majors | 320 | 66% | 28% | · | · | 2% | · | 1% | 3% |
+| 5–11 · no 4M | 329 | 3% | 1% | 70% | 16% | 2% | 2% | · | 5% |
+| 12+ · 4♥ only | 282 | 62% | 2% | 19% | 2% | 7% | · | 4% | 2% |
+| 12+ · 4♠ only | 282 | 2% | 77% | 8% | 6% | 1% | · | 1% | 6% |
+| 12+ · 4-4+ majors | 135 | 73% | 19% | · | 4% | 1% | · | 1% | 1% |
+| 12+ · no 4M bal | 184 | 4% | · | 48% | 14% | 15% | · | 7% | 13% |
+| 12+ · no 4M unbal | 72 | 3% | · | 36% | 3% | 42% | · | 13% | 4% |
+
+### 1C (X) ? — transfer-walsh responders
+
+| hand type | n | P | 1H | 1D | 1S | XX | 2H | 2S | other |
+|---|---|---|---|---|---|---|---|---|---|
+| ≤4 HCP | 129 | 71% | 8% | 7% | 3% | 2% | 5% | 5% | · |
+| 5–11 · 4♥ only | 82 | 15% | 2% | 60% | 1% | 7% | 2% | · | 12% |
+| 5–11 · 4♠ only | 99 | 16% | 61% | · | 4% | 13% | 3% | 1% | 2% |
+| 5–11 · 4-4+ majors | 26 | 8% | 46% | 27% | 4% | 4% | 8% | · | 4% |
+| 5–11 · no 4M | 72 | 17% | · | 1% | 53% | 10% | · | · | 19% |
+
+### 1C (1D) ? — transfer-walsh responders
+
+| hand type | n | X | 1H | P | 1S | 2C | 3C | 2H | other |
+|---|---|---|---|---|---|---|---|---|---|
+| ≤4 HCP | 35 | 20% | · | 63% | 3% | · | · | 6% | 9% |
+| 5–11 · 4♥ only | 69 | 75% | 6% | 3% | 1% | · | · | 1% | 13% |
+| 5–11 · 4♠ only | 74 | 3% | 66% | 11% | 5% | · | · | 9% | 5% |
+| 5–11 · 4-4+ majors | 75 | 48% | 27% | · | 13% | 8% | · | · | 4% |
+| 5–11 · no 4M | 69 | 1% | · | 17% | 29% | 22% | 20% | · | 10% |
 
 ## Book vs field
 

@@ -42,6 +42,7 @@ import {
   deriveRaiseishRule,
   deriveRespSuitRule,
   classifyRespStyle,
+  RESP_TYPES,
   PairOpenings,
   classifyPair,
   median,
@@ -594,6 +595,8 @@ interface Profile {
   stopperPct: number | null;
   /** HCP percentiles by length held in their suit (shortage acts lighter). */
   hcpByTheirLen: Record<string, { n: number; p: number[] }> | null;
+  /** Hand-type counts (RESP_TYPES order) — response families only. */
+  respTypes: number[] | null;
   /** Derived dealer rule: structured branches + a compiled-checked filterExpr. */
   rule: BidRule;
 }
@@ -740,6 +743,8 @@ function toProfile(
     balancedPct: agg.n === 0 ? 0 : Number(((100 * agg.balanced) / agg.n).toFixed(1)),
     stopperPct: agg.theirN >= 25 ? Number(((100 * agg.theirStop) / agg.theirN).toFixed(1)) : null,
     hcpByTheirLen,
+    respTypes:
+      family === 'resp' || family === 'respInterf' ? [...agg.respTypeHist] : null,
     rule: deriveRule(family, key, action, agg),
   };
 }
@@ -1614,9 +1619,70 @@ function buildReport(
     'resp',
     ['1C'],
     () => ['xfer'],
-    'Detected per partnership from the hands (4+ of the next suit in essentially every 1D/1H response). The derived rules key on the suit actually shown: 1D = hearts, 1H = spades. The field’s 1S is the no-major hand but diamond-flavoured — 4+ diamonds in most, and wider than 5–11.',
+    'Detected per partnership from the hands (4+ of the next suit in essentially every 1D/1H response). The derived rules key on the suit actually shown: 1D = hearts, 1H = spades. The field’s 1S is multi-way — see the decision matrices below for its components.',
     ' — transfer responders',
   );
+
+  // --- reverse-engineered decision matrices for the 1C complex
+  add('## Reverse-engineering the 1C complex: what does each bid show?');
+  add();
+  add('Single 1C-auction bids are multi-way (a transfer-walsh 1S = weak no-major OR');
+  add('GF balanced OR GF with a minor; 1C (1D) X may be 4-4 majors or just hearts), so');
+  add('face-value stats can’t isolate hand types. These matrices invert the question:');
+  add('for each **hand type** the responder can hold, what did they actually bid?');
+  add('Rows are mutually exclusive hand types, cells are P(action | hand type) as %.');
+  add('Read the ambiguity off the table: the `4♠ only` and `4-4 majors` rows show');
+  add('whether X/1D carries spades, and the `no 4M` rows show where the NT-ish and');
+  add('GF hands route. (Next steps: the same inversion per partnership, and');
+  add('cross-checking against the published convention cards.)');
+  add();
+  {
+    const matrixContexts: Array<[string, string, string]> = [
+      ['resp', '1C', '1C (P) ?'],
+      ['respInterf', '1C|X', '1C (X) ?'],
+      ['respInterf', '1C|1D', '1C (1D) ?'],
+    ];
+    for (const [group, groupLabel] of [
+      ['std', 'standard responders'],
+      ['xfer', 'transfer-walsh responders'],
+    ] as const) {
+      for (const [family, key, ctxLabel] of matrixContexts) {
+        const actions = actionsFor(cells, family, key);
+        if (actions.length === 0) continue;
+        // Per-action aggs restricted to this responder group.
+        const perAction = actions
+          .map((a) => [a, sumCells(cells, family, key, a, 'all', [group])] as const)
+          .filter(([, agg]) => agg.n > 0);
+        const totalN = perAction.reduce((s, [, agg]) => s + agg.n, 0);
+        if (totalN < 200) continue;
+        // Column set: most frequent actions, the rest lumped as "other".
+        const cols = perAction
+          .slice()
+          .sort((a, b) => b[1].n - a[1].n)
+          .slice(0, 7)
+          .map(([a]) => a);
+        add(`### ${ctxLabel} — ${groupLabel}`);
+        add();
+        add(`| hand type | n | ${cols.join(' | ')} | other |`);
+        add(`|---|---|${cols.map(() => '---').join('|')}|---|`);
+        for (let ti = 0; ti < RESP_TYPES.length; ti++) {
+          let typeN = 0;
+          for (const [, agg] of perAction) typeN += agg.respTypeHist[ti];
+          if (typeN < 25) continue;
+          const cellsTxt = cols.map((a) => {
+            const agg = perAction.find(([act]) => act === a)![1];
+            const p = Math.round((100 * agg.respTypeHist[ti]) / typeN);
+            return p >= 1 ? `${p}%` : '·';
+          });
+          let inCols = 0;
+          for (const a of cols) inCols += perAction.find(([act]) => act === a)![1].respTypeHist[ti];
+          const otherP = Math.round((100 * (typeN - inCols)) / typeN);
+          add(`| ${RESP_TYPES[ti]} | ${typeN} | ${cellsTxt.join(' | ')} | ${otherP >= 1 ? `${otherP}%` : '·'} |`);
+        }
+        add();
+      }
+    }
+  }
 
   // --- book comparison
   add('## Book vs field');
