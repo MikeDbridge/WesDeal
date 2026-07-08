@@ -81,7 +81,12 @@ const SUIT_NAMES = ['S', 'H', 'D', 'C'];
  * round-robin is a top-nations field and stays in (subject to the bottom-team
  * strength filter).
  */
-const FINALS_ONLY_TOURNAMENTS = new Set(['herning25tn', 'marrakech23tn']);
+const FINALS_ONLY_TOURNAMENTS = new Set([
+  'herning25tn',
+  'marrakech23tn',
+  'strasbourg23tn',
+  'prague26tn',
+]);
 const FINALS_STAGES = new Set(['16', 'QF', 'SF', 'FF']);
 
 // ---------------------------------------------------------------------------
@@ -973,10 +978,11 @@ function buildReport(
   add(`  round-robin VP) are excluded as actors — ${weakTeams.size} teams, ${cells.excluded}`);
   add('  calls dropped. Their opponents’ calls still count, and their systems are');
   add('  still classified (needed to condition actions against them).');
-  add('- Transnational events (`*tn`) are the World Transnational Open Teams, whose');
-  add('  large mixed-strength Swiss qualifier is excluded; only their knockout finals');
-  add('  (Round of 16 onward) are included. Marrakech 2023’s transnational carried no');
-  add('  bidding (contracts only) so contributes nothing here; Herning 2025’s does.');
+  add('- Transnational events (`*tn`) are the Transnational Open Teams (World: Herning');
+  add('  2025, Marrakech 2023; European: Strasbourg 2023, Prague 2026), whose large');
+  add('  mixed-strength Swiss qualifier is excluded — only their knockout finals (Round');
+  add('  of 16 onward) are included. Marrakech 2023’s transnational carried no bidding');
+  add('  (contracts only) so contributes nothing here; the other three do.');
   add();
   add('Caveats: passed-out deals never reach the dataset (the site records them as');
   add('"Pass" with no auction), so 4th-seat pass frequencies are unobservable. The');

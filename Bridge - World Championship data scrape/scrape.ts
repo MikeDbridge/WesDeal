@@ -130,6 +130,28 @@ export const TOURNAMENTS: Record<string, Tournament> = {
     dealSource: 'auto',
   },
 
+  // ---- European Open Championships — the Transnational Open Teams (open entry,
+  //      big field). Same Swiss-then-KO shape; scrape only the KO finals (Round
+  //      of 16 onward). These EBL sites carry auctions (bare <span> bidding
+  //      tables). Other divisions (Women/Senior/Mixed transnational) exist at
+  //      neighbouring tournids if wanted. ----
+  strasbourg23tn: {
+    key: 'strasbourg23tn',
+    name: 'European Transnational Open Teams (Strasbourg 2023)',
+    base: 'https://db.eurobridge.org/repository/competitions/23Strasbourg/microsite/Asp',
+    events: [{ code: 'TNOT', name: 'Transnational Open Teams', rrTournid: 0, koTournid: 2318 }],
+    koPhases: ['16', 'QF', 'SF', 'FF'],
+    dealSource: 'auto',
+  },
+  prague26tn: {
+    key: 'prague26tn',
+    name: 'European Transnational Open Teams (Prague 2026)',
+    base: 'https://db.eurobridge.org/repository/competitions/26Prague/microsite/Asp',
+    events: [{ code: 'TNOT', name: 'Transnational Open Teams', rrTournid: 0, koTournid: 2606 }],
+    koPhases: ['16', 'QF', 'SF', 'FF'],
+    dealSource: 'auto',
+  },
+
   // ---- World Team Championships (older) — dealSource 'auto' resolves the deal
   //      page per round; KO tournid = RR + 3 (Lyon, 3 events) or + 4 (rest). ----
   lyon17: {

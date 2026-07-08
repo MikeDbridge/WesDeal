@@ -18,13 +18,15 @@ deals). See `TOURNAMENTS` in `scrape.ts`.
 - **World Team Championships** (`worldbridge.org`, codes `BB/VC/DOT/WUC`, RR +
   knockout QF/SF/FF): `lyon17` (3 events, no Mixed), `wuhan19`, `salso22`
   (Salsomaggiore, the postponed "2021" edition), `marrakech23`, `herning25`.
-- **World Transnational Open Teams** (`worldbridge.org`, code `TNOT`): the open
-  field that runs alongside the world championship — a large mixed-strength
-  Swiss qualifier then a knockout. We scrape only the **knockout finals** (phase
-  `16` = Round of 16, then `QF/SF/FF`); the transnational KO tournid is the team
-  Bermuda-Bowl KO id + 7, and `rrTournid: 0` skips the Swiss. `herning25tn`
-  (bidding present), `marrakech23tn` (contracts only — the 2023 transnational
-  recorded no auctions).
+- **Transnational Open Teams** (code `TNOT`): the open field that runs alongside
+  the world/European championship — a large mixed-strength Swiss qualifier then a
+  knockout. We scrape only the **knockout finals** (phase `16` = Round of 16,
+  then `QF/SF/FF`); `rrTournid: 0` skips the Swiss. World (`worldbridge.org`, KO
+  tournid = team Bermuda-Bowl KO id + 7): `herning25tn` (bidding present),
+  `marrakech23tn` (contracts only — 2023 transnational recorded no auctions).
+  European Open Championships (`eurobridge.org`): `strasbourg23tn` (2023),
+  `prague26tn` (2026) — both with bidding. Other divisions (Women/Senior/Mixed
+  transnational) live at neighbouring tournids if wanted.
 - **European Team Championships** (`eurobridge.org`, codes `OPEN/WOMEN/SEN/MIX`,
   **round-robin only**, long variable round counts): `ostend18` (3 events),
   `madeira22`, `euchamp24` (Herning), `riga26`.
