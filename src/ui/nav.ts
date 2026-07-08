@@ -1,8 +1,10 @@
 import { h } from './dom';
 
+type NavKey = 'deal' | 'odds' | 'lab' | 'bidding';
+
 /** Top navigation shared by the app's pages. */
-export function siteNav(active: 'deal' | 'odds' | 'lab'): HTMLElement {
-  const link = (href: string, label: string, sub: string, key: 'deal' | 'odds' | 'lab'): HTMLElement =>
+export function siteNav(active: NavKey): HTMLElement {
+  const link = (href: string, label: string, sub: string, key: NavKey): HTMLElement =>
     h('a', { href, class: 'nav-link' + (key === active ? ' active' : '') }, [
       h('span', { class: 'nav-name' }, [label]),
       h('span', { class: 'nav-sub' }, [sub]),
@@ -18,5 +20,6 @@ export function siteNav(active: 'deal' | 'odds' | 'lab'): HTMLElement {
     link('./index.html', 'WesDeal', 'Deal generator', 'deal'),
     link('./odds.html', 'WesOdds', 'Suit break calculator', 'odds'),
     link('./lab.html', 'WesLab', 'Double dummy lab', 'lab'),
+    link('./bidding.html', 'WesBids', 'Bidding ranges study', 'bidding'),
   ]);
 }
