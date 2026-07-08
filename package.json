@@ -14,6 +14,7 @@
     "research:gen": "vitest run -c vitest.research.config.ts gen",
     "research:analyze": "vitest run -c vitest.research.config.ts analyze",
     "research:bidding": "vitest run -c vitest.research.config.ts bidding",
+    "research:systems": "vitest run -c vitest.research.config.ts systems",
     "bridge:test": "vitest run -c bridge-wc.vitest.config.ts parse.test",
     "bridge:scrape": "vitest run -c bridge-wc.vitest.config.ts scrape.task",
     "bridge:flatten": "vitest run -c bridge-wc.vitest.config.ts flatten.task"

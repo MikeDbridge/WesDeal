@@ -6,6 +6,9 @@ dist/
 # Research datasets (regenerate with: npm run research:gen)
 research/data/
 
+# Convention-card cache (PDFs + extracted text; re-fetch with npm run research:systems)
+research/bidding/systems-cache/
+
 # Bridge - World Championship data scrape: cached raw HTML + parsed datasets
 # (re-fetch with npm run bridge:scrape)
 Bridge - World Championship data scrape/cache/
@@ -13,3 +16,4 @@ Bridge - World Championship data scrape/data/
 
 # Local Claude Code tooling config (machine-specific paths, local permissions)
 .claude/
+research/bidding/systems-cards.json
