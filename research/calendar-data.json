@@ -1,0 +1,443 @@
+{
+ "generated": "2026-07-09",
+ "totalContracts": 337096,
+ "totalAuctions": 128527,
+ "tournaments": [
+  {
+   "key": "lyon17",
+   "name": "World Team Champs (Lyon)",
+   "region": "World",
+   "kind": "Team championship",
+   "year": 2017,
+   "contracts": 26551,
+   "auctions": 0,
+   "hasBidding": false,
+   "stages": {
+    "FF": {
+     "c": 1084,
+     "a": 0
+    },
+    "QF": {
+     "c": 2301,
+     "a": 0
+    },
+    "RR": {
+     "c": 22079,
+     "a": 0
+    },
+    "SF": {
+     "c": 1087,
+     "a": 0
+    }
+   }
+  },
+  {
+   "key": "ostend18",
+   "name": "European Team Champs (Ostend)",
+   "region": "Europe",
+   "kind": "Team championship",
+   "year": 2018,
+   "contracts": 32301,
+   "auctions": 0,
+   "hasBidding": false,
+   "stages": {
+    "RR": {
+     "c": 32301,
+     "a": 0
+    }
+   }
+  },
+  {
+   "key": "wuhan19",
+   "name": "World Team Champs (Wuhan)",
+   "region": "World",
+   "kind": "Team championship",
+   "year": 2019,
+   "contracts": 41022,
+   "auctions": 0,
+   "hasBidding": false,
+   "stages": {
+    "FF": {
+     "c": 1407,
+     "a": 0
+    },
+    "QF": {
+     "c": 3004,
+     "a": 0
+    },
+    "RR": {
+     "c": 35204,
+     "a": 0
+    },
+    "SF": {
+     "c": 1407,
+     "a": 0
+    }
+   }
+  },
+  {
+   "key": "madeira22",
+   "name": "European Team Champs (Madeira)",
+   "region": "Europe",
+   "kind": "Team championship",
+   "year": 2022,
+   "contracts": 31977,
+   "auctions": 0,
+   "hasBidding": false,
+   "stages": {
+    "RR": {
+     "c": 31977,
+     "a": 0
+    }
+   }
+  },
+  {
+   "key": "salso22",
+   "name": "World Team Champs (Salsomaggiore)",
+   "region": "World",
+   "kind": "Team championship",
+   "year": 2022,
+   "contracts": 40221,
+   "auctions": 0,
+   "hasBidding": false,
+   "stages": {
+    "FF": {
+     "c": 767,
+     "a": 0
+    },
+    "QF": {
+     "c": 2848,
+     "a": 0
+    },
+    "RR": {
+     "c": 35139,
+     "a": 0
+    },
+    "SF": {
+     "c": 1467,
+     "a": 0
+    }
+   }
+  },
+  {
+   "key": "strasbourg23tn",
+   "name": "strasbourg23tn",
+   "region": "World",
+   "kind": "Other",
+   "year": 2023,
+   "contracts": 1622,
+   "auctions": 1622,
+   "hasBidding": true,
+   "stages": {
+    "16": {
+     "c": 839,
+     "a": 839
+    },
+    "FF": {
+     "c": 112,
+     "a": 112
+    },
+    "QF": {
+     "c": 448,
+     "a": 448
+    },
+    "SF": {
+     "c": 223,
+     "a": 223
+    }
+   }
+  },
+  {
+   "key": "marrakech23",
+   "name": "World Team Champs (Marrakech)",
+   "region": "World",
+   "kind": "Team championship",
+   "year": 2023,
+   "contracts": 41099,
+   "auctions": 5982,
+   "hasBidding": true,
+   "stages": {
+    "FF": {
+     "c": 1273,
+     "a": 1271
+    },
+    "QF": {
+     "c": 3062,
+     "a": 3062
+    },
+    "RR": {
+     "c": 35246,
+     "a": 131
+    },
+    "SF": {
+     "c": 1518,
+     "a": 1518
+    }
+   }
+  },
+  {
+   "key": "marrakech23tn",
+   "name": "World Transnational Open (Marrakech)",
+   "region": "World",
+   "kind": "Transnational",
+   "year": 2023,
+   "contracts": 1379,
+   "auctions": 0,
+   "hasBidding": false,
+   "stages": {
+    "16": {
+     "c": 511,
+     "a": 0
+    },
+    "FF": {
+     "c": 196,
+     "a": 0
+    },
+    "QF": {
+     "c": 448,
+     "a": 0
+    },
+    "SF": {
+     "c": 224,
+     "a": 0
+    }
+   }
+  },
+  {
+   "key": "euchamp24",
+   "name": "European Team Champs (Herning)",
+   "region": "Europe",
+   "kind": "Team championship",
+   "year": 2024,
+   "contracts": 35279,
+   "auctions": 35278,
+   "hasBidding": true,
+   "stages": {
+    "RR": {
+     "c": 35279,
+     "a": 35278
+    }
+   }
+  },
+  {
+   "key": "soloway25",
+   "name": "Soloway Knockout",
+   "region": "USA",
+   "kind": "NABC knockout",
+   "year": 2025,
+   "contracts": 726,
+   "auctions": 726,
+   "hasBidding": true,
+   "stages": {
+    "16": {
+     "c": 6,
+     "a": 6
+    },
+    "FF": {
+     "c": 130,
+     "a": 130
+    },
+    "KO": {
+     "c": 528,
+     "a": 528
+    },
+    "QF": {
+     "c": 62,
+     "a": 62
+    }
+   }
+  },
+  {
+   "key": "spingold25",
+   "name": "Spingold Trophy",
+   "region": "USA",
+   "kind": "NABC knockout",
+   "year": 2025,
+   "contracts": 1695,
+   "auctions": 1695,
+   "hasBidding": true,
+   "stages": {
+    "16": {
+     "c": 282,
+     "a": 282
+    },
+    "32": {
+     "c": 238,
+     "a": 238
+    },
+    "FF": {
+     "c": 120,
+     "a": 120
+    },
+    "KO": {
+     "c": 346,
+     "a": 346
+    },
+    "QF": {
+     "c": 473,
+     "a": 473
+    },
+    "SF": {
+     "c": 236,
+     "a": 236
+    }
+   }
+  },
+  {
+   "key": "vanderbilt25",
+   "name": "Vanderbilt Cup",
+   "region": "USA",
+   "kind": "NABC knockout",
+   "year": 2025,
+   "contracts": 1413,
+   "auctions": 1413,
+   "hasBidding": true,
+   "stages": {
+    "16": {
+     "c": 536,
+     "a": 536
+    },
+    "FF": {
+     "c": 159,
+     "a": 159
+    },
+    "QF": {
+     "c": 478,
+     "a": 478
+    },
+    "SF": {
+     "c": 240,
+     "a": 240
+    }
+   }
+  },
+  {
+   "key": "herning25",
+   "name": "World Team Champs (Herning)",
+   "region": "World",
+   "kind": "Team championship",
+   "year": 2025,
+   "contracts": 37426,
+   "auctions": 37426,
+   "hasBidding": true,
+   "stages": {
+    "FF": {
+     "c": 1311,
+     "a": 1311
+    },
+    "QF": {
+     "c": 3524,
+     "a": 3524
+    },
+    "RR": {
+     "c": 30885,
+     "a": 30885
+    },
+    "SF": {
+     "c": 1706,
+     "a": 1706
+    }
+   }
+  },
+  {
+   "key": "herning25tn",
+   "name": "World Transnational Open (Herning)",
+   "region": "World",
+   "kind": "Transnational",
+   "year": 2025,
+   "contracts": 1185,
+   "auctions": 1185,
+   "hasBidding": true,
+   "stages": {
+    "16": {
+     "c": 512,
+     "a": 512
+    },
+    "FF": {
+     "c": 195,
+     "a": 195
+    },
+    "QF": {
+     "c": 256,
+     "a": 256
+    },
+    "SF": {
+     "c": 222,
+     "a": 222
+    }
+   }
+  },
+  {
+   "key": "riga26",
+   "name": "European Team Champs (Riga)",
+   "region": "Europe",
+   "kind": "Team championship",
+   "year": 2026,
+   "contracts": 38265,
+   "auctions": 38265,
+   "hasBidding": true,
+   "stages": {
+    "RR": {
+     "c": 38265,
+     "a": 38265
+    }
+   }
+  },
+  {
+   "key": "usbc26",
+   "name": "US Bridge Championship (trials)",
+   "region": "USA",
+   "kind": "Trials",
+   "year": 2026,
+   "contracts": 3283,
+   "auctions": 3283,
+   "hasBidding": true,
+   "stages": {
+    "FF": {
+     "c": 174,
+     "a": 174
+    },
+    "QF": {
+     "c": 682,
+     "a": 682
+    },
+    "RR": {
+     "c": 2107,
+     "a": 2107
+    },
+    "SF": {
+     "c": 320,
+     "a": 320
+    }
+   }
+  },
+  {
+   "key": "prague26tn",
+   "name": "prague26tn",
+   "region": "World",
+   "kind": "Other",
+   "year": 2026,
+   "contracts": 1652,
+   "auctions": 1652,
+   "hasBidding": true,
+   "stages": {
+    "16": {
+     "c": 868,
+     "a": 868
+    },
+    "FF": {
+     "c": 112,
+     "a": 112
+    },
+    "QF": {
+     "c": 448,
+     "a": 448
+    },
+    "SF": {
+     "c": 224,
+     "a": 224
+    }
+   }
+  }
+ ]
+}

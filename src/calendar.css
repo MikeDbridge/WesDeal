@@ -1,0 +1,64 @@
+/* WesCal — DB calendar (core look from styles.css). */
+
+#app.cal-app { max-width: 1080px; }
+
+/* ---- Controls ---- */
+.cal-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 4px 0 22px; }
+.cal-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.cal-toggle-btn {
+  padding: 7px 14px; border: 0; background: var(--panel); font: inherit; font-size: 13px;
+  cursor: pointer; color: var(--ink); border-right: 1px solid var(--line);
+}
+.cal-toggle-btn:last-child { border-right: 0; }
+.cal-toggle-btn:hover { background: #eef2f5; }
+.cal-toggle-btn.active { background: var(--accent); color: #fff; }
+.cal-count { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.cal-legend { color: var(--muted); font-size: 12px; margin-left: auto; }
+.cal-key { font-size: 11px; }
+.cal-key.bidding { color: var(--accent); }
+.cal-key.results { color: #9aa7b4; }
+
+/* ---- Year timeline ---- */
+.cal-timeline { display: flex; flex-direction: column; gap: 4px; }
+.cal-year { display: flex; gap: 16px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+.cal-year.hidden { display: none; }
+.cal-year-label {
+  flex: 0 0 62px; font-size: 22px; font-weight: 800; color: var(--ink);
+  font-variant-numeric: tabular-nums; position: sticky; top: 10px;
+}
+.cal-year-cards { flex: 1 1 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+
+/* ---- Event card ---- */
+.cal-card {
+  border: 1px solid var(--line); border-left: 4px solid #c3ccd6; border-radius: 8px;
+  background: var(--panel); padding: 9px 12px; box-shadow: var(--shadow);
+}
+.cal-card.hidden { display: none; }
+.cal-card.bidding { border-left-color: var(--accent); }
+.cal-card.results { border-left-color: #c3ccd6; background: #fafbfc; }
+.cal-card-head { display: flex; align-items: center; gap: 7px; }
+.cal-region { font-size: 14px; }
+.cal-name { font-weight: 700; font-size: 14px; flex: 1 1 auto; min-width: 0; }
+.cal-badge {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700;
+  padding: 2px 7px; border-radius: 999px; white-space: nowrap;
+}
+.cal-badge.bidding { background: #e2f0e8; color: var(--accent); }
+.cal-badge.results { background: #eef1f4; color: #7c8896; }
+.cal-meta { display: flex; justify-content: space-between; gap: 10px; margin: 5px 0 7px; font-size: 12px; color: var(--muted); }
+.cal-counts { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- Stage chips ---- */
+.cal-stages { display: flex; flex-wrap: wrap; gap: 4px; }
+.cal-stage {
+  font-size: 10.5px; font-weight: 600; padding: 1.5px 6px; border-radius: 5px;
+  background: #eef1f4; color: #8390a0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cal-stage.bidding { background: #e2f0e8; color: var(--accent); }
+
+@media (max-width: 640px) {
+  .cal-year { flex-direction: column; gap: 6px; }
+  .cal-year-label { position: static; }
+  .cal-year-cards { grid-template-columns: 1fr; }
+  .cal-legend { margin-left: 0; }
+}
