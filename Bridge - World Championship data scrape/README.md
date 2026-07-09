@@ -41,9 +41,17 @@ deals). See `TOURNAMENTS` in `scrape.ts`.
   (not in the file). PBN deals rotate their leading seat — normalised to
   North-first on ingest. `npm run bridge:usbf` (env `USBF_PAGE`/`USBF_TOURN`/
   `USBF_EVENTS`), then `WBF_TOURN=usbc26 npm run bridge:flatten`.
-- **Bidding**: present in newer sites (2025, and all knockouts) and all USBF PBN;
-  the older round-robins (2017–2023) carry no auctions — the deal source is
-  auto-detected.
+- **US NABC knockouts** (BBO vugraph LIN, `vanderbilt25`/`spingold25`/`soloway25`,
+  ingested by `lin.ts`): the strong US teams KOs (Round of 32 onward is nearly
+  Bermuda-Bowl strength). The vugraph archive is searched (POST) and each hit's
+  `.lin` fetched; one LIN carries both rooms of a segment with full `mb|` auctions.
+  Deals (S/W/N/E order, digit dealer) are normalised to North-first; contract/
+  declarer derived from the auction. `npm run bridge:lin` (env `LIN_SEARCH`
+  ';'-separated queries, `LIN_TOURN`), then `WBF_TOURN=<key> npm run bridge:flatten`.
+  Reisinger excluded (board-a-match scoring).
+- **Bidding**: present in newer sites (2025, and all knockouts), all USBF PBN, and
+  all BBO-LIN NABC KOs; the older round-robins (2017–2023) carry no auctions — the
+  deal source is auto-detected.
 - **Combined data**: `data/_all/{contracts,matches,deals}.csv` concatenates every
   tournament (each row carries its `tournament` + `event`) for a single load.
   Rebuilt by hand after adding a tournament — concatenate each `data/<tourn>/`

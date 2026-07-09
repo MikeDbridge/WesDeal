@@ -18,6 +18,7 @@
     "bridge:test": "vitest run -c bridge-wc.vitest.config.ts parse.test",
     "bridge:scrape": "vitest run -c bridge-wc.vitest.config.ts scrape.task",
     "bridge:usbf": "vitest run -c bridge-wc.vitest.config.ts usbf.task",
+    "bridge:lin": "vitest run -c bridge-wc.vitest.config.ts lin.task",
     "bridge:flatten": "vitest run -c bridge-wc.vitest.config.ts flatten.task"
   },
   "devDependencies": {
