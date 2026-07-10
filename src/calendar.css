@@ -13,10 +13,20 @@
 .cal-toggle-btn:hover { background: #eef2f5; }
 .cal-toggle-btn.active { background: var(--accent); color: #fff; }
 .cal-count { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-.cal-legend { color: var(--muted); font-size: 12px; margin-left: auto; }
-.cal-key { font-size: 11px; }
-.cal-key.bidding { color: var(--accent); }
-.cal-key.results { color: #9aa7b4; }
+
+/* ---- Key bar ---- */
+.cal-key-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
+  font-size: 12px; color: var(--muted); background: #f2f5f8;
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; margin-bottom: 18px;
+}
+.cal-key-group { display: inline-flex; align-items: center; gap: 6px; }
+.cal-key-sep { color: var(--line); }
+.cal-swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.cal-swatch:not(:first-child) { margin-left: 8px; }
+.cal-swatch.full { background: var(--accent); }
+.cal-swatch.partial { background: #d9a441; }
+.cal-swatch.none { background: #c3ccd6; }
 
 /* ---- Year timeline ---- */
 .cal-timeline { display: flex; flex-direction: column; gap: 4px; }
@@ -30,23 +40,36 @@
 
 /* ---- Event card ---- */
 .cal-card {
+  position: relative;
   border: 1px solid var(--line); border-left: 4px solid #c3ccd6; border-radius: 8px;
-  background: var(--panel); padding: 9px 12px; box-shadow: var(--shadow);
+  background: var(--panel); padding: 9px 12px 9px; box-shadow: var(--shadow);
 }
 .cal-card.hidden { display: none; }
-.cal-card.bidding { border-left-color: var(--accent); }
-.cal-card.results { border-left-color: #c3ccd6; background: #fafbfc; }
-.cal-card-head { display: flex; align-items: center; gap: 7px; }
+.cal-card.full { border-left-color: var(--accent); }
+.cal-card.partial { border-left-color: #d9a441; }
+.cal-card.none { border-left-color: #c3ccd6; background: #fafbfc; }
+.cal-card-head { display: flex; align-items: center; gap: 7px; padding-right: 46px; }
 .cal-region { font-size: 14px; }
 .cal-name { font-weight: 700; font-size: 14px; flex: 1 1 auto; min-width: 0; }
 .cal-badge {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700;
   padding: 2px 7px; border-radius: 999px; white-space: nowrap;
 }
-.cal-badge.bidding { background: #e2f0e8; color: var(--accent); }
-.cal-badge.results { background: #eef1f4; color: #7c8896; }
+.cal-badge.full { background: #e2f0e8; color: var(--accent); }
+.cal-badge.partial { background: #f6ecd6; color: #a9761b; }
+.cal-badge.none { background: #eef1f4; color: #7c8896; }
 .cal-meta { display: flex; justify-content: space-between; gap: 10px; margin: 5px 0 7px; font-size: 12px; color: var(--muted); }
 .cal-counts { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- O/M/W/S division corner flag ---- */
+.cal-divflag { position: absolute; right: 10px; bottom: 8px; display: inline-flex; gap: 2px; }
+.cal-div {
+  font-size: 9px; font-weight: 700; width: 12px; height: 12px; line-height: 12px; text-align: center;
+  border-radius: 2px; background: #eef1f4; color: #c3ccd6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cal-div.on { background: var(--accent); color: #fff; }
+.cal-divflag.key { position: static; vertical-align: middle; }
 
 /* ---- Stage chips ---- */
 .cal-stages { display: flex; flex-wrap: wrap; gap: 4px; }

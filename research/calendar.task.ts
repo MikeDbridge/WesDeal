@@ -56,6 +56,20 @@ function yearOf(key: string): number {
   return yy >= 90 ? 1900 + yy : 2000 + yy;
 }
 
+/** Event/division code → O(pen) / W(omen) / S(eniors) / M(ixed). */
+const DIVISION: Record<string, string> = {
+  BB: 'O', OPEN: 'O', TNOT: 'O',
+  VC: 'W', WOMEN: 'W',
+  DOT: 'S', SEN: 'S',
+  WUC: 'M', MIX: 'M',
+};
+const DIV_ORDER = ['O', 'W', 'S', 'M'];
+
+/** A stage counts as "bidding" only if most of its contracts carry an auction —
+ *  a handful of glitch auctions in a results-only round (e.g. Marrakech RR at
+ *  0.4%) must not flag the round as bidding. */
+const BID_MIN_FRACTION = 0.5;
+
 interface Row {
   key: string;
   name: string;
@@ -64,9 +78,15 @@ interface Row {
   year: number;
   contracts: number;
   auctions: number;
+  /** 'full' = every stage bid, 'partial' = some stages, 'none' = results only. */
+  biddingKind: 'full' | 'partial' | 'none';
   hasBidding: boolean;
-  /** stage → { contracts, auctions } */
-  stages: Record<string, { c: number; a: number }>;
+  /** Divisions present, in O/W/S/M order. */
+  divisions: string[];
+  /** stage → { contracts, auctions, bid } (bid = majority carry an auction). */
+  stages: Record<string, { c: number; a: number; bid: boolean }>;
+  /** internal: division codes seen, deduped at the end. */
+  _divs: Set<string>;
 }
 
 it('build DB calendar data', () => {
@@ -77,6 +97,7 @@ it('build DB calendar data', () => {
   const lines = text.split('\n');
   const header = lines[0].split(',');
   const iTourn = header.indexOf('tournament');
+  const iEvent = header.indexOf('event');
   const iStage = header.indexOf('stage');
   const iAuction = header.indexOf('auction');
 
@@ -100,8 +121,11 @@ it('build DB calendar data', () => {
         year: yearOf(key),
         contracts: 0,
         auctions: 0,
+        biddingKind: 'none',
         hasBidding: false,
+        divisions: [],
         stages: {},
+        _divs: new Set<string>(),
       };
       rows.set(key, row);
     }
@@ -109,15 +133,28 @@ it('build DB calendar data', () => {
     const hasAuction = (f[iAuction] ?? '') !== '';
     row.contracts++;
     if (hasAuction) row.auctions++;
-    const st = (row.stages[stage] ??= { c: 0, a: 0 });
+    const div = DIVISION[f[iEvent]];
+    if (div) row._divs.add(div);
+    const st = (row.stages[stage] ??= { c: 0, a: 0, bid: false });
     st.c++;
     if (hasAuction) st.a++;
   }
-  for (const row of rows.values()) row.hasBidding = row.auctions > 0;
+  for (const row of rows.values()) {
+    let bidStages = 0;
+    let total = 0;
+    for (const st of Object.values(row.stages)) {
+      st.bid = st.c > 0 && st.a / st.c >= BID_MIN_FRACTION;
+      total++;
+      if (st.bid) bidStages++;
+    }
+    row.biddingKind = bidStages === 0 ? 'none' : bidStages === total ? 'full' : 'partial';
+    row.hasBidding = bidStages > 0;
+    row.divisions = DIV_ORDER.filter((d) => row._divs.has(d));
+  }
 
-  const out = [...rows.values()].sort(
-    (a, b) => a.year - b.year || a.region.localeCompare(b.region) || a.name.localeCompare(b.name),
-  );
+  const out = [...rows.values()]
+    .map(({ _divs, ...r }) => r) // drop the internal set
+    .sort((a, b) => a.year - b.year || a.region.localeCompare(b.region) || a.name.localeCompare(b.name));
   const totalAuctions = out.reduce((n, r) => n + r.auctions, 0);
   writeFileSync(
     OUT,

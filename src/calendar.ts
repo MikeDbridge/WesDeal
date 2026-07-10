@@ -16,6 +16,7 @@ import calendarData from '../research/calendar-data.json';
 interface Stage {
   c: number;
   a: number;
+  bid: boolean;
 }
 interface Tournament {
   key: string;
@@ -25,7 +26,9 @@ interface Tournament {
   year: number;
   contracts: number;
   auctions: number;
+  biddingKind: 'full' | 'partial' | 'none';
   hasBidding: boolean;
+  divisions: string[];
   stages: Record<string, Stage>;
 }
 interface Data {
@@ -42,6 +45,9 @@ const STAGE_ORDER = ['RR', '32', '16', 'QF', 'SF', 'FF', 'KO'];
 const STAGE_LABEL: Record<string, string> = {
   RR: 'Round robin', '32': 'R32', '16': 'R16', QF: 'QF', SF: 'SF', FF: 'Final', KO: 'KO',
 };
+const ALL_DIVISIONS = ['O', 'W', 'S', 'M'];
+const DIVISION_NAME: Record<string, string> = { O: 'Open', W: 'Women', S: 'Seniors', M: 'Mixed' };
+const BADGE: Record<string, string> = { full: 'bidding', partial: 'part bidding', none: 'results only' };
 
 const fmt = (n: number): string => n.toLocaleString('en-US');
 
@@ -51,12 +57,11 @@ let mode: Mode = 'all';
 function stageChips(t: Tournament): HTMLElement {
   const chips = STAGE_ORDER.filter((s) => t.stages[s]).map((s) => {
     const st = t.stages[s];
-    const bidding = st.a > 0;
     return h(
       'span',
       {
-        class: 'cal-stage' + (bidding ? ' bidding' : ''),
-        title: `${STAGE_LABEL[s] ?? s}: ${fmt(st.c)} contracts${bidding ? `, ${fmt(st.a)} with auctions` : ' (results only)'}`,
+        class: 'cal-stage' + (st.bid ? ' bidding' : ''),
+        title: `${STAGE_LABEL[s] ?? s}: ${fmt(st.c)} contracts${st.bid ? `, ${fmt(st.a)} with auctions` : ' — results only'}`,
       },
       [STAGE_LABEL[s] ?? s],
     );
@@ -64,14 +69,23 @@ function stageChips(t: Tournament): HTMLElement {
   return h('span', { class: 'cal-stages' }, chips);
 }
 
+/** The O/M/W/S corner flag — divisions present are lit, the rest dimmed. */
+function divisionFlag(t: Tournament): HTMLElement {
+  return h(
+    'span',
+    { class: 'cal-divflag', title: `Divisions: ${t.divisions.map((d) => DIVISION_NAME[d]).join(', ')}` },
+    ALL_DIVISIONS.map((d) =>
+      h('span', { class: 'cal-div' + (t.divisions.includes(d) ? ' on' : '') }, [d]),
+    ),
+  );
+}
+
 function card(t: Tournament): HTMLElement {
-  return h('div', { class: 'cal-card ' + (t.hasBidding ? 'bidding' : 'results'), 'data-bidding': String(t.hasBidding) }, [
+  return h('div', { class: `cal-card ${t.biddingKind}`, 'data-bidding': String(t.hasBidding) }, [
     h('div', { class: 'cal-card-head' }, [
       h('span', { class: 'cal-region', title: t.region }, [REGION_GLYPH[t.region] ?? '•']),
       h('span', { class: 'cal-name' }, [t.name]),
-      h('span', { class: 'cal-badge ' + (t.hasBidding ? 'bidding' : 'results') }, [
-        t.hasBidding ? 'bidding' : 'results only',
-      ]),
+      h('span', { class: `cal-badge ${t.biddingKind}` }, [BADGE[t.biddingKind]]),
     ]),
     h('div', { class: 'cal-meta' }, [
       h('span', { class: 'cal-kind' }, [t.kind]),
@@ -80,6 +94,7 @@ function card(t: Tournament): HTMLElement {
       ]),
     ]),
     stageChips(t),
+    divisionFlag(t),
   ]);
 }
 
@@ -153,10 +168,19 @@ function build(): void {
           `${fmt(data.totalAuctions)} auctions across ${data.tournaments.length} events.`,
       ]),
     ]),
-    h('div', { class: 'cal-controls' }, [seg, countEl, h('span', { class: 'cal-legend' }, [
-      h('span', { class: 'cal-key bidding' }, ['●']), ' bidding (has auctions)   ',
-      h('span', { class: 'cal-key results' }, ['●']), ' results only',
-    ])]),
+    h('div', { class: 'cal-controls' }, [seg, countEl]),
+    h('div', { class: 'cal-key-bar' }, [
+      h('span', { class: 'cal-key-group' }, [
+        h('span', { class: 'cal-swatch full' }, []), 'bidding',
+        h('span', { class: 'cal-swatch partial' }, []), 'part bidding (some stages)',
+        h('span', { class: 'cal-swatch none' }, []), 'results only',
+      ]),
+      h('span', { class: 'cal-key-sep' }, ['·']),
+      h('span', { class: 'cal-key-group' }, [
+        h('span', { class: 'cal-divflag key' }, ALL_DIVISIONS.map((d) => h('span', { class: 'cal-div on' }, [d]))),
+        ' = Open / Women / Seniors / Mixed (lit = present)',
+      ]),
+    ]),
     timeline,
   );
   apply();

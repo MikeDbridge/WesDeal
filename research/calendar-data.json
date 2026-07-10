@@ -1,5 +1,5 @@
 {
- "generated": "2026-07-09",
+ "generated": "2026-07-10",
  "totalContracts": 337096,
  "totalAuctions": 128527,
  "tournaments": [
@@ -11,23 +11,33 @@
    "year": 2017,
    "contracts": 26551,
    "auctions": 0,
+   "biddingKind": "none",
    "hasBidding": false,
+   "divisions": [
+    "O",
+    "W",
+    "S"
+   ],
    "stages": {
     "FF": {
      "c": 1084,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "QF": {
      "c": 2301,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "RR": {
      "c": 22079,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "SF": {
      "c": 1087,
-     "a": 0
+     "a": 0,
+     "bid": false
     }
    }
   },
@@ -39,11 +49,18 @@
    "year": 2018,
    "contracts": 32301,
    "auctions": 0,
+   "biddingKind": "none",
    "hasBidding": false,
+   "divisions": [
+    "O",
+    "W",
+    "S"
+   ],
    "stages": {
     "RR": {
      "c": 32301,
-     "a": 0
+     "a": 0,
+     "bid": false
     }
    }
   },
@@ -55,23 +72,34 @@
    "year": 2019,
    "contracts": 41022,
    "auctions": 0,
+   "biddingKind": "none",
    "hasBidding": false,
+   "divisions": [
+    "O",
+    "W",
+    "S",
+    "M"
+   ],
    "stages": {
     "FF": {
      "c": 1407,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "QF": {
      "c": 3004,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "RR": {
      "c": 35204,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "SF": {
      "c": 1407,
-     "a": 0
+     "a": 0,
+     "bid": false
     }
    }
   },
@@ -83,11 +111,19 @@
    "year": 2022,
    "contracts": 31977,
    "auctions": 0,
+   "biddingKind": "none",
    "hasBidding": false,
+   "divisions": [
+    "O",
+    "W",
+    "S",
+    "M"
+   ],
    "stages": {
     "RR": {
      "c": 31977,
-     "a": 0
+     "a": 0,
+     "bid": false
     }
    }
   },
@@ -99,23 +135,34 @@
    "year": 2022,
    "contracts": 40221,
    "auctions": 0,
+   "biddingKind": "none",
    "hasBidding": false,
+   "divisions": [
+    "O",
+    "W",
+    "S",
+    "M"
+   ],
    "stages": {
     "FF": {
      "c": 767,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "QF": {
      "c": 2848,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "RR": {
      "c": 35139,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "SF": {
      "c": 1467,
-     "a": 0
+     "a": 0,
+     "bid": false
     }
    }
   },
@@ -127,23 +174,31 @@
    "year": 2023,
    "contracts": 1622,
    "auctions": 1622,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "16": {
      "c": 839,
-     "a": 839
+     "a": 839,
+     "bid": true
     },
     "FF": {
      "c": 112,
-     "a": 112
+     "a": 112,
+     "bid": true
     },
     "QF": {
      "c": 448,
-     "a": 448
+     "a": 448,
+     "bid": true
     },
     "SF": {
      "c": 223,
-     "a": 223
+     "a": 223,
+     "bid": true
     }
    }
   },
@@ -155,23 +210,34 @@
    "year": 2023,
    "contracts": 41099,
    "auctions": 5982,
+   "biddingKind": "partial",
    "hasBidding": true,
+   "divisions": [
+    "O",
+    "W",
+    "S",
+    "M"
+   ],
    "stages": {
     "FF": {
      "c": 1273,
-     "a": 1271
+     "a": 1271,
+     "bid": true
     },
     "QF": {
      "c": 3062,
-     "a": 3062
+     "a": 3062,
+     "bid": true
     },
     "RR": {
      "c": 35246,
-     "a": 131
+     "a": 131,
+     "bid": false
     },
     "SF": {
      "c": 1518,
-     "a": 1518
+     "a": 1518,
+     "bid": true
     }
    }
   },
@@ -183,23 +249,31 @@
    "year": 2023,
    "contracts": 1379,
    "auctions": 0,
+   "biddingKind": "none",
    "hasBidding": false,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "16": {
      "c": 511,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "FF": {
      "c": 196,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "QF": {
      "c": 448,
-     "a": 0
+     "a": 0,
+     "bid": false
     },
     "SF": {
      "c": 224,
-     "a": 0
+     "a": 0,
+     "bid": false
     }
    }
   },
@@ -211,11 +285,19 @@
    "year": 2024,
    "contracts": 35279,
    "auctions": 35278,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O",
+    "W",
+    "S",
+    "M"
+   ],
    "stages": {
     "RR": {
      "c": 35279,
-     "a": 35278
+     "a": 35278,
+     "bid": true
     }
    }
   },
@@ -227,23 +309,31 @@
    "year": 2025,
    "contracts": 726,
    "auctions": 726,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "16": {
      "c": 6,
-     "a": 6
+     "a": 6,
+     "bid": true
     },
     "FF": {
      "c": 130,
-     "a": 130
+     "a": 130,
+     "bid": true
     },
     "KO": {
      "c": 528,
-     "a": 528
+     "a": 528,
+     "bid": true
     },
     "QF": {
      "c": 62,
-     "a": 62
+     "a": 62,
+     "bid": true
     }
    }
   },
@@ -255,31 +345,41 @@
    "year": 2025,
    "contracts": 1695,
    "auctions": 1695,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "16": {
      "c": 282,
-     "a": 282
+     "a": 282,
+     "bid": true
     },
     "32": {
      "c": 238,
-     "a": 238
+     "a": 238,
+     "bid": true
     },
     "FF": {
      "c": 120,
-     "a": 120
+     "a": 120,
+     "bid": true
     },
     "KO": {
      "c": 346,
-     "a": 346
+     "a": 346,
+     "bid": true
     },
     "QF": {
      "c": 473,
-     "a": 473
+     "a": 473,
+     "bid": true
     },
     "SF": {
      "c": 236,
-     "a": 236
+     "a": 236,
+     "bid": true
     }
    }
   },
@@ -291,23 +391,31 @@
    "year": 2025,
    "contracts": 1413,
    "auctions": 1413,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "16": {
      "c": 536,
-     "a": 536
+     "a": 536,
+     "bid": true
     },
     "FF": {
      "c": 159,
-     "a": 159
+     "a": 159,
+     "bid": true
     },
     "QF": {
      "c": 478,
-     "a": 478
+     "a": 478,
+     "bid": true
     },
     "SF": {
      "c": 240,
-     "a": 240
+     "a": 240,
+     "bid": true
     }
    }
   },
@@ -319,23 +427,34 @@
    "year": 2025,
    "contracts": 37426,
    "auctions": 37426,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O",
+    "W",
+    "S",
+    "M"
+   ],
    "stages": {
     "FF": {
      "c": 1311,
-     "a": 1311
+     "a": 1311,
+     "bid": true
     },
     "QF": {
      "c": 3524,
-     "a": 3524
+     "a": 3524,
+     "bid": true
     },
     "RR": {
      "c": 30885,
-     "a": 30885
+     "a": 30885,
+     "bid": true
     },
     "SF": {
      "c": 1706,
-     "a": 1706
+     "a": 1706,
+     "bid": true
     }
    }
   },
@@ -347,23 +466,31 @@
    "year": 2025,
    "contracts": 1185,
    "auctions": 1185,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "16": {
      "c": 512,
-     "a": 512
+     "a": 512,
+     "bid": true
     },
     "FF": {
      "c": 195,
-     "a": 195
+     "a": 195,
+     "bid": true
     },
     "QF": {
      "c": 256,
-     "a": 256
+     "a": 256,
+     "bid": true
     },
     "SF": {
      "c": 222,
-     "a": 222
+     "a": 222,
+     "bid": true
     }
    }
   },
@@ -375,11 +502,19 @@
    "year": 2026,
    "contracts": 38265,
    "auctions": 38265,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O",
+    "W",
+    "S",
+    "M"
+   ],
    "stages": {
     "RR": {
      "c": 38265,
-     "a": 38265
+     "a": 38265,
+     "bid": true
     }
    }
   },
@@ -391,23 +526,31 @@
    "year": 2026,
    "contracts": 3283,
    "auctions": 3283,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "FF": {
      "c": 174,
-     "a": 174
+     "a": 174,
+     "bid": true
     },
     "QF": {
      "c": 682,
-     "a": 682
+     "a": 682,
+     "bid": true
     },
     "RR": {
      "c": 2107,
-     "a": 2107
+     "a": 2107,
+     "bid": true
     },
     "SF": {
      "c": 320,
-     "a": 320
+     "a": 320,
+     "bid": true
     }
    }
   },
@@ -419,23 +562,31 @@
    "year": 2026,
    "contracts": 1652,
    "auctions": 1652,
+   "biddingKind": "full",
    "hasBidding": true,
+   "divisions": [
+    "O"
+   ],
    "stages": {
     "16": {
      "c": 868,
-     "a": 868
+     "a": 868,
+     "bid": true
     },
     "FF": {
      "c": 112,
-     "a": 112
+     "a": 112,
+     "bid": true
     },
     "QF": {
      "c": 448,
-     "a": 448
+     "a": 448,
+     "bid": true
     },
     "SF": {
      "c": 224,
-     "a": 224
+     "a": 224,
+     "bid": true
     }
    }
   }
