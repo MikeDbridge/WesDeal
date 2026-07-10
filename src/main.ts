@@ -33,6 +33,9 @@ const formatSelect = h(
 formatSelect.value = DEFAULT_FORMAT;
 formatSelect.addEventListener('change', renderResults);
 
+const boardInfoCheck = h('input', { type: 'checkbox', title: 'Add the dealer and vulnerability to each board' }) as HTMLInputElement;
+boardInfoCheck.addEventListener('change', renderResults);
+
 let lastDeals: Deal[] = [];
 let lastLockedSeats: Seat[] = [];
 let lastDDCells: DDCell[] = [];
@@ -55,7 +58,7 @@ function attachDD(el: HTMLElement, tricks: number[], format: BoardFormat): void 
 function renderResults(): void {
   const format = formatSelect.value as BoardFormat;
   boardEls = lastDeals.map((deal, i) => {
-    const el = boardElement(deal, i, lastLockedSeats, format);
+    const el = boardElement(deal, i, lastLockedSeats, format, boardInfoCheck.checked);
     const tricks = ddResults[i];
     if (tricks) attachDD(el, tricks, format);
     return el;
@@ -161,7 +164,7 @@ worker.addEventListener('error', (event) => {
 generateBtn.addEventListener('click', generate);
 copyPbnBtn.addEventListener('click', () => copyToClipboard(dealsToPBN(lastDeals), copyPbnBtn));
 copyTextBtn.addEventListener('click', () =>
-  copyToClipboard(dealsLayoutText(lastDeals, lastLockedSeats, formatSelect.value as BoardFormat), copyTextBtn),
+  copyToClipboard(dealsLayoutText(lastDeals, lastLockedSeats, formatSelect.value as BoardFormat, boardInfoCheck.checked), copyTextBtn),
 );
 
 // ---- Double dummy (solved across a worker pool) ----------------------------
@@ -242,6 +245,7 @@ if (app) {
       copyPbnBtn,
       copyTextBtn,
       h('label', { class: 'format-label' }, ['Layout ', formatSelect]),
+      h('label', { class: 'format-label' }, [boardInfoCheck, ' Dealer & vul']),
     ]),
     status,
     summaryEl,

@@ -321,6 +321,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 
 .board { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fbfcfd; }
 .board-head { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.board-info { font-weight: 400; }
 .fmt-seat-lines { padding: 10px 14px; }
 
 /* Seat-line layout */

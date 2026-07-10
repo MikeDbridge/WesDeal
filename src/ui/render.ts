@@ -6,8 +6,14 @@ import { type Deal, type Seat, SEATS } from '../engine/deal';
 import { analyzeHand, exactShape } from '../engine/hand';
 import { knrPoints } from '../engine/knr';
 import { DD_STRAIN_LABELS, DD_DECLARER_LABELS, cellKey, type DDCell } from '../engine/dd';
+import { dealerOf, vulnerabilityOf, vulnerabilityLabel } from '../engine/board';
 
 const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
+
+/** "Dealer S · Vul E-W" for a 1-based board number. */
+function boardInfoLabel(board: number): string {
+  return `Dealer ${dealerOf(board)} · Vul ${vulnerabilityLabel(vulnerabilityOf(board))}`;
+}
 
 export type BoardFormat = 'compass-mini' | 'compass-text' | 'compass-detailed' | 'seat-lines';
 
@@ -136,10 +142,14 @@ export function boardElement(
   index: number,
   lockedSeats: Seat[],
   format: BoardFormat,
+  showInfo = false,
 ): HTMLElement {
   const locked = new Set(lockedSeats);
   const label = String(index + 1);
-  const head = h('div', { class: 'board-head' }, [`Board ${index + 1}`]);
+  const head = h('div', { class: 'board-head' }, [
+    `Board ${index + 1}`,
+    ...(showInfo ? [h('span', { class: 'board-info' }, [` · ${boardInfoLabel(index + 1)}`])] : []),
+  ]);
 
   let body: HTMLElement;
   switch (format) {
@@ -219,7 +229,7 @@ function seatLinesText(deal: Deal, locked: Set<Seat>): string {
 }
 
 /** One board rendered as plain text in the given layout. */
-export function boardText(deal: Deal, index: number, lockedSeats: Seat[], format: BoardFormat): string {
+export function boardText(deal: Deal, index: number, lockedSeats: Seat[], format: BoardFormat, showInfo = false): string {
   const locked = new Set(lockedSeats);
   const hands = deal.hands;
   let body: string;
@@ -240,12 +250,13 @@ export function boardText(deal: Deal, index: number, lockedSeats: Seat[], format
       body = seatLinesText(deal, locked);
       break;
   }
-  return `Board ${index + 1}\n${body}`;
+  const headLine = `Board ${index + 1}${showInfo ? ` · ${boardInfoLabel(index + 1)}` : ''}`;
+  return `${headLine}\n${body}`;
 }
 
 /** All deals as plain text in the given layout (for the Copy button). */
-export function dealsLayoutText(deals: Deal[], lockedSeats: Seat[], format: BoardFormat): string {
-  return deals.map((d, i) => boardText(d, i, lockedSeats, format)).join('\n\n');
+export function dealsLayoutText(deals: Deal[], lockedSeats: Seat[], format: BoardFormat, showInfo = false): string {
+  return deals.map((d, i) => boardText(d, i, lockedSeats, format, showInfo)).join('\n\n');
 }
 
 // ---- Double-dummy results --------------------------------------------------
