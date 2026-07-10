@@ -22,6 +22,7 @@ import { exactShape } from '../engine/hand';
 import { compileFilter } from '../engine/filter';
 import { DD_STRAIN_LABELS, DD_DECLARER_LABELS, type DDCell } from '../engine/dd';
 import type { ConstraintSet, HandConstraint, Range } from '../engine/constraints';
+import type { FormState } from '../engine/shareState';
 
 const SEAT_NAMES: Record<Seat, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
 
@@ -93,6 +94,10 @@ export interface FormController {
   readDD(): DDCell[];
   /** Whether to run the DD solve automatically after each generate. */
   autoSolveDD(): boolean;
+  /** Snapshot every raw field value (for a shareable link). */
+  serialize(): FormState;
+  /** Write a snapshot back into the fields. */
+  restore(state: FormState): void;
 }
 
 function redClass(s: Suit): string {
@@ -520,5 +525,62 @@ export function buildForm(): FormController {
     return { given, lockedSeats, errors };
   };
 
-  return { element, ddSection, readConstraints, readOptions, readGiven, readDD, autoSolveDD: () => ddAuto.checked };
+  const serialize = (): FormState => {
+    const seats = {} as FormState['seats'];
+    for (const seat of SEATS) {
+      const sr = seatRows[seat];
+      seats[seat] = {
+        hcp: sr.inputs.hcp.value,
+        knr: sr.inputs.knr.value,
+        len: SUITS.map((s) => sr.inputs.suit[s].value),
+        shape: sr.inputs.balanced.value,
+        filter: sr.filterInput.value,
+        locked: sr.toggle.checked,
+        hand: sr.handInput.value,
+      };
+    }
+    return {
+      seats,
+      partner: { nsHcp: nsHcp.value, nsKnr: nsKnr.value, ewHcp: ewHcp.value, ewKnr: ewKnr.value },
+      options: { count: count.value, maxAttempts: maxAttempts.value, seed: seed.value },
+      dd: readDD().map((c): [number, number] => [c.strain, c.declarer]),
+    };
+  };
+
+  const restore = (state: FormState): void => {
+    for (const seat of SEATS) {
+      const sr = seatRows[seat];
+      const s = state.seats?.[seat];
+      if (!s) continue;
+      sr.inputs.hcp.value = s.hcp ?? '';
+      sr.inputs.knr.value = s.knr ?? '';
+      SUITS.forEach((suit, i) => {
+        sr.inputs.suit[suit].value = s.len?.[i] ?? '';
+      });
+      if (s.shape) sr.inputs.balanced.value = s.shape;
+      sr.filterInput.value = s.filter ?? '';
+      sr.toggle.checked = !!s.locked;
+      sr.handInput.value = s.hand ?? '';
+      if ((s.filter ?? '').trim()) sr.filterRow.hidden = false; // reveal a non-empty filter
+      updateFilterState(seat);
+    }
+    if (state.partner) {
+      nsHcp.value = state.partner.nsHcp ?? '';
+      nsKnr.value = state.partner.nsKnr ?? '';
+      ewHcp.value = state.partner.ewHcp ?? '';
+      ewKnr.value = state.partner.ewKnr ?? '';
+    }
+    if (state.options) {
+      count.value = state.options.count ?? count.value;
+      maxAttempts.value = state.options.maxAttempts ?? maxAttempts.value;
+      seed.value = state.options.seed ?? '';
+    }
+    if (state.dd) {
+      setAllDD(false);
+      for (const [s, dcl] of state.dd) if (ddChecks[s]?.[dcl]) ddChecks[s][dcl].checked = true;
+    }
+    updateLockState();
+  };
+
+  return { element, ddSection, readConstraints, readOptions, readGiven, readDD, autoSolveDD: () => ddAuto.checked, serialize, restore };
 }

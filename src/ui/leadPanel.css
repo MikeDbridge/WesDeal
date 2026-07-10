@@ -23,9 +23,25 @@
 
 .lead-progress { color: var(--muted); min-height: 20px; margin-top: 10px; font-variant-numeric: tabular-nums; }
 
+.lead-export { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 2px; }
+.lead-export-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 2px; }
+.lead-export-btn { font: inherit; font-size: 12.5px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: inherit; cursor: pointer; }
+.lead-export-btn:hover { background: #f2f5f8; border-color: #c3cbd4; }
+
 .lead-results { margin-top: 12px; }
 .lead-note { color: var(--muted); font-size: 13px; margin: 4px 0 8px; }
 .lead-beats { font-size: 14px; margin: 4px 0 10px; font-weight: 600; }
+.lead-seed { color: #c9cdd4; font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* First-10-deals sample (compact boards + per-lead DD tricks) */
+.lead-sample { margin-top: 18px; }
+.lead-sample-head { font-size: 14px; margin: 0 0 2px; }
+.lead-sample-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px 18px; margin-top: 8px; }
+.lead-sample-grid .board { margin: 0; }
+.lead-board-leads { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.lead-chip { color: var(--muted); white-space: nowrap; }
+.lead-chip.best { color: var(--text, #1e293b); font-weight: 700; }
+.lead-chip-t { margin-left: 2px; }
 
 .lead-table { border-collapse: collapse; font-size: 13.5px; }
 .lead-table th, .lead-table td { padding: 4px 16px 4px 0; text-align: right; white-space: nowrap; }

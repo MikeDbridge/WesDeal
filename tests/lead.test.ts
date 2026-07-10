@@ -2,8 +2,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { loadDds, Dds } from 'bridge-dds';
 import {
   expandFutureTricks,
-  aggregateLeads,
+  aggregateLeadGroups,
   avgDefenderScore,
+  computeLeadGroups,
+  groupTricks,
   scoreContract,
   declarerFor,
   tricksToSet,
@@ -36,7 +38,30 @@ describe('opening-lead engine', () => {
     expect(scoreContract(3, 4, 6, true)).toBe(-300); // down 3 vul
   });
 
-  it('aggregates per-card stats with trick distributions and scores', () => {
+  it('pools touching cards into lead groups', () => {
+    // ♠A K 4 3 2 → two runs: {A,K} and {4,3,2}. ♥Q J → {Q,J}. ♦7 alone.
+    const groups = computeLeadGroups([
+      { suit: 0, rank: 14 }, { suit: 0, rank: 13 }, { suit: 0, rank: 4 }, { suit: 0, rank: 3 }, { suit: 0, rank: 2 },
+      { suit: 1, rank: 12 }, { suit: 1, rank: 11 },
+      { suit: 2, rank: 7 },
+    ]);
+    expect(groups).toEqual([
+      { suit: 0, ranks: [14, 13] },
+      { suit: 0, ranks: [4, 3, 2] },
+      { suit: 1, ranks: [12, 11] },
+      { suit: 2, ranks: [7] },
+    ]);
+    // The 3 and 2 read the top-of-run (4)'s score.
+    const deal = [
+      { suit: 0, rank: 14, score: 6 }, { suit: 0, rank: 13, score: 6 },
+      { suit: 0, rank: 4, score: 2 }, { suit: 0, rank: 3, score: 2 }, { suit: 0, rank: 2, score: 2 },
+      { suit: 1, rank: 12, score: 3 }, { suit: 1, rank: 11, score: 3 },
+      { suit: 2, rank: 7, score: 1 },
+    ];
+    expect(groupTricks(deal, groups)).toEqual([6, 2, 3, 1]);
+  });
+
+  it('aggregates per-group stats with trick distributions and scores', () => {
     // vs 3NT (need 5 to set). ♠A: 5 then 3 defensive tricks; ♥2: 4 then 4.
     const perDeal = [
       [
@@ -48,9 +73,11 @@ describe('opening-lead engine', () => {
         { suit: 1, rank: 2, score: 4 },
       ],
     ];
-    const rows = aggregateLeads(perDeal, 3);
-    const spadeA = rows.find((r) => r.suit === 0 && r.rank === 14)!;
-    const heart2 = rows.find((r) => r.suit === 1 && r.rank === 2)!;
+    const groups = computeLeadGroups([{ suit: 0, rank: 14 }, { suit: 1, rank: 2 }]);
+    const rows = aggregateLeadGroups(perDeal, groups, 3);
+    const spadeA = rows.find((r) => r.suit === 0 && r.ranks[0] === 14)!;
+    const heart2 = rows.find((r) => r.suit === 1 && r.ranks[0] === 2)!;
+    expect(spadeA.label).toBe('A');
     expect(spadeA.avg).toBeCloseTo(4, 9);
     expect(spadeA.setPct).toBeCloseTo(0.5, 9);
     expect(spadeA.bestPct).toBeCloseTo(0.5, 9);

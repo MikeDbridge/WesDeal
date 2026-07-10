@@ -10,6 +10,7 @@ import type { DDCell } from './engine/dd';
 import type { GenerateRequest, WorkerResponse } from './worker/protocol';
 import { DDPool } from './worker/ddPool';
 import { buildLeadPanel } from './ui/leadPanel';
+import { decodeState } from './engine/shareState';
 
 const worker = new Worker(new URL('./worker/dealer.worker.ts', import.meta.url), {
   type: 'module',
@@ -265,7 +266,17 @@ if (app) {
     ]),
     status,
     ddPanel,
-    leadPanel,
+    leadPanel.element,
     results,
   );
 }
+
+// A shared link (#s=…) reopens the page with its conditions and lead settings.
+(function loadSharedState(): void {
+  const match = /[#&]s=([^&]+)/.exec(location.hash);
+  if (!match) return;
+  const state = decodeState(match[1]);
+  if (!state) return;
+  form.restore(state.form);
+  leadPanel.applyParams(state.lead);
+})();
