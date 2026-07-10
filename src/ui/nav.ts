@@ -1,6 +1,6 @@
 import { h } from './dom';
 
-type NavKey = 'deal' | 'odds' | 'lab' | 'bidding' | 'calendar';
+type NavKey = 'deal' | 'odds' | 'lab' | 'lead' | 'bidding' | 'calendar';
 
 /** Top navigation shared by the app's pages. */
 export function siteNav(active: NavKey): HTMLElement {
@@ -20,6 +20,7 @@ export function siteNav(active: NavKey): HTMLElement {
     link('./index.html', 'WesDeal', 'Deal generator', 'deal'),
     link('./odds.html', 'WesOdds', 'Suit break calculator', 'odds'),
     link('./lab.html', 'WesLab', 'Double dummy lab', 'lab'),
+    link('./lead.html', 'WesLead', 'Opening lead analyser', 'lead'),
     link('./bidding.html', 'WesBids', 'Bidding ranges study', 'bidding'),
     link('./calendar.html', 'WesCal', 'Tournament calendar', 'calendar'),
   ]);

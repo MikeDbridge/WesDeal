@@ -1,0 +1,25 @@
+/* WesLead page — layout extras (core look comes from styles.css). */
+
+/* The reused conditions form carries the deal page's DD grid — not used here. */
+.lead-page .dd-section { display: none; }
+
+.lead-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 18px; }
+.lead-field { display: flex; flex-direction: column; gap: 5px; }
+.lead-field-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.lead-select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
+.lead-count { width: 84px; }
+.lead-declarer { color: var(--muted); font-size: 13px; padding-bottom: 7px; }
+
+.lead-progress { color: var(--muted); min-height: 20px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+
+.lead-samples { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+
+.lead-results { margin-top: 12px; }
+.lead-note { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
+.lead-table { border-collapse: collapse; font-size: 13.5px; }
+.lead-table th, .lead-table td { padding: 4px 16px 4px 0; text-align: right; white-space: nowrap; }
+.lead-table th:first-child, .lead-table td:first-child { text-align: left; }
+.lead-table thead th { color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); }
+.lead-table tbody tr:first-child td { font-weight: 700; }
+.lead-card { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+.lead-table td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

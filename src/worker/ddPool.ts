@@ -2,13 +2,21 @@
  * A pool of double-dummy workers (one per CPU core, capped). Deals are handed
  * out dynamically — each worker pulls the next deal when it finishes, so the
  * load stays balanced even though some deals take longer to solve than others.
+ *
+ * Two job kinds share the machinery: `solve` (strain × declarer cells per
+ * deal) and `solveLeads` (score every opening lead per deal). A new call of
+ * either supersedes any in-flight run via the job id.
  */
 
 import type { DDCell } from '../engine/dd';
-import type { DDSolveOne, DDWorkerMessage } from './dd.protocol';
+import type { LeadCardScore } from '../engine/lead';
+import type { DDWorkerRequest, DDWorkerMessage } from './dd.protocol';
 
 export interface DDPoolHandlers {
-  onResult(index: number, tricks: number[]): void;
+  /** Per-deal cell tricks (solve jobs). */
+  onResult?(index: number, tricks: number[]): void;
+  /** Per-deal lead scores (solveLeads jobs). */
+  onLeads?(index: number, cards: LeadCardScore[]): void;
   onProgress(done: number, total: number): void;
   onDone(): void;
   onError(message: string): void;
@@ -23,6 +31,7 @@ export class DDPool {
   private queue: number[] = [];
   private deals: string[] = [];
   private cells: DDCell[] = [];
+  private leads: { trump: number; leader: number } | null = null;
   private done = 0;
   private total = 0;
   private handlers: DDPoolHandlers | null = null;
@@ -32,11 +41,22 @@ export class DDPool {
     this.size = Math.max(1, Math.min(size ?? cores, 8));
   }
 
-  /** Start (or restart) a solve. A new call supersedes any in-flight run. */
+  /** Start (or restart) a cell-solving run. Supersedes any in-flight run. */
   solve(deals: string[], cells: DDCell[], handlers: DDPoolHandlers): void {
+    this.leads = null;
+    this.cells = cells;
+    this.begin(deals, handlers);
+  }
+
+  /** Start (or restart) an opening-lead run. Supersedes any in-flight run. */
+  solveLeads(deals: string[], trump: number, leader: number, handlers: DDPoolHandlers): void {
+    this.leads = { trump, leader };
+    this.begin(deals, handlers);
+  }
+
+  private begin(deals: string[], handlers: DDPoolHandlers): void {
     this.jobId++;
     this.deals = deals;
-    this.cells = cells;
     this.handlers = handlers;
     this.queue = deals.map((_, i) => i);
     this.done = 0;
@@ -66,14 +86,17 @@ export class DDPool {
       return;
     }
     this.busy.add(w);
-    const msg: DDSolveOne = { type: 'solve', jobId: this.jobId, index, pbn: this.deals[index], cells: this.cells };
+    const msg: DDWorkerRequest = this.leads
+      ? { type: 'leads', jobId: this.jobId, index, pbn: this.deals[index], trump: this.leads.trump, leader: this.leads.leader }
+      : { type: 'solve', jobId: this.jobId, index, pbn: this.deals[index], cells: this.cells };
     w.postMessage(msg);
   }
 
   private onMessage(w: Worker, msg: DDWorkerMessage): void {
     // Ignore replies from a superseded job, but still reuse the freed worker.
     if (msg.jobId === this.jobId) {
-      if (msg.type === 'result') this.handlers?.onResult(msg.index, msg.tricks);
+      if (msg.type === 'result') this.handlers?.onResult?.(msg.index, msg.tricks);
+      else if (msg.type === 'leads-result') this.handlers?.onLeads?.(msg.index, msg.cards);
       else this.handlers?.onError(msg.message);
       this.done++;
       this.handlers?.onProgress(this.done, this.total);
