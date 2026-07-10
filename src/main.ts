@@ -9,12 +9,14 @@ import { type Deal, type Seat } from './engine/deal';
 import type { DDCell } from './engine/dd';
 import type { GenerateRequest, WorkerResponse } from './worker/protocol';
 import { DDPool } from './worker/ddPool';
+import { buildLeadPanel } from './ui/leadPanel';
 
 const worker = new Worker(new URL('./worker/dealer.worker.ts', import.meta.url), {
   type: 'module',
 });
 
 const form = buildForm();
+const leadPanel = buildLeadPanel(form);
 const status = h('div', { class: 'status' }, ['Set conditions and generate a deal.']);
 const results = h('div', { class: 'results' });
 
@@ -249,6 +251,7 @@ if (app) {
     ]),
     status,
     summaryEl,
+    leadPanel,
     results,
   );
 }
