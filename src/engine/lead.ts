@@ -4,13 +4,9 @@
  * For each deal, DDS's SolveBoardPBN (target −1, solutions 3) returns every
  * distinct legal lead with its exact double-dummy score — the tricks the
  * LEADING side takes against best play — plus an `equals` bitmask of lower
- * equivalent cards. `expandFutureTricks` unfolds that into one entry per
- * actual card.
- *
- * Cards of consecutive rank in the leader's own hand (♦54, ♠KQJ) are
- * interchangeable on every deal — no missing card can lie between them — so
- * analysis runs on `groupTouching` groups, and `aggregateLeadGroups` combines
- * many deals into per-group stats including the full trick distribution.
+ * equivalent cards. `expandFutureTricks` unfolds that into one entry per actual
+ * card; `aggregateLeads` combines many deals into per-card stats including the
+ * full trick distribution.
  *
  * Seat/strain indices follow DDS: strain 0=♠ 1=♥ 2=♦ 3=♣ 4=NT; seats 0=N 1=E
  * 2=S 3=W. The opening leader is declarer's LHO: leader = (declarer + 1) % 4,
@@ -18,7 +14,6 @@
  */
 
 import type { FutureTricks } from 'bridge-dds';
-import type { Card } from './cards';
 
 export interface LeadCardScore {
   /** 0=♠ 1=♥ 2=♦ 3=♣ */
@@ -52,37 +47,6 @@ export function expandFutureTricks(ft: FutureTricks): LeadCardScore[] {
   return out;
 }
 
-/** A maximal run of touching cards in one suit of the leader's hand. */
-export interface LeadGroup {
-  /** 0=♠ 1=♥ 2=♦ 3=♣ */
-  suit: number;
-  /** Consecutive ranks, highest first, e.g. [13, 12, 11] for KQJ. */
-  ranks: number[];
-}
-
-/**
- * Group a 13-card hand into maximal touching runs per suit (♠ first, then by
- * rank descending). Touching cards are strictly interchangeable as leads.
- */
-export function groupTouching(cards: Card[]): LeadGroup[] {
-  const bySuit: number[][] = [[], [], [], []];
-  for (const c of cards) bySuit[(c / 13) | 0].push((c % 13) + 2);
-  const groups: LeadGroup[] = [];
-  for (let suit = 0; suit < 4; suit++) {
-    const ranks = bySuit[suit].sort((a, b) => b - a);
-    let run: number[] = [];
-    for (const r of ranks) {
-      if (run.length > 0 && run[run.length - 1] !== r + 1) {
-        groups.push({ suit, ranks: run });
-        run = [];
-      }
-      run.push(r);
-    }
-    if (run.length > 0) groups.push({ suit, ranks: run });
-  }
-  return groups;
-}
-
 /**
  * Duplicate-bridge score for the DECLARING side (undoubled): positive when the
  * contract makes (with over-trick, game/part-score and slam bonuses), negative
@@ -100,9 +64,12 @@ export function scoreContract(level: number, strain: number, declTricks: number,
   return score;
 }
 
-export interface LeadGroupRow {
-  group: LeadGroup;
-  /** Deals in which the group's lead was scored. */
+export interface LeadRow {
+  /** 0=♠ 1=♥ 2=♦ 3=♣ */
+  suit: number;
+  /** 2..14 */
+  rank: number;
+  /** Deals in which this card was scored as a lead. */
   n: number;
   /** Mean defensive tricks. */
   avg: number;
@@ -116,58 +83,56 @@ export interface LeadGroupRow {
   counts: number[];
 }
 
-/** Mean defender-perspective score for a row (− declarer's duplicate score). */
-export function avgDefenderScore(row: LeadGroupRow, level: number, strain: number, vul: boolean): number {
+/** Mean defender-perspective duplicate score for a trick distribution. */
+export function avgDefenderScore(counts: number[], n: number, level: number, strain: number, vul: boolean): number {
+  if (n === 0) return 0;
   let sum = 0;
   for (let t = 0; t <= 13; t++) {
-    if (row.counts[t] > 0) sum += row.counts[t] * -scoreContract(level, strain, 13 - t, vul);
+    if (counts[t] > 0) sum += counts[t] * -scoreContract(level, strain, 13 - t, vul);
   }
-  return sum / row.n;
+  return sum / n;
 }
 
 /**
- * Combine per-deal lead scores into one row per touching group, sorted by set
- * percentage (then average tricks). Group members share identical scores, so
- * each group reads its highest card's score.
+ * Combine per-deal lead scores into one row per card, sorted by set percentage
+ * (then average tricks).
  */
-export function aggregateLeadGroups(perDeal: LeadCardScore[][], groups: LeadGroup[], level: number): LeadGroupRow[] {
+export function aggregateLeads(perDeal: LeadCardScore[][], level: number): LeadRow[] {
   const need = tricksToSet(level);
-  const acc = groups.map(() => ({ n: 0, sum: 0, sets: 0, best: 0, cost: 0, counts: new Array<number>(14).fill(0) }));
+  const acc = new Map<number, { n: number; sum: number; sets: number; best: number; cost: number; counts: number[] }>();
   for (const deal of perDeal) {
     if (deal.length === 0) continue;
-    const byCard = new Map<number, number>();
     let max = 0;
+    for (const c of deal) if (c.score > max) max = c.score;
     for (const c of deal) {
-      byCard.set(c.suit * 13 + (c.rank - 2), c.score);
-      if (c.score > max) max = c.score;
-    }
-    groups.forEach((g, i) => {
-      const score = byCard.get(g.suit * 13 + (g.ranks[0] - 2));
-      if (score === undefined) return;
-      const slot = acc[i];
+      const key = c.suit * 13 + (c.rank - 2);
+      let slot = acc.get(key);
+      if (!slot) {
+        slot = { n: 0, sum: 0, sets: 0, best: 0, cost: 0, counts: new Array<number>(14).fill(0) };
+        acc.set(key, slot);
+      }
       slot.n++;
-      slot.sum += score;
-      slot.counts[score]++;
-      if (score >= need) slot.sets++;
-      if (score === max) slot.best++;
-      slot.cost += max - score;
+      slot.sum += c.score;
+      slot.counts[c.score]++;
+      if (c.score >= need) slot.sets++;
+      if (c.score === max) slot.best++;
+      slot.cost += max - c.score;
+    }
+  }
+  const rows: LeadRow[] = [];
+  for (const [key, s] of acc) {
+    rows.push({
+      suit: (key / 13) | 0,
+      rank: (key % 13) + 2,
+      n: s.n,
+      avg: s.sum / s.n,
+      setPct: s.sets / s.n,
+      bestPct: s.best / s.n,
+      avgCost: s.cost / s.n,
+      counts: s.counts,
     });
   }
-  const rows: LeadGroupRow[] = groups
-    .map((group, i) => {
-      const s = acc[i];
-      return {
-        group,
-        n: s.n,
-        avg: s.n ? s.sum / s.n : 0,
-        setPct: s.n ? s.sets / s.n : 0,
-        bestPct: s.n ? s.best / s.n : 0,
-        avgCost: s.n ? s.cost / s.n : 0,
-        counts: s.counts,
-      };
-    })
-    .filter((r) => r.n > 0);
-  rows.sort((a, b) => b.setPct - a.setPct || b.avg - a.avg || a.group.suit - b.group.suit || b.group.ranks[0] - a.group.ranks[0]);
+  rows.sort((a, b) => b.setPct - a.setPct || b.avg - a.avg || a.suit - b.suit || b.rank - a.rank);
   return rows;
 }
 

@@ -17,8 +17,16 @@ const worker = new Worker(new URL('./worker/dealer.worker.ts', import.meta.url),
 
 const form = buildForm();
 const leadPanel = buildLeadPanel(form);
-const status = h('div', { class: 'status' }, ['Set conditions and generate a deal.']);
+const statusMsg = h('span', { class: 'status-msg' }, ['Set conditions and generate a deal.']);
+const statusSeed = h('span', { class: 'status-seed' }, []);
+const status = h('div', { class: 'status' }, [statusMsg, statusSeed]);
 const results = h('div', { class: 'results' });
+
+/** Set the status message; pass `seed` to show it (greyed, right), '' to clear it. */
+function setStatus(msg: string, seed?: number | string): void {
+  statusMsg.textContent = msg;
+  if (seed !== undefined) statusSeed.textContent = seed === '' ? '' : `seed ${seed}`;
+}
 
 const generateBtn = h('button', { class: 'primary', type: 'button' }, ['Generate']) as HTMLButtonElement;
 const copyPbnBtn = h('button', { type: 'button', disabled: true }, ['Copy PBN']) as HTMLButtonElement;
@@ -97,7 +105,7 @@ function generate(): void {
 
   const errors = [...constraintErrors, ...givenErrors];
   if (errors.length) {
-    status.textContent = `Fix the conditions: ${errors.join(' ')}`;
+    setStatus(`Fix the conditions: ${errors.join(' ')}`, '');
     return;
   }
 
@@ -111,9 +119,7 @@ function generate(): void {
 
   const searching = !isEmptyConstraintSet(constraints);
   const around = lockedSeats.length ? ` around the locked hand${lockedSeats.length > 1 ? 's' : ''}` : '';
-  status.textContent = searching
-    ? `Searching for matching deals${around}…`
-    : `Generating random deals${around}…`;
+  setStatus(searching ? `Searching for matching deals${around}…` : `Generating random deals${around}…`, '');
 
   searchStart = performance.now();
   worker.postMessage(request);
@@ -124,7 +130,7 @@ worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
   setBusy(false);
 
   if (msg.type === 'error') {
-    status.textContent = `Error: ${msg.message}`;
+    setStatus(`Error: ${msg.message}`);
     return;
   }
 
@@ -141,11 +147,11 @@ worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
   const secs = secsSince(searchStart);
   const rate = accepted > 0 ? ` · ~${Math.round(attempts / accepted)} tried per match` : '';
   if (accepted === 0) {
-    status.textContent = `No matching deal found in ${attempts.toLocaleString()} attempts (${secs} s). The constraints may be too tight — raise max attempts or relax a condition. (seed ${seed})`;
+    setStatus(`No matching deal found in ${attempts.toLocaleString()} attempts (${secs} s). The constraints may be too tight — raise max attempts or relax a condition.`, seed);
   } else if (!complete) {
-    status.textContent = `Found ${accepted} of ${requested} in ${secs} s · ${attempts.toLocaleString()} attempts — constraints are very tight.${rate} (seed ${seed})`;
+    setStatus(`Found ${accepted} of ${requested} in ${secs} s · ${attempts.toLocaleString()} attempts — constraints are very tight.${rate}`, seed);
   } else {
-    status.textContent = `Found ${accepted} deal${accepted === 1 ? '' : 's'} in ${secs} s · ${attempts.toLocaleString()} attempts.${rate} (seed ${seed})`;
+    setStatus(`Found ${accepted} deal${accepted === 1 ? '' : 's'} in ${secs} s · ${attempts.toLocaleString()} attempts.${rate}`, seed);
   }
 
   renderResults();
@@ -160,7 +166,7 @@ worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
 
 worker.addEventListener('error', (event) => {
   setBusy(false);
-  status.textContent = `Worker error: ${event.message}`;
+  setStatus(`Worker error: ${event.message}`);
 });
 
 generateBtn.addEventListener('click', generate);
@@ -174,12 +180,12 @@ const ddPool = new DDPool();
 
 function solveDD(): void {
   if (lastDeals.length === 0) {
-    status.textContent = 'Generate some deals first.';
+    setStatus('Generate some deals first.');
     return;
   }
   const cells = form.readDD();
   if (cells.length === 0) {
-    status.textContent = 'Tick at least one double-dummy cell first.';
+    setStatus('Tick at least one double-dummy cell first.');
     return;
   }
   lastDDCells = cells;
@@ -188,7 +194,7 @@ function solveDD(): void {
   solveDDBtn.disabled = true;
   solveDDBtn.textContent = 'Solving…';
   const total = lastDeals.length;
-  status.textContent = `Solving double dummy… 0/${total}`;
+  setStatus(`Solving double dummy… 0/${total}`);
   ddStart = performance.now();
 
   ddPool.solve(lastDeals.map((d) => dealToPBN(d)), cells, {
@@ -198,17 +204,17 @@ function solveDD(): void {
       if (el) attachDD(el, tricks, formatSelect.value as BoardFormat);
     },
     onProgress(done) {
-      status.textContent = `Solving double dummy… ${done}/${total}`;
+      setStatus(`Solving double dummy… ${done}/${total}`);
     },
     onDone() {
       solveDDBtn.disabled = false;
       solveDDBtn.textContent = 'Solve double dummy';
       summaryBtn.disabled = false;
       if (!summaryEl.hidden) renderSummary();
-      status.textContent = `Double dummy solved for ${total} deal${total === 1 ? '' : 's'} in ${secsSince(ddStart)} s.`;
+      setStatus(`Double dummy solved for ${total} deal${total === 1 ? '' : 's'} in ${secsSince(ddStart)} s.`);
     },
     onError(message) {
-      status.textContent = `Double-dummy error: ${message}`;
+      setStatus(`Double-dummy error: ${message}`);
     },
   });
 }
@@ -231,6 +237,16 @@ function toggleSummary(): void {
 }
 summaryBtn.addEventListener('click', toggleSummary);
 
+// Double-dummy analyser, in its own expandable tab (grid comes from the form).
+const ddPanel = h('details', { class: 'form tool-panel' }, [
+  h('summary', {}, ['Double dummy analyser']),
+  h('div', { class: 'tool-panel-body' }, [
+    form.ddSection,
+    h('div', { class: 'dd-panel-actions' }, [solveDDBtn, summaryBtn]),
+    summaryEl,
+  ]),
+]);
+
 const app = document.querySelector<HTMLDivElement>('#app');
 if (app) {
   app.append(
@@ -242,15 +258,13 @@ if (app) {
     form.element,
     h('div', { class: 'actions' }, [
       generateBtn,
-      solveDDBtn,
-      summaryBtn,
       copyPbnBtn,
       copyTextBtn,
       h('label', { class: 'format-label' }, ['Layout ', formatSelect]),
       h('label', { class: 'format-label' }, [boardInfoCheck, ' Dealer & vul']),
     ]),
     status,
-    summaryEl,
+    ddPanel,
     leadPanel,
     results,
   );

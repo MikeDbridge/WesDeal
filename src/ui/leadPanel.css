@@ -1,12 +1,17 @@
-/* Opening-lead analyser panel on the deal page. */
+/* Expandable analysis tabs (opening lead + double dummy) and the lead table. */
 
-.lead-panel { margin: 0 0 14px; padding: 0; }
-.lead-panel > summary {
+.tool-panel { margin: 0 0 14px; padding: 0; }
+.tool-panel > summary {
   cursor: pointer; font-weight: 600; color: var(--muted); padding: 12px 16px;
-  font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px;
+  font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; list-style: none;
 }
-.lead-panel[open] > summary { border-bottom: 1px solid var(--line); }
-.lead-panel-body { padding: 14px 16px; }
+.tool-panel > summary::-webkit-details-marker { display: none; }
+.tool-panel > summary::before { content: '▸\00a0'; color: var(--muted); font-size: 12px; }
+.tool-panel[open] > summary::before { content: '▾\00a0'; }
+.tool-panel[open] > summary { border-bottom: 1px solid var(--line); }
+.tool-panel-body { padding: 14px 16px; }
+
+.dd-panel-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 
 .lead-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 18px; }
 .lead-field { display: flex; flex-direction: column; gap: 5px; }
@@ -25,7 +30,7 @@
 .lead-table { border-collapse: collapse; font-size: 13.5px; }
 .lead-table th, .lead-table td { padding: 4px 16px 4px 0; text-align: right; white-space: nowrap; }
 .lead-table th:first-child, .lead-table td:first-child { text-align: left; }
-.lead-table thead th { color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); }
+.lead-table thead th { color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); cursor: help; }
 .lead-table td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .lead-table tr.lead-row { cursor: pointer; }
 .lead-table tr.lead-row:hover td { background: #f2f5f8; }
@@ -34,10 +39,9 @@
 
 /* Expandable per-lead trick distribution */
 .lead-chart-row > td { padding: 6px 0 12px; }
-.lead-chart { display: flex; align-items: flex-end; gap: 5px; padding: 4px 2px 0; }
+.lead-chart { display: flex; align-items: flex-end; gap: 6px; padding: 4px 2px 0; }
 .lead-chart-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.lead-bar-pct { font-size: 9.5px; color: var(--muted); line-height: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.lead-bar { width: 22px; border-radius: 2px 2px 0 0; background: #c3cbd4; }
+.lead-bar-pct { font-size: 10px; color: var(--muted); line-height: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.lead-bar { width: 26px; border-radius: 2px 2px 0 0; background: #c3cbd4; }
 .lead-bar.set { background: var(--accent); }
 .lead-x { font-size: 11px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.lead-chart-caption { font-size: 12px; color: var(--muted); margin: 4px 0 0; }

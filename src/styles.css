@@ -313,7 +313,8 @@ button:hover:not(:disabled) { border-color: var(--accent); }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 button:disabled { opacity: 0.5; cursor: default; }
 
-.status { color: var(--muted); margin: 0 0 14px; min-height: 20px; }
+.status { color: var(--muted); margin: 0 0 14px; min-height: 20px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.status-seed { color: #aeb6c0; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* Results */
 .results { padding: 8px; display: flex; flex-direction: column; gap: 8px; }

@@ -84,6 +84,8 @@ export interface GivenResult {
 
 export interface FormController {
   element: HTMLElement;
+  /** The double-dummy cell grid, placed by the page in its own analyser tab. */
+  ddSection: HTMLElement;
   readConstraints(): ConstraintResult;
   readOptions(): RunOptions;
   readGiven(): GivenResult;
@@ -356,8 +358,8 @@ export function buildForm(): FormController {
   ]);
 
   // ---- Run options ---------------------------------------------------------
-  const count = numberInput('1', 1, 1000);
-  count.value = '1';
+  const count = numberInput('10', 1, 1000);
+  count.value = '10';
   const maxAttempts = numberInput('100000', 1, 100_000_000);
   maxAttempts.value = '100000';
   const seed = numberInput('random', 0, 2_147_483_647);
@@ -405,9 +407,10 @@ export function buildForm(): FormController {
     ]),
   );
   const ddAuto = h('input', { type: 'checkbox' }) as HTMLInputElement;
+  // The DD grid is placed by main.ts inside its own expandable "Double dummy
+  // analyser" tab, not in the conditions form.
   const ddSection = h('div', { class: 'dd-section' }, [
     h('div', { class: 'dd-bar' }, [
-      h('span', { class: 'group-label' }, ['Double dummy']),
       h('button', { type: 'button', class: 'dd-btn', onclick: () => setAllDD(true) }, ['Full table']),
       h('button', { type: 'button', class: 'dd-btn', onclick: () => setAllDD(false) }, ['Clear']),
       h('label', { class: 'dd-auto', title: 'Solve the ticked cells automatically after each generate' }, [ddAuto, ' solve on generate']),
@@ -438,7 +441,6 @@ export function buildForm(): FormController {
     filterHelp,
     partnership,
     options,
-    ddSection,
     presets,
   ]);
 
@@ -518,5 +520,5 @@ export function buildForm(): FormController {
     return { given, lockedSeats, errors };
   };
 
-  return { element, readConstraints, readOptions, readGiven, readDD, autoSolveDD: () => ddAuto.checked };
+  return { element, ddSection, readConstraints, readOptions, readGiven, readDD, autoSolveDD: () => ddAuto.checked };
 }

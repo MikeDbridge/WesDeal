@@ -1,16 +1,15 @@
 /**
- * Opening-lead analyser panel for the deal page.
+ * Opening-lead analyser panel for the deal page (an expandable tab).
  *
- * Uses the page's conditions as-is: lock the opening leader's hand (exactly
- * one seat, 13 real cards — no x's), filter the unseen hands to match the
- * bidding, then analyse: deal N constraint-consistent boards and score every
- * lead double dummy against the chosen contract. The opening leader is always
- * declarer's LHO, so declarer is derived (the locked seat's RHO).
+ * Uses the page's conditions as-is: lock the opening leader's hand (exactly one
+ * seat, 13 real cards — no x's), filter the unseen hands to match the bidding,
+ * then analyse: deal N constraint-consistent boards and score every card in the
+ * leader's hand double dummy against the chosen contract. The opening leader is
+ * always declarer's LHO, so declarer is derived (the locked seat's RHO).
  *
- * Touching cards in the leader's hand are interchangeable and are analysed as
- * one lead (♠KQJ, ♦54). Each result row expands into a trick-frequency chart;
- * several can be open at once to compare contenders. Vulnerability only
- * affects the score column, so toggling it re-renders from stored results.
+ * Each result row expands (click) into a trick-frequency chart; several can be
+ * open at once to compare contenders. Vulnerability only affects the score
+ * column, so toggling it re-renders from stored results without re-solving.
  */
 
 import './leadPanel.css';
@@ -21,14 +20,13 @@ import { SEATS, type Seat, type Deal } from '../engine/deal';
 import { dealToPBN } from '../engine/format';
 import { DD_STRAIN_LABELS } from '../engine/dd';
 import {
-  aggregateLeadGroups,
+  aggregateLeads,
   avgDefenderScore,
   declarerFor,
-  groupTouching,
   tricksToSet,
   unbeatablePct,
   type LeadCardScore,
-  type LeadGroupRow,
+  type LeadRow,
 } from '../engine/lead';
 import { DDPool } from '../worker/ddPool';
 import type { GenerateRequest, WorkerResponse } from '../worker/protocol';
@@ -64,7 +62,7 @@ export function buildLeadPanel(form: FormController): HTMLElement {
   let runStart = 0;
 
   // Stored for re-rendering (vul toggle, chart toggles) without re-solving.
-  let lastRows: LeadGroupRow[] = [];
+  let lastRows: LeadRow[] = [];
   let lastLevel = 4;
   let lastStrain = 0;
   let lastLeader = 3;
@@ -75,12 +73,11 @@ export function buildLeadPanel(form: FormController): HTMLElement {
   let lastFinished = true;
   const openCharts = new Set<string>();
 
-  const groupKey = (r: LeadGroupRow): string => `${r.group.suit}-${r.group.ranks[0]}`;
-  const groupLabel = (r: LeadGroupRow): string => r.group.ranks.map((rank) => RANK_LABELS[rank as Rank]).join('');
+  const rowKey = (r: LeadRow): string => `${r.suit}-${r.rank}`;
 
   // ---- Rendering ------------------------------------------------------------
 
-  function chartRow(row: LeadGroupRow, minT: number, maxT: number, need: number): HTMLElement {
+  function chartRow(row: LeadRow, minT: number, maxT: number, need: number): HTMLElement {
     let maxShare = 0;
     for (let t = minT; t <= maxT; t++) maxShare = Math.max(maxShare, row.counts[t] / row.n);
     const cols: HTMLElement[] = [];
@@ -89,24 +86,17 @@ export function buildLeadPanel(form: FormController): HTMLElement {
       const height = share === 0 ? 2 : Math.max(3, Math.round((share / maxShare) * 58));
       cols.push(
         h('div', { class: 'lead-chart-col' }, [
-          h('div', { class: 'lead-bar-pct' }, [share >= 0.005 ? `${Math.round(share * 100)}` : '']),
+          h('div', { class: 'lead-bar-pct' }, [share >= 0.005 ? `${Math.round(share * 100)}%` : '']),
           h('div', {
             class: 'lead-bar' + (t >= need ? ' set' : ''),
             style: `height:${height}px` + (share === 0 ? ';background:transparent' : ''),
-            title: `${t} tricks on ${row.counts[t]} of ${row.n} deals (${(share * 100).toFixed(1)}%)`,
+            title: `${t} defensive tricks on ${(share * 100).toFixed(1)}% of deals (${row.counts[t]} of ${row.n})`,
           }, []),
           h('div', { class: 'lead-x' }, [String(t)]),
         ]),
       );
     }
-    return h('tr', { class: 'lead-chart-row' }, [
-      h('td', { colspan: '6' }, [
-        h('div', { class: 'lead-chart' }, cols),
-        h('div', { class: 'lead-chart-caption' }, [
-          `Defensive tricks with the ${SUIT_SYMBOLS[SUITS[row.group.suit]]}${groupLabel(row)} lead — green bars beat the contract (${need}+ tricks). Numbers are % of deals.`,
-        ]),
-      ]),
-    ]);
+    return h('tr', { class: 'lead-chart-row' }, [h('td', { colspan: '6' }, [h('div', { class: 'lead-chart' }, cols)])]);
   }
 
   function renderResults(): void {
@@ -134,8 +124,8 @@ export function buildLeadPanel(form: FormController): HTMLElement {
 
     const bodyRows: HTMLElement[] = [];
     for (const r of lastRows) {
-      const key = groupKey(r);
-      const red = r.group.suit === 1 || r.group.suit === 2;
+      const key = rowKey(r);
+      const red = r.suit === 1 || r.suit === 2;
       const tr = h('tr', {
         class: 'lead-row',
         title: 'Click to show the trick distribution',
@@ -147,12 +137,12 @@ export function buildLeadPanel(form: FormController): HTMLElement {
       }, [
         h('td', {}, [
           h('span', { class: 'lead-caret' }, [openCharts.has(key) ? '▾' : '▸']),
-          h('span', { class: 'lead-card' + (red ? ' red' : '') }, [SUIT_SYMBOLS[SUITS[r.group.suit]]]),
-          h('span', { class: 'lead-card' }, [groupLabel(r)]),
+          h('span', { class: 'lead-card' + (red ? ' red' : '') }, [SUIT_SYMBOLS[SUITS[r.suit]]]),
+          h('span', { class: 'lead-card' }, [RANK_LABELS[r.rank as Rank]]),
         ]),
         h('td', {}, [r.avg.toFixed(2)]),
         h('td', {}, [`${(r.setPct * 100).toFixed(1)}%`]),
-        h('td', {}, [avgDefenderScore(r, lastLevel, lastStrain, vul).toFixed(0)]),
+        h('td', {}, [avgDefenderScore(r.counts, r.n, lastLevel, lastStrain, vul).toFixed(0)]),
         h('td', {}, [`${(r.bestPct * 100).toFixed(1)}%`]),
         h('td', {}, [r.avgCost.toFixed(2)]),
       ]);
@@ -165,10 +155,10 @@ export function buildLeadPanel(form: FormController): HTMLElement {
         h('tr', {}, [
           h('th', {}, ['Lead']),
           h('th', { title: 'Average double-dummy tricks for the defense' }, ['Avg tricks']),
-          h('th', { title: `Defense takes ${need}+ tricks` }, ['Beats %']),
+          h('th', { title: `The defense takes ${need}+ tricks and defeats the contract` }, ['Beats %']),
           h('th', { title: `Average duplicate score from the defenders' side, declarer ${vul ? 'vulnerable' : 'not vulnerable'}` }, [`Avg score (${vul ? 'vul' : 'NV'})`]),
-          h('th', { title: 'Ties count — several leads can be jointly best' }, ['Best lead %']),
-          h('th', { title: 'Average tricks conceded versus the best lead on the same deal' }, ['Avg cost']),
+          h('th', { title: 'Share of deals where this is a (tied-)best lead double dummy' }, ['Best lead %']),
+          h('th', { title: 'Average tricks this lead throws away versus the best lead for that exact deal — 0 means never wrong' }, ['Avg cost']),
         ]),
       ]),
       h('tbody', {}, bodyRows),
@@ -179,14 +169,14 @@ export function buildLeadPanel(form: FormController): HTMLElement {
       h('p', { class: 'lead-note' }, [
         `${lastLevel}${DD_STRAIN_LABELS[lastStrain]} by ${declarer} · ${lastSolved.toLocaleString()} deal${lastSolved === 1 ? '' : 's'}` +
           (lastSolved < lastRequested ? ` of ${lastRequested.toLocaleString()} requested` : '') +
-          ` · seed ${lastSeed} · touching cards analysed as one lead.`,
+          ' · click a lead for its trick distribution.',
       ]),
       h('p', { class: 'lead-beats' }, [
         `Double-dummy opening lead & defence beats the contract on ${((1 - lastUnbeatable) * 100).toFixed(1)}% of these deals` +
           ` (declarer unbeatable on ${(lastUnbeatable * 100).toFixed(1)}%).`,
       ]),
       table,
-      h('p', { class: 'lead-note' }, ['Double dummy: every hand is open, so treat the percentages as comparative rather than absolute.']),
+      h('p', { class: 'lead-note' }, [`Double dummy: every hand is open, so treat the percentages as comparative. Seed ${lastSeed}.`]),
     );
   }
 
@@ -217,13 +207,7 @@ export function buildLeadPanel(form: FormController): HTMLElement {
         if (xs > 0) errors.push('The leader’s hand must be exact — replace the x’s with real cards.');
       }
     }
-    return {
-      ok: errors.length === 0,
-      message: errors.join(' '),
-      constraints,
-      given,
-      leaderSeat,
-    };
+    return { ok: errors.length === 0, message: errors.join(' '), constraints, given, leaderSeat };
   }
 
   function analyse(): void {
@@ -268,7 +252,6 @@ export function buildLeadPanel(form: FormController): HTMLElement {
         stopBtn.disabled = true;
         return;
       }
-      const groups = groupTouching(deals[0].hands[setup.leaderSeat]);
       const pbns = deals.map((d: Deal) => dealToPBN(d));
       scores = new Array(pbns.length);
       runStart = performance.now();
@@ -276,7 +259,7 @@ export function buildLeadPanel(form: FormController): HTMLElement {
 
       const finish = (finished: boolean): void => {
         const perDeal = scores.filter((s): s is LeadCardScore[] => s !== undefined);
-        lastRows = aggregateLeadGroups(perDeal, groups, level);
+        lastRows = aggregateLeads(perDeal, level);
         lastLevel = level;
         lastStrain = strain;
         lastLeader = leader;
@@ -331,9 +314,9 @@ export function buildLeadPanel(form: FormController): HTMLElement {
 
   // ---- Panel -----------------------------------------------------------------
 
-  return h('details', { class: 'form lead-panel' }, [
+  return h('details', { class: 'form tool-panel lead-panel' }, [
     h('summary', {}, ['Opening lead analyser']),
-    h('div', { class: 'lead-panel-body' }, [
+    h('div', { class: 'tool-panel-body' }, [
       h('div', { class: 'lead-controls' }, [
         h('div', { class: 'lead-field' }, [h('div', { class: 'lead-field-title' }, ['Level']), levelSelect]),
         h('div', { class: 'lead-field' }, [h('div', { class: 'lead-field-title' }, ['Strain']), strainSelect]),
@@ -344,7 +327,7 @@ export function buildLeadPanel(form: FormController): HTMLElement {
       ]),
       h('p', { class: 'lead-hintline' }, [
         'Uses the conditions above: lock the opening leader’s hand (13 exact cards), constrain the others to match the bidding. ',
-        'Declarer is the leader’s right-hand opponent. Click a result row for its trick distribution.',
+        'Declarer is the leader’s right-hand opponent.',
       ]),
       progress,
       resultsEl,
