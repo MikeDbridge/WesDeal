@@ -17,18 +17,16 @@
 import './leadPanel.css';
 import { h } from './dom';
 import type { FormController } from './form';
-import { SUIT_SYMBOLS, SUITS } from '../engine/cards';
+import { SUIT_SYMBOLS, SUITS, RANK_LABELS, rankOf, suitOf } from '../engine/cards';
 import { SEATS, type Seat, type Deal } from '../engine/deal';
 import { dealToPBN } from '../engine/format';
 import type { HandSpec } from '../engine/parse';
-import { boardElement } from './render';
 import { DD_STRAIN_LABELS } from '../engine/dd';
 import {
   aggregateLeadGroups,
   avgDefenderScore,
   computeLeadGroups,
   declarerFor,
-  groupLabel,
   groupTricks,
   tricksToSet,
   unbeatablePct,
@@ -36,6 +34,31 @@ import {
   type LeadGroup,
   type LeadRow,
 } from '../engine/lead';
+
+/** How many of the generated deals to show as worked examples. */
+const SAMPLE_COUNT = 20;
+
+/**
+ * Highlight tier for a lead on one board:
+ *  - `strong`: takes the most tricks AND beats the contract (the winners).
+ *  - `soft`:   beats the contract but isn't the best.
+ *  - `faint`:  best defence but doesn't beat — only when the best is a minority.
+ */
+type LeadTier = 'strong' | 'soft' | 'faint' | 'none';
+
+function leadTier(tr: number, max: number, need: number, beatable: boolean, faintOn: boolean): LeadTier {
+  if (beatable) {
+    if (tr === max) return 'strong';
+    if (tr >= need) return 'soft';
+    return 'none';
+  }
+  return tr === max && faintOn ? 'faint' : 'none';
+}
+
+const HAND_CLS: Record<LeadTier, string> = { strong: 'lead-hi-strong', soft: 'lead-hi-soft', faint: 'lead-hi-faint', none: '' };
+const ROW_CLS: Record<LeadTier, string> = { strong: 'lead-row-strong', soft: 'lead-row-soft', faint: 'lead-row-faint', none: '' };
+const TXT_CLS: Record<LeadTier, string> = { strong: 'lead-txt-strong', soft: 'lead-txt-soft', faint: 'lead-txt-faint', none: '' };
+const EMPTY_TIER = new Map<number, LeadTier>();
 import { DDPool } from '../worker/ddPool';
 import type { GenerateRequest, WorkerResponse } from '../worker/protocol';
 import { encodeState, type FormState, type LeadState, type ShareState } from '../engine/shareState';
@@ -89,6 +112,7 @@ export function buildLeadPanel(form: FormController): LeadPanel {
   ) as HTMLSelectElement;
   strainSelect.value = '0';
   const countInput = h('input', { type: 'number', min: 10, max: 20000, value: '1000', class: 'num lead-count' }) as HTMLInputElement;
+  const examplesInput = h('input', { type: 'number', min: 0, max: 100, value: String(SAMPLE_COUNT), class: 'num lead-count' }) as HTMLInputElement;
   const vulCheck = h('input', { type: 'checkbox' }) as HTMLInputElement;
 
   const analyseBtn = h('button', { class: 'primary', type: 'button' }, ['Analyse leads']) as HTMLButtonElement;
@@ -250,43 +274,134 @@ export function buildLeadPanel(form: FormController): LeadPanel {
     );
   }
 
-  /** The first 10 tested deals, each with its per-lead DD tricks (best bolded). */
+  /** The first tested deals, each as a text board beside a per-lead trick table. */
   function renderSample(): void {
     if (sampleDeals.length === 0 || leadGroups.length === 0) {
       sampleEl.replaceChildren();
       return;
     }
-    const boards = sampleDeals.map((deal, i) => {
-      const board = boardElement(deal, i, [SEATS[lastLeader]], 'compass-mini', false);
-      const perCard = scores[i];
-      if (perCard) board.append(leadsLine(perCard));
-      return board;
-    });
+    const cards = sampleDeals.map((deal, i) => sampleCard(deal, i, scores[i]));
     sampleEl.replaceChildren(
-      h('h3', { class: 'lead-sample-head' }, ['First 10 deals tested']),
-      h('p', { class: 'lead-note' }, ['Double-dummy defensive tricks for each lead — the best lead(s) for the board are in bold.']),
-      h('div', { class: 'lead-sample-grid' }, boards),
+      h('h3', { class: 'lead-sample-head' }, [`First ${sampleDeals.length} deals tested`]),
+      h('p', { class: 'lead-note' }, [
+        'Double-dummy tricks for the defence on each lead. The best lead(s) that beat the contract are highlighted strongly, other beating leads lightly; when nothing beats it, a standout best defence is flagged in amber.',
+      ]),
+      h('div', { class: 'lead-sample-list' }, cards),
     );
   }
 
-  /** One board's leads with DD tricks, in hand order, best-scoring in bold. */
-  function leadsLine(perCard: LeadCardScore[]): HTMLElement {
-    const tricks = groupTricks(perCard, leadGroups);
-    let max = 0;
-    for (const t of tricks) if (t > max) max = t;
-    const order = leadGroups
-      .map((_, i) => i)
-      .sort((a, b) => leadGroups[a].suit - leadGroups[b].suit || leadGroups[b].ranks[0] - leadGroups[a].ranks[0]);
-    const chips = order.map((gi) => {
-      const g = leadGroups[gi];
-      const red = g.suit === 1 || g.suit === 2;
-      return h('span', { class: 'lead-chip' + (tricks[gi] === max ? ' best' : '') }, [
-        h('span', { class: 'lead-card' + (red ? ' red' : '') }, [SUIT_SYMBOLS[SUITS[g.suit]]]),
-        h('span', { class: 'lead-card' }, [groupLabel(g)]),
-        h('span', { class: 'lead-chip-t' }, [String(tricks[gi])]),
+  /** Wrap maximal runs of same-tier ranks in a highlight; the rest is plain text. */
+  function rankNodes(ranks: number[], tierOf: Map<number, LeadTier>): Array<Node | string> {
+    if (ranks.length === 0) return ['—'];
+    const out: Array<Node | string> = [];
+    let run = '';
+    let cur: LeadTier = 'none';
+    const flush = (): void => {
+      if (run === '') return;
+      out.push(cur === 'none' ? run : h('span', { class: HAND_CLS[cur] }, [run]));
+      run = '';
+    };
+    for (const r of ranks) {
+      const t = tierOf.get(r) ?? 'none';
+      if (run !== '' && t !== cur) flush();
+      cur = t;
+      run += RANK_LABELS[r];
+    }
+    flush();
+    return out;
+  }
+
+  /** The four-hand text compass; the leader's leads are tinted by their tier. */
+  function compassEl(deal: Deal, leaderSeat: Seat, tierBySuit: Map<number, LeadTier>[]): HTMLElement {
+    const seatEl = (seat: Seat): HTMLElement => {
+      const isLeader = seat === leaderSeat;
+      const lines = SUITS.map((suit, si) => {
+        const ranks = deal.hands[seat]
+          .filter((c) => suitOf(c) === suit)
+          .map((c) => rankOf(c))
+          .sort((a, b) => b - a);
+        const red = si === 1 || si === 2;
+        return h('div', { class: 'lead-hl' }, [
+          h('span', { class: 'lead-su' + (red ? ' red' : '') }, [SUIT_SYMBOLS[suit]]),
+          ...rankNodes(ranks, isLeader ? tierBySuit[si] : EMPTY_TIER),
+        ]);
+      });
+      const label = h('div', { class: 'lead-seat' }, [
+        seat,
+        ...(isLeader ? [h('span', { class: 'lead-seat-lead' }, [' ▸ lead'])] : []),
+      ]);
+      return h('div', { class: `lead-pos-${seat.toLowerCase()}` }, [label, ...lines]);
+    };
+    const redStrain = lastStrain === 1 || lastStrain === 2;
+    return h('div', { class: 'lead-compass' }, [
+      seatEl('N'),
+      seatEl('W'),
+      h('div', { class: 'lead-pos-c' + (redStrain ? ' red' : '') }, [`${lastLevel}${DD_STRAIN_LABELS[lastStrain]}`]),
+      seatEl('E'),
+      seatEl('S'),
+    ]);
+  }
+
+  /** One deal: text board on the left, every lead's DD tricks on the right. */
+  function sampleCard(deal: Deal, i: number, perCard: LeadCardScore[] | undefined): HTMLElement {
+    const leaderSeat = SEATS[lastLeader];
+    const need = tricksToSet(lastLevel);
+    const declarer = SEAT_NAMES[SEATS[declarerFor(lastLeader)]];
+    const head = h('div', { class: 'lead-deal-head' }, [`Board ${i + 1} · ${lastLevel}${DD_STRAIN_LABELS[lastStrain]} by ${declarer}`]);
+
+    const tricks = perCard ? groupTricks(perCard, leadGroups) : [];
+    // Merge same-suit lead groups that take the same number of tricks.
+    const rowMap = new Map<string, { suit: number; tr: number; ranks: number[] }>();
+    leadGroups.forEach((g, gi) => {
+      const tr = tricks[gi] ?? 0;
+      const key = `${g.suit}|${tr}`;
+      let row = rowMap.get(key);
+      if (!row) {
+        row = { suit: g.suit, tr, ranks: [] };
+        rowMap.set(key, row);
+      }
+      row.ranks.push(...g.ranks);
+    });
+    const rows = [...rowMap.values()].sort((a, b) => b.tr - a.tr || a.suit - b.suit || b.ranks[0] - a.ranks[0]);
+
+    const max = rows.length ? Math.max(...rows.map((r) => r.tr)) : 0;
+    const beatable = max >= need;
+    const maxRows = rows.filter((r) => r.tr === max).length;
+    // Flag the best defence only when it's a distinguishing minority of the leads.
+    const faintOn = !beatable && maxRows * 2 < rows.length;
+
+    const tierBySuit: Map<number, LeadTier>[] = [new Map(), new Map(), new Map(), new Map()];
+    leadGroups.forEach((g, gi) => {
+      const t = leadTier(tricks[gi] ?? 0, max, need, beatable, faintOn);
+      if (t !== 'none') for (const r of g.ranks) tierBySuit[g.suit].set(r, t);
+    });
+
+    const board = compassEl(deal, leaderSeat, tierBySuit);
+    if (!perCard) {
+      return h('div', { class: 'lead-deal' }, [head, h('div', { class: 'lead-deal-row' }, [board, h('div', { class: 'lead-note' }, ['not solved'])])]);
+    }
+
+    const body = rows.map((r) => {
+      const tier = leadTier(r.tr, max, need, beatable, faintOn);
+      const beats = tier === 'strong' || tier === 'soft';
+      const red = r.suit === 1 || r.suit === 2;
+      const label = [...r.ranks].sort((a, b) => b - a).map((x) => RANK_LABELS[x]).join('');
+      return h('tr', { class: ROW_CLS[tier] }, [
+        h('td', {}, [
+          h('span', { class: 'lead-card' + (red ? ' red' : '') }, [SUIT_SYMBOLS[SUITS[r.suit]]]),
+          ' ',
+          h('span', { class: TXT_CLS[tier] }, [label]),
+          ...(beats ? [h('span', { class: 'lead-tick' }, [' ✓'])] : []),
+        ]),
+        h('td', { class: 'lead-tr' }, [String(r.tr)]),
       ]);
     });
-    return h('div', { class: 'lead-board-leads' }, chips);
+    const table = h('table', { class: 'lead-mini' }, [
+      h('thead', {}, [h('tr', {}, [h('th', {}, ['Lead']), h('th', { class: 'lead-tr' }, ['Tricks'])])]),
+      h('tbody', {}, body),
+    ]);
+
+    return h('div', { class: 'lead-deal' }, [head, h('div', { class: 'lead-deal-row' }, [board, table])]);
   }
 
   // ---- Analysis --------------------------------------------------------------
@@ -338,6 +453,9 @@ export function buildLeadPanel(form: FormController): LeadPanel {
     let n = Number.parseInt(countInput.value, 10);
     if (Number.isNaN(n)) n = 1000;
     n = Math.max(10, Math.min(20000, n));
+    let examples = Number.parseInt(examplesInput.value, 10);
+    if (Number.isNaN(examples)) examples = SAMPLE_COUNT;
+    examples = Math.max(0, Math.min(100, examples));
     const opts = form.readOptions();
     const leader = SEATS.indexOf(setup.leaderSeat);
     leadGroups = computeLeadGroups(setup.leaderCards);
@@ -373,7 +491,7 @@ export function buildLeadPanel(form: FormController): LeadPanel {
         return;
       }
       const pbns = deals.map((d: Deal) => dealToPBN(d));
-      sampleDeals = deals.slice(0, 10);
+      sampleDeals = deals.slice(0, examples);
       scores = new Array(pbns.length);
       runStart = performance.now();
       progress.textContent = `Solving leads 0/${pbns.length}…`;
@@ -548,6 +666,7 @@ export function buildLeadPanel(form: FormController): LeadPanel {
         h('div', { class: 'lead-field' }, [h('div', { class: 'lead-field-title' }, ['Level']), levelSelect]),
         h('div', { class: 'lead-field' }, [h('div', { class: 'lead-field-title' }, ['Strain']), strainSelect]),
         h('div', { class: 'lead-field' }, [h('div', { class: 'lead-field-title' }, ['Deals']), countInput]),
+        h('div', { class: 'lead-field' }, [h('div', { class: 'lead-field-title', title: 'How many worked example deals to show below' }, ['# examples']), examplesInput]),
         h('label', { class: 'lead-vul' }, [vulCheck, ' Declarer vul']),
         analyseBtn,
         stopBtn,
