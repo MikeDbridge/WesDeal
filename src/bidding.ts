@@ -11,6 +11,7 @@ import './styles.css';
 import './bidding.css';
 import { h } from './ui/dom';
 import { siteNav } from './ui/nav';
+import { renderCalendarView } from './ui/calendarView';
 import {
   parseReport,
   parseDistCell,
@@ -284,14 +285,26 @@ function buildPage(blocks: Block[]): void {
     h('p', { class: 'bids-toc-title' }, ['Contents']),
     tocList,
   ]);
+
+  // ---- tournament-data map, folded in at the top (collapsed by default)
+  const cal = renderCalendarView();
+  const calBlock = h('details', { class: 'bids-datamap' }, [
+    h('summary', {}, [
+      h('span', { class: 'bids-datamap-title' }, ['Tournament data']),
+      h('span', { class: 'bids-datamap-sub' }, [cal.summary]),
+    ]),
+    h('div', { class: 'bids-datamap-body' }, cal.nodes),
+  ]);
+
   app.append(
     siteNav('bidding'),
     h('header', { class: 'app-header' }, [
-      h('h1', {}, ['WesBids']),
+      h('h1', {}, ['WesData']),
       h('p', { class: 'tagline' }, [
         title && title.t === 'h1' ? title.text : 'Bidding ranges from championship data',
       ]),
     ]),
+    calBlock,
     h('div', { class: 'bids-controls' }, [filterInput, expandBtn, collapseBtn, countEl]),
     h('div', { class: 'bids-layout' }, [toc, main]),
     toast,

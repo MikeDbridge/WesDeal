@@ -114,6 +114,26 @@ pre.rep-code {
 }
 .bids-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ---- Tournament-data map, folded in at the top ---- */
+.bids-datamap {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card, #fff);
+  margin: 0 0 18px; overflow: hidden;
+}
+.bids-datamap > summary {
+  cursor: pointer; list-style: none; padding: 12px 16px;
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+}
+.bids-datamap > summary::-webkit-details-marker { display: none; }
+.bids-datamap > summary::before {
+  content: '▸'; color: var(--muted); font-size: 12px; transition: transform 0.12s ease;
+}
+.bids-datamap[open] > summary::before { transform: rotate(90deg); }
+.bids-datamap > summary:hover .bids-datamap-title { color: var(--accent); }
+.bids-datamap-title { font-weight: 700; }
+.bids-datamap-sub { color: var(--muted); font-size: 13px; }
+.bids-datamap-body { padding: 4px 16px 16px; border-top: 1px solid var(--line); }
+.bids-datamap-body .cal-controls { margin-top: 12px; }
+
 /* ---- Narrow screens ---- */
 @media (max-width: 900px) {
   .bids-layout { display: block; }
