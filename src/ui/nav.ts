@@ -1,5 +1,7 @@
 import { h } from './dom';
 
+// 'lab' and 'calendar' are no longer linked in the nav, but their standalone
+// pages still call siteNav() with those keys, so they stay in the union.
 type NavKey = 'deal' | 'odds' | 'lab' | 'bidding' | 'calendar';
 
 /** Top navigation shared by the app's pages. */
@@ -15,12 +17,16 @@ export function siteNav(active: NavKey): HTMLElement {
     h('span', { class: 'brand-mark' }, [pip('♠', 's'), pip('♥', 'h'), pip('♦', 'd'), pip('♣', 'c')]),
     h('span', { class: 'brand-name' }, ['Wes', h('span', { class: 'brand-accent' }, ['Bridge'])]),
   ]);
+  // WesRank points at the separately-deployed leaderboards site (/wc/).
+  const rank = h('a', { href: '/wc/', class: 'nav-link nav-rank' }, [
+    h('span', { class: 'nav-name' }, ['WesRank']),
+    h('span', { class: 'nav-sub' }, ['Player leaderboards']),
+  ]);
   return h('nav', { class: 'site-nav' }, [
     brand,
-    link('./index.html', 'WesDeal', 'Deal generator', 'deal'),
+    link('./index.html', 'WesDeal', 'Deal generator and DD solver', 'deal'),
     link('./odds.html', 'WesOdds', 'Suit break calculator', 'odds'),
-    link('./lab.html', 'WesLab', 'Double dummy lab', 'lab'),
-    link('./bidding.html', 'WesBids', 'Bidding ranges study', 'bidding'),
-    link('./calendar.html', 'WesCal', 'Tournament calendar', 'calendar'),
+    link('./bidding.html', 'WesData', 'Championship Data', 'bidding'),
+    rank,
   ]);
 }
