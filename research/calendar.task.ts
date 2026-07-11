@@ -46,7 +46,34 @@ const META: Record<string, Meta> = {
   vanderbilt25: { name: 'Vanderbilt Cup', region: 'USA', kind: 'NABC knockout' },
   spingold25: { name: 'Spingold Trophy', region: 'USA', kind: 'NABC knockout' },
   soloway25: { name: 'Soloway Knockout', region: 'USA', kind: 'NABC knockout' },
+  // Older World Team Championships (WBF) and European Team Championships (EBL).
+  bali13: { name: 'World Team Champs (Bali)', region: 'World', kind: 'Team championship' },
+  chennai15: { name: 'World Team Champs (Chennai)', region: 'World', kind: 'Team championship' },
+  dublin12: { name: 'European Team Champs (Dublin)', region: 'Europe', kind: 'Team championship' },
+  opatija14: { name: 'European Team Champs (Opatija)', region: 'Europe', kind: 'Team championship' },
+  budapest16: { name: 'European Team Champs (Budapest)', region: 'Europe', kind: 'Team championship' },
 };
+
+/** US NABC knockouts recur yearly under a stable name (e.g. "vanderbilt2018"). */
+const US_KO: Record<string, string> = {
+  vanderbilt: 'Vanderbilt Cup',
+  spingold: 'Spingold Trophy',
+  soloway: 'Soloway Knockout',
+};
+
+/**
+ * Metadata for a tournament key, with fallbacks so we don't hand-list every
+ * edition: transnational events ("<parent>tn") inherit their parent's meta,
+ * and the recurring US knockouts are matched by name + year.
+ */
+function metaFor(key: string): Meta {
+  if (META[key]) return META[key];
+  const base = key.replace(/tn$/, '');
+  if (base !== key && META[base]) return { ...META[base], kind: 'Transnational' };
+  const us = key.match(/^(vanderbilt|spingold|soloway)\d{2,4}$/);
+  if (us) return { name: US_KO[us[1]], region: 'USA', kind: 'NABC knockout' };
+  return { name: key, region: 'World', kind: 'Other' };
+}
 
 /** Year from the trailing 2 digits of a tournament key ("herning25" → 2025). */
 function yearOf(key: string): number {
@@ -112,7 +139,7 @@ it('build DB calendar data', () => {
     if (!key) continue;
     let row = rows.get(key);
     if (!row) {
-      const meta = META[key] ?? { name: key, region: 'World' as const, kind: 'Other' };
+      const meta = metaFor(key);
       row = {
         key,
         name: meta.name,
