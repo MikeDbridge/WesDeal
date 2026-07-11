@@ -1,8 +1,10 @@
 /**
- * Bidding-range study over the WBF/EBL championship scrape.
+ * Bidding-range study over the World/European/US championship scrape.
  *
- * Replays every recorded auction (117k tables: Riga 2026 + Herning 2024 Euro
- * RRs, Herning 2025 worlds RR+KO, Marrakech 2023 KO), attaches the actual hand
+ * Replays every recorded auction (~167k tables: World + European team champs
+ * — Riga 2026 + Herning 2024 Euro RRs, Herning 2025 worlds RR+KO, Marrakech
+ * 2023 KO — plus US knockouts: Spingold / Vanderbilt / Soloway 2016-2024 and
+ * USBC 2026), attaches the actual hand
  * to every call, classifies early-auction contexts (openings, direct actions
  * over an opening, balancing, responses with and without interference,
  * advances), detects each partnership's system from its own openings (strong
@@ -827,7 +829,7 @@ it('bidding-range study', () => {
   const lines = profiles.map((p) => JSON.stringify(p));
   writeFileSync(
     PROFILES_PATH,
-    `{"version":4,"source":"WBF/EBL championships 2023-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
+    `{"version":4,"source":"World, European & US championships 2016-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
   );
   console.log(`  ${profiles.length} profiles (all filter expressions compile) → ${PROFILES_PATH}`);
   console.log(`  report → ${REPORT_PATH}`);
@@ -937,7 +939,7 @@ function buildReport(
   add('# What championship players actually hold for every bid');
   add();
   add('Empirical hand ranges for every call — opening, overcall, double, response through');
-  add('the four level — from every auction in recent World and European team');
+  add('the four level — from every auction in recent World, European and US team');
   add('championships, real hand dealt back onto each call. Split by vulnerability and by');
   add('partnership system where the bid’s meaning depends on it (strong vs natural 1♣,');
   add('transfer vs standard responses, multi vs weak 2♦). Every range compiles to a');
@@ -950,7 +952,7 @@ function buildReport(
   add('`%bal` = strictly 4-3-3-3 / 4-4-3-2 / 5-3-3-2 only. `filter` = the range in the');
   add('dealer’s [filter language](#dealer-integration).');
   add();
-  add('Generated from the WBF/EBL scrape — re-run `npm run research:bidding`.');
+  add('Generated from the championship scrape — re-run `npm run research:bidding`.');
   add();
 
   // --- data section
