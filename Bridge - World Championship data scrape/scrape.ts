@@ -246,6 +246,81 @@ export const TOURNAMENTS: Record<string, Tournament> = {
     koPhases: [],
     dealSource: 'auto',
   },
+
+  // ---- Older World Team Championships (2013 Bali, 2015 Chennai) — contracts only
+  //      (no auctions), but full deals + DD. 4th event is Transnational Teams.
+  //      KO tournid offset differs per year (Bali +15, Chennai +4) — from Results.htm.
+  bali13: {
+    key: 'bali13',
+    name: '41st World Team Championships (Bali 2013)',
+    base: 'https://db.worldbridge.org/repository/tourn/bali.13/microsite/Asp',
+    events: [
+      { code: 'BB', name: 'Bermuda Bowl', rrTournid: 980, koTournid: 995 },
+      { code: 'VC', name: 'Venice Cup', rrTournid: 981, koTournid: 996 },
+      { code: 'DOT', name: "d'Orsi Trophy", rrTournid: 982, koTournid: 997 },
+      { code: 'TN', name: 'Transnational Teams', rrTournid: 983, koTournid: 998 },
+    ],
+    koPhases: ['QF', 'SF', 'FF'],
+    dealSource: 'auto',
+  },
+  chennai15: {
+    key: 'chennai15',
+    name: '42nd World Team Championships (Chennai 2015)',
+    base: 'https://db.worldbridge.org/repository/tourn/chennai.15/microsite/Asp',
+    events: [
+      { code: 'BB', name: 'Bermuda Bowl', rrTournid: 1130, koTournid: 1134 },
+      { code: 'VC', name: 'Venice Cup', rrTournid: 1131, koTournid: 1135 },
+      { code: 'DOT', name: "d'Orsi Trophy", rrTournid: 1132, koTournid: 1136 },
+      { code: 'TN', name: 'Transnational Teams', rrTournid: 1133, koTournid: 1137 },
+    ],
+    koPhases: ['16', 'QF', 'SF', 'FF'],
+    dealSource: 'auto',
+  },
+
+  // ---- Older European Team Championships — round-robin only, contracts only.
+  //      2012/2014 split the Open into Groups A/B (+ a top "Final" RR); each
+  //      group/final is a separate tournid (from Results.htm). ----
+  dublin12: {
+    key: 'dublin12',
+    name: '51st European Team Championships (Dublin 2012)',
+    base: 'https://db.eurobridge.org/repository/competitions/12Dublin/microsite/Asp',
+    events: [
+      { code: 'OPENA', name: 'Open Teams A', rrTournid: 914, koTournid: 0 },
+      { code: 'OPENB', name: 'Open Teams B', rrTournid: 916, koTournid: 0 },
+      { code: 'SEN', name: 'Senior Teams', rrTournid: 915, koTournid: 0 },
+      { code: 'WOMEN', name: 'Women Teams', rrTournid: 917, koTournid: 0 },
+      { code: 'MIX', name: 'Mixed Teams', rrTournid: 918, koTournid: 0 },
+    ],
+    koPhases: [],
+    dealSource: 'auto',
+  },
+  opatija14: {
+    key: 'opatija14',
+    name: '52nd European Team Championships (Opatija 2014)',
+    base: 'https://db.eurobridge.org/repository/competitions/14Opatija/microsite/Asp',
+    events: [
+      { code: 'OPENA', name: 'Open Teams A', rrTournid: 1023, koTournid: 0 },
+      { code: 'OPENB', name: 'Open Teams B', rrTournid: 1024, koTournid: 0 },
+      { code: 'OPENF', name: 'Open Teams Final', rrTournid: 1020, koTournid: 0 },
+      { code: 'SEN', name: 'Senior Teams', rrTournid: 1021, koTournid: 0 },
+      { code: 'WOMEN', name: 'Women Teams', rrTournid: 1022, koTournid: 0 },
+      { code: 'WOMENF', name: 'Women Teams Final', rrTournid: 1025, koTournid: 0 },
+    ],
+    koPhases: [],
+    dealSource: 'auto',
+  },
+  budapest16: {
+    key: 'budapest16',
+    name: '53rd European Team Championships (Budapest 2016)',
+    base: 'https://db.eurobridge.org/repository/competitions/16Budapest/microsite/Asp',
+    events: [
+      { code: 'OPEN', name: 'Open Teams', rrTournid: 1210, koTournid: 0 },
+      { code: 'WOMEN', name: 'Women Teams', rrTournid: 1211, koTournid: 0 },
+      { code: 'SEN', name: 'Senior Teams', rrTournid: 1212, koTournid: 0 },
+    ],
+    koPhases: [],
+    dealSource: 'auto',
+  },
 };
 
 // ---- Record shape ----------------------------------------------------------
