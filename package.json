@@ -15,6 +15,7 @@
     "research:analyze": "vitest run -c vitest.research.config.ts analyze",
     "research:bidding": "vitest run -c vitest.research.config.ts bidding",
     "research:calendar": "vitest run -c vitest.research.config.ts calendar",
+    "research:compare": "vitest run -c vitest.research.config.ts opening-compare",
     "research:systems": "vitest run -c vitest.research.config.ts systems",
     "bridge:test": "vitest run -c bridge-wc.vitest.config.ts parse.test",
     "bridge:scrape": "vitest run -c bridge-wc.vitest.config.ts scrape.task",
