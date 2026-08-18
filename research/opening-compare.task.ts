@@ -29,6 +29,7 @@ const SCRAPE_DIR = path.join(
   '_all',
 );
 const OUT = path.join(import.meta.dirname, 'opening-comparisons.md');
+const OUT_JSON = path.join(import.meta.dirname, 'opening-comparisons.json');
 
 const STRAIN: Record<string, number> = { S: 0, H: 1, D: 2, C: 3, NT: 4 };
 const SEAT_ORDER = ['N', 'E', 'S', 'W'];
@@ -224,10 +225,57 @@ it('recreate opening-bid comparisons', () => {
   }
 
   writeFileSync(OUT, buildReport(cells, boards.size, comparedBoards, rows, impCheck));
+  writeFileSync(
+    OUT_JSON,
+    JSON.stringify(
+      {
+        generated: '2026-08-19',
+        rows,
+        comparedBoards,
+        avgSwing: Number((impCheck.sum / Math.max(1, impCheck.n)).toFixed(2)),
+        comparisons: structured(cells),
+      },
+      null,
+      1,
+    ) + '\n',
+  );
   console.log(
     `${rows} auction rows, ${comparedBoards} two-table boards compared, ${cells.size} cells → ${OUT}`,
   );
 });
+
+/** Structured rows per comparison — drives the WesComp page (src/comp.ts). */
+function structured(cells: Map<string, Cell>): Array<{
+  id: string;
+  title: string;
+  note: string;
+  rows: Array<{
+    seat: string; a: string; b: string; aLabel: string; bLabel: string;
+    cases: number; aImps: number; bImps: number; aPct: number; bPct: number; winner: 'a' | 'b';
+  }>;
+}> {
+  const out = [];
+  for (const cmp of COMPARISONS) {
+    const rows = [];
+    for (const seat of ['First', 'Second', 'Third']) {
+      for (const sub of cmp.subs) {
+        const cell = cells.get(`${cmp.id}|${sub}|${seat}`);
+        if (!cell || cell.cases < 5) continue;
+        const total = cell.impA + cell.impB;
+        const aPct = total > 0 ? (100 * cell.impA) / total : 50;
+        const { a, b } = abFor(cmp.id, sub);
+        rows.push({
+          seat, a, b, aLabel: actionLabel(a), bLabel: actionLabel(b),
+          cases: cell.cases, aImps: cell.impA, bImps: cell.impB,
+          aPct: Number(aPct.toFixed(1)), bPct: Number((100 - aPct).toFixed(1)),
+          winner: (aPct >= 50 ? 'a' : 'b') as 'a' | 'b',
+        });
+      }
+    }
+    if (rows.length) out.push({ id: cmp.id, title: cmp.title, note: cmp.note, rows });
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 

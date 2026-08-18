@@ -1,0 +1,95 @@
+/* WesComp — opening-bid comparison bars. Winner tinted gold (after Pavlicek's
+   gold-highlight convention); loser grey. Bars are win-share of long-run IMPs. */
+
+:root {
+  --gold: #e3a72b;
+  --gold-soft: #f6d68f;
+  --lose: #dde3ea;
+  --lose-ink: #6a7788;
+}
+
+.suit-red { color: var(--red); }
+
+.comp-intro { margin: 0 0 22px; }
+.comp-intro p { max-width: 74ch; color: var(--ink); margin: 0 0 12px; }
+.comp-key {
+  display: inline-block; padding: 0 6px; border-radius: 4px; font-weight: 800;
+  background: linear-gradient(var(--gold-soft), var(--gold)); color: #3a2c00;
+}
+.comp-warn { color: var(--gold); font-weight: 800; }
+
+/* Table of contents chips */
+.comp-toc { display: flex; flex-wrap: wrap; gap: 8px; }
+.comp-toc a {
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; color: var(--muted);
+}
+.comp-toc a:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Comparison sections */
+.comp-section {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 16px 18px 18px; margin-bottom: 16px;
+}
+.comp-section h2 {
+  font-size: 17px; text-transform: none; letter-spacing: 0.2px;
+  color: var(--ink); font-weight: 800; margin: 0 0 2px;
+}
+.comp-note { color: var(--muted); font-size: 13px; margin: 0 0 14px; max-width: 72ch; }
+
+.comp-rows { display: flex; flex-direction: column; gap: 7px; }
+
+.comp-row {
+  display: grid; grid-template-columns: 150px 1fr 62px; align-items: center;
+  gap: 14px; padding: 3px 4px; border-radius: 7px;
+}
+.comp-row:hover { background: rgba(29, 111, 66, 0.05); }
+.comp-row.thin { opacity: 0.72; }
+
+.comp-seat { display: flex; flex-direction: column; line-height: 1.25; }
+.comp-matchup { font-weight: 700; font-size: 14px; }
+.comp-pos { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* The bar */
+.comp-barwrap { position: relative; height: 30px; }
+.comp-bar {
+  display: flex; height: 100%; width: 100%; border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--line);
+}
+.comp-seg { height: 100%; transition: none; }
+.comp-seg.win { background: linear-gradient(180deg, var(--gold-soft), var(--gold)); }
+.comp-seg.lose { background: var(--lose); }
+.comp-seg.a.lose { background: linear-gradient(90deg, #d3dae2, var(--lose)); }
+.comp-seg.b.lose { background: linear-gradient(90deg, var(--lose), #d3dae2); }
+
+/* Labels overlaid at the two ends, always legible regardless of segment width */
+.comp-lbl {
+  position: absolute; top: 0; height: 100%; display: flex; align-items: center;
+  font-size: 13px; padding: 0 9px; color: var(--lose-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55); pointer-events: none;
+}
+.comp-lbl.left { left: 0; }
+.comp-lbl.right { right: 0; }
+.comp-lbl.win { color: #3a2c00; font-weight: 700; }
+.comp-lbl b { font-weight: 800; margin-left: 3px; }
+
+/* 50% reference line — the win threshold */
+.comp-mid {
+  position: absolute; left: 50%; top: -3px; bottom: -3px; width: 0;
+  border-left: 2px dotted rgba(28, 37, 48, 0.35);
+}
+
+.comp-cases {
+  text-align: right; font-size: 13px; color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.comp-link, .comp-section a { color: var(--accent); }
+
+@media (max-width: 620px) {
+  .comp-row { grid-template-columns: 1fr; gap: 4px; }
+  .comp-seat { flex-direction: row; align-items: baseline; gap: 8px; }
+  .comp-cases { text-align: left; }
+  .comp-lbl { font-size: 12px; padding: 0 6px; }
+}
