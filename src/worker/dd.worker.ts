@@ -1,11 +1,14 @@
 /**
  * Double-dummy worker — one deal per message. A pool of these runs in parallel
- * (see ddPool.ts). The worker is created lazily, so importing the ~525 KB DDS
- * WASM statically still costs nothing until DD is actually used.
+ * (see ddPool.ts) and the WesPlay analyser drives one directly (ddClient.ts).
+ * The worker is created lazily, so importing the ~525 KB DDS WASM statically
+ * still costs nothing until DD is actually used.
  *
- * Two jobs: 'solve' scores the requested strain × declarer cells; 'leads'
- * scores every legal opening lead (SolveBoardPBN, target −1, solutions 3,
- * equivalents expanded to actual cards).
+ * Four jobs: 'solve' scores the requested strain × declarer cells; 'leads'
+ * scores every legal opening lead; 'play' scores every legal card of a
+ * mid-play position (SolveBoardPBN, target −1, solutions 3, equivalents
+ * expanded to actual cards); 'table' computes the full makeable-contracts
+ * table plus the par score (CalcDDTablePBN + DealerPar).
  */
 
 import { loadDds, Dds } from 'bridge-dds';
@@ -42,6 +45,20 @@ self.onmessage = async (e: MessageEvent<DDWorkerRequest>): Promise<void> => {
         1, // mode
       );
       post({ type: 'leads-result', jobId: msg.jobId, index: msg.index, cards: expandFutureTricks(ft) });
+    } else if (msg.type === 'play') {
+      const ft = dds.SolveBoardPBN(msg.position, -1, 3, 1);
+      post({ type: 'play-result', jobId: msg.jobId, index: msg.index, cards: expandFutureTricks(ft) });
+    } else if (msg.type === 'table') {
+      const table = dds.CalcDDTablePBN({ cards: msg.pbn });
+      const par = dds.DealerPar(table, msg.dealer, msg.vul);
+      post({
+        type: 'table-result',
+        jobId: msg.jobId,
+        index: msg.index,
+        table: table.resTable,
+        parScore: par.score,
+        parContracts: par.contracts,
+      });
     }
   } catch (err) {
     post({

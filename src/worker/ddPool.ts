@@ -97,7 +97,7 @@ export class DDPool {
     if (msg.jobId === this.jobId) {
       if (msg.type === 'result') this.handlers?.onResult?.(msg.index, msg.tricks);
       else if (msg.type === 'leads-result') this.handlers?.onLeads?.(msg.index, msg.cards);
-      else this.handlers?.onError(msg.message);
+      else if (msg.type === 'error') this.handlers?.onError(msg.message);
       this.done++;
       this.handlers?.onProgress(this.done, this.total);
       if (this.done >= this.total) this.handlers?.onDone();
