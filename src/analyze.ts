@@ -661,19 +661,25 @@ function renderAnalysis(): void {
     ]);
   });
 
-  // Current trick, one mini-card per screen slot.
+  // The trick in the middle: the current one, or — between tricks — the one
+  // just completed, dimmed with its winner ringed, so the ending stays visible.
   const centerKids: HTMLElement[] = [];
   if (view) {
+    const prev = view.current.cards.length === 0 && view.tricks.length > 0
+      ? view.tricks[view.tricks.length - 1]
+      : null;
+    const shown = prev ?? view.current;
     const bySeat = new Map<number, Card>();
-    view.current.cards.forEach((c, i) => bySeat.set((view.current.leader + i) % 4, c));
+    shown.cards.forEach((c, i) => bySeat.set((shown.leader + i) % 4, c));
     for (let si = 0; si < 4; si++) {
       const card = bySeat.get(si);
       const slot = slotOf(si);
       if (card !== undefined) {
         const suit = suitOf(card);
+        const won = prev !== null && si === prev.winner;
         centerKids.push(h('span', {
-          class: `ap-tc ap-tc-${slot}` + (si === view.current.leader ? ' led' : ''),
-          title: `${SEAT_NAMES[SEATS[si]]}${si === view.current.leader ? ' (led)' : ''}`,
+          class: `ap-tc ap-tc-${slot}` + (si === shown.leader ? ' led' : '') + (prev ? ' prev' : '') + (won ? ' won' : ''),
+          title: `${SEAT_NAMES[SEATS[si]]}${si === shown.leader ? ' (led)' : ''}${won ? ' — won the trick' : ''}`,
         }, [
           h('span', { class: redSuit(suit) ? 'red' : '' }, [SUIT_SYMBOLS[suit]]),
           RANK_LABELS[rankOf(card)],
@@ -780,6 +786,7 @@ function renderAnalysis(): void {
     'Card numbers show the tricks that side can still take, double dummy — green keeps the maximum, amber/red costs tricks. Tap any highlighted card to play it.',
   ]));
   analysisBox.replaceChildren(...kids);
+  if (history) history.scrollLeft = history.scrollWidth; // keep the newest trick in view
 }
 
 function prettyParContract(s: string): string {
