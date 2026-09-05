@@ -85,6 +85,8 @@
 }
 .ap-pos-n { grid-area: n; } .ap-pos-e { grid-area: e; } .ap-pos-s { grid-area: s; }
 .ap-pos-w { grid-area: w; }
+/* North and South sit centred over the diagram */
+.ap-pos-n, .ap-pos-s { justify-self: center; }
 .ap-pos-c { grid-area: c; align-self: center; justify-self: center; }
 
 .ap-hand { border: 1px solid transparent; border-radius: 10px; padding: 4px 6px; }
@@ -136,6 +138,57 @@
 .ap-tc.prev.won { opacity: 0.9; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .ap-tc .red { color: var(--red); }
 .ap-tc-mid { grid-area: tc; font-size: 11px; color: var(--muted); text-align: center; }
+
+/* ---- Setup: card-layout editor ---------------------------------------------- */
+
+.ap-zone {
+  border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: #fbfcfd;
+  min-width: 108px;
+}
+.ap-zone.ok { background: #fff; }
+.ap-zone.short { background: #fdf7e6; border-color: #e4cf8e; }
+.ap-zone.over { background: #fdedea; border-color: #e2a89e; }
+.ap-zone.droptarget { outline: 2px solid var(--accent); outline-offset: -1px; background: #eef7f1; }
+
+.ap-zone-head { display: flex; align-items: center; gap: 8px; margin: 0 0 3px 2px; min-height: 24px; }
+.ap-zcount { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ap-zcount small { font-weight: 500; color: var(--muted); font-size: 10px; }
+.ap-zcount.ok { color: var(--accent); }
+.ap-zcount.bad { color: #a2681a; }
+.ap-zone.over .ap-zcount.bad { color: var(--red); }
+
+.ap-move-pill {
+  font: 600 11.5px/1 inherit; font-family: inherit; padding: 5px 9px;
+  border: 1px solid var(--accent); border-radius: 999px; background: #e6f4ea; color: var(--accent);
+  cursor: pointer; white-space: nowrap;
+}
+.ap-move-pill:hover { background: var(--accent); color: var(--accent-ink); }
+
+.ap-card.grab { touch-action: none; cursor: grab; -webkit-user-select: none; user-select: none; }
+.ap-card.sel { outline: 2px solid var(--accent); outline-offset: 1px; background: #e6f4ea; }
+.ap-card.drag-src { opacity: 0.35; }
+
+.ap-ghost {
+  position: fixed; z-index: 60; pointer-events: none;
+  min-width: 38px; height: 44px; padding: 0 6px; border-radius: 8px;
+  border: 1px solid var(--accent); background: #fff;
+  display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+  font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  box-shadow: 0 6px 16px rgba(20, 30, 45, 0.28); transform: scale(1.08);
+}
+.ap-ghost.red { color: var(--red); }
+
+.ap-pool { margin-top: 10px; }
+.ap-pool.empty { border-style: dashed; background: #fbfcfd; }
+.ap-pool-hint { color: #aeb6c0; font-size: 12.5px; margin: 4px 2px 6px; }
+
+.ap-center-sel { margin-top: 4px; font-weight: 700; color: var(--ink); font-size: 12px; }
+.ap-center-sel .red { color: var(--red); }
+.ap-tc-mid .ok { color: var(--accent); font-weight: 700; }
+
+.ap-launcher { margin-top: 14px; }
+.ap-launcher .ap-btn.primary { margin: 0 8px 10px 0; }
+.ap-launch-hint { margin-top: 12px; }
 
 /* ---- Play controls (sticky on phones) -------------------------------------- */
 

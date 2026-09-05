@@ -1,13 +1,17 @@
 /**
- * WesPlay (analyze.html): import a deal from almost any format, see the
- * makeable-contracts table and par, then play the hand out card by card with
- * double-dummy guidance — every legal card scored before each play, optimal
- * cards highlighted, undo/redo, and an auto-play stepper.
+ * WesPlay (analyze.html): import a deal from almost any format, arrange it by
+ * dragging cards between hands, then tap a contract in the makeable table to
+ * play the hand out card by card with double-dummy guidance.
+ *
+ * Setup is a card-layout editor (engine/layout.ts): all 52 cards live either
+ * in a hand or in the unassigned pool, so duplicates are impossible and the
+ * only validation left is "13 per hand" — short/over hands are shaded until
+ * the counts come right, at which point the contract table appears.
  *
  * The whole position lives in the URL hash (#d=…, analyzeState.ts): the
- * import panel just fills it, the play-out mutates it, and Copy link shares
- * it. All solving happens in the DD worker (ddClient.ts); the UI thread never
- * blocks.
+ * import panel just fills it, the editor and play-out mutate it, and Copy
+ * link shares it. All solving happens in the DD worker (ddClient.ts); the UI
+ * thread never blocks.
  */
 
 import './styles.css';
@@ -18,7 +22,11 @@ import { SUITS, SUIT_SYMBOLS, RANK_LABELS, rankOf, suitOf, type Card, type Suit 
 import { SEATS, type Seat, type Deal } from './engine/deal';
 import { type Vulnerability, vulnerabilityLabel } from './engine/board';
 import { dealToPBN } from './engine/format';
-import { importDeal, checkDraft, missingLabel } from './engine/importDeal';
+import { importDeal } from './engine/importDeal';
+import {
+  type Layout, type Zone, emptyLayout, layoutFromHands, handsFromLayout, poolOf, zoneOf,
+  moveCard, layoutComplete, dealFromLayout, poolFillTarget,
+} from './engine/layout';
 import {
   encodeAnalyzeState, decodeAnalyzeState, sideVulnerable, ddsVulnerability, type AnalyzeState,
 } from './engine/analyzeState';
@@ -35,7 +43,6 @@ import { DDClient, type DDTableResult } from './worker/ddClient';
 const client = new DDClient();
 
 interface PageState {
-  hands: Record<Seat, string>;
   dealer: Seat;
   vul: Vulnerability;
   contract: Contract | null;
@@ -43,18 +50,17 @@ interface PageState {
   redo: Card[];
 }
 
-const state: PageState = {
-  hands: { N: '', E: '', S: '', W: '' },
-  dealer: 'N',
-  vul: 'None',
-  contract: null,
-  plays: [],
-  redo: [],
-};
+const state: PageState = { dealer: 'N', vul: 'None', contract: null, plays: [], redo: [] };
 
-let mode: 'import' | 'analyse' = 'import';
+/** The setup editor's card placement (source of truth for the hands). */
+let layout: Layout = emptyLayout();
+let selectedCard: Card | null = null;
+
+let mode: 'setup' | 'play' = 'setup';
 let deal: Deal | null = null;
-/** Contract/play read from an import, applied when Analyse is pressed. */
+/** PBN of the deal being played — resume is offered while the layout matches. */
+let playPbn = '';
+/** Contract/play read from an import, offered as a one-tap start. */
 let importedContract: Contract | null = null;
 let importedPlay: string | null = null;
 
@@ -74,7 +80,7 @@ const redSuit = (s: Suit): boolean => s === 'H' || s === 'D';
 // ---- URL hash ---------------------------------------------------------------
 
 function pushHash(): void {
-  const st: AnalyzeState = { v: 1, hands: { ...state.hands }, dealer: state.dealer, vul: state.vul };
+  const st: AnalyzeState = { v: 1, hands: handsFromLayout(layout), dealer: state.dealer, vul: state.vul };
   if (state.contract) {
     st.contract = contractString(state.contract);
     st.declarer = SEATS[state.contract.declarer];
@@ -85,14 +91,21 @@ function pushHash(): void {
 }
 
 function applyState(st: AnalyzeState): void {
-  state.hands = { ...st.hands };
+  layout = layoutFromHands(st.hands).layout;
+  selectedCard = null;
   state.dealer = st.dealer;
   state.vul = st.vul;
+  syncMetaControls();
   importedContract = st.contract && st.declarer ? parseContract(st.contract, seatIdx(st.declarer)) : null;
   importedPlay = st.play ?? null;
-  fillGridFromState();
-  refreshValidation();
-  if (checkDraft(state.hands).ok) analyse();
+  if (importedContract && layoutComplete(layout)) {
+    startPlay(importedContract, { importedPlayString: importedPlay });
+    return;
+  }
+  mode = 'setup';
+  updateModeVisibility();
+  renderSetup();
+  maybeSolveTable();
 }
 
 // ---- Import panel -----------------------------------------------------------
@@ -107,12 +120,6 @@ const importText = h('textarea', {
 
 const feedback = h('div', { class: 'ap-feedback' }, []);
 const noteBox = h('div', {}, []);
-const gridInputs = {} as Record<Seat, HTMLInputElement[]>;
-const gridRows = {} as Record<Seat, HTMLTableRowElement>;
-const gridCounts = {} as Record<Seat, HTMLElement>;
-const errorBox = h('div', { class: 'ap-errors' }, []);
-const missingBox = h('div', { class: 'ap-missing' }, []);
-const analyseBtn = h('button', { class: 'ap-btn primary', onclick: () => analyse() }, ['Analyse']) as HTMLButtonElement;
 
 const dealerSel = h('select', { class: 'ap-select' }, SEATS.map((s) =>
   h('option', { value: s }, [SEAT_NAMES[s]]),
@@ -121,89 +128,23 @@ const vulSel = h('select', { class: 'ap-select' }, (['None', 'NS', 'EW', 'Both']
   h('option', { value: v }, [vulnerabilityLabel(v)]),
 )) as HTMLSelectElement;
 
-dealerSel.addEventListener('change', () => {
-  state.dealer = dealerSel.value as Seat;
-  pushHash();
-});
-vulSel.addEventListener('change', () => {
-  state.vul = vulSel.value as Vulnerability;
-  pushHash();
-});
-
-function buildGrid(): HTMLElement {
-  const head = h('tr', {}, [
-    h('th', {}, []),
-    ...SUITS.map((s) => h('th', { class: redSuit(s) ? 'red' : '' }, [`${SUIT_SYMBOLS[s]} ${SUIT_NAMES_SHORT[s]}`])),
-    h('th', {}, []),
-  ]);
-  const rows = SEATS.map((seat) => {
-    gridInputs[seat] = SUITS.map((suit) =>
-      h('input', {
-        autocapitalize: 'off', autocorrect: 'off', spellcheck: false,
-        inputmode: 'text', 'aria-label': `${SEAT_NAMES[seat]} ${SUIT_NAMES_SHORT[suit]}`,
-        oninput: () => {
-          readGridIntoState();
-          refreshValidation();
-          pushHash();
-        },
-      }) as HTMLInputElement,
-    );
-    gridCounts[seat] = h('td', { class: 'ap-count' }, []);
-    const row = h('tr', {}, [
-      h('td', { class: 'ap-seat' }, [seat]),
-      ...gridInputs[seat].map((inp) => h('td', {}, [inp])),
-      gridCounts[seat],
-    ]);
-    gridRows[seat] = row;
-    return row;
-  });
-  return h('div', { class: 'ap-grid-scroll' }, [
-    h('table', { class: 'ap-grid' }, [h('thead', {}, [head]), h('tbody', {}, rows)]),
-  ]);
-}
-
-const SUIT_NAMES_SHORT: Record<Suit, string> = { S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' };
-
-function readGridIntoState(): void {
-  for (const seat of SEATS) {
-    const dotted = gridInputs[seat].map((inp) => inp.value.trim()).join('.');
-    state.hands[seat] = dotted === '...' ? '' : dotted;
-  }
-}
-
-function fillGridFromState(): void {
-  for (const seat of SEATS) {
-    const parts = state.hands[seat].split('.');
-    gridInputs[seat].forEach((inp, i) => (inp.value = parts[i] ?? ''));
-  }
+function syncMetaControls(): void {
   dealerSel.value = state.dealer;
   vulSel.value = state.vul;
 }
 
-function refreshValidation(): void {
-  const check = checkDraft(state.hands);
-  for (const seat of SEATS) {
-    const c = check.seats[seat];
-    const bad = c.errors.length > 0;
-    gridRows[seat].className = bad && state.hands[seat] !== '' ? 'bad' : '';
-    gridCounts[seat].textContent = `${c.count}/13`;
-    gridCounts[seat].className = 'ap-count ' + (c.count === 13 && !bad ? 'ok' : 'bad');
-  }
-  const messages: string[] = [];
-  for (const seat of SEATS) {
-    for (const err of check.seats[seat].errors) {
-      if (state.hands[seat] !== '' || err !== 'Hand is empty.') messages.push(`${seat}: ${err}`);
-    }
-  }
-  messages.push(...check.crossErrors);
-  errorBox.replaceChildren(...messages.slice(0, 8).map((m) => h('div', {}, [m])));
-  missingBox.replaceChildren(
-    ...(check.missing.length > 0 && check.missing.length < 52
-      ? ['Still missing: ', h('b', {}, [missingLabel(check.missing)])]
-      : []),
-  );
-  analyseBtn.disabled = !check.ok;
-}
+dealerSel.addEventListener('change', () => {
+  state.dealer = dealerSel.value as Seat;
+  pushHash();
+  maybeSolveTable();
+  renderSetup();
+});
+vulSel.addEventListener('change', () => {
+  state.vul = vulSel.value as Vulnerability;
+  pushHash();
+  maybeSolveTable();
+  renderSetup();
+});
 
 let importTimer = 0;
 importText.addEventListener('input', () => {
@@ -226,29 +167,34 @@ function runImport(text: string): void {
     noteBox.replaceChildren();
     return;
   }
-  state.hands = { ...result.deal.hands };
+  const converted = layoutFromHands(result.deal.hands);
+  layout = converted.layout;
+  selectedCard = null;
   if (result.deal.dealer) state.dealer = result.deal.dealer;
   if (result.deal.vul) state.vul = result.deal.vul;
+  syncMetaControls();
   importedContract = result.deal.contract && result.deal.declarer
     ? parseContract(result.deal.contract, seatIdx(result.deal.declarer))
     : null;
   importedPlay = result.deal.play ?? null;
-  fillGridFromState();
-  refreshValidation();
   pushHash();
+  renderSetup();
+  maybeSolveTable();
 
-  const check = checkDraft(state.hands);
-  const status = check.ok
+  const complete = layoutComplete(layout);
+  const status = complete
     ? h('span', { class: 'ok' }, ['all 52 cards ✓'])
-    : h('span', { class: 'bad' }, ['needs fixing below']);
+    : h('span', { class: 'bad' }, ['arrange the rest below']);
   const extras: string[] = [];
-  if (importedContract) extras.push(`${prettyContractText(importedContract)}`);
+  if (importedContract) extras.push(prettyContractText(importedContract));
   if (importedPlay) extras.push(`${importedPlay.length / 2} cards played`);
   feedback.replaceChildren(
     `Detected ${label[result.format ?? 'text']}: `, status,
     ...(extras.length > 0 ? [` · ${extras.join(' · ')}`] : []),
   );
-  noteBox.replaceChildren(...[...result.errors, ...result.notes].map((n) => h('p', { class: 'ap-note' }, [n])));
+  noteBox.replaceChildren(
+    ...[...result.errors, ...result.notes, ...converted.dropped].map((n) => h('p', { class: 'ap-note' }, [n])),
+  );
 }
 
 // File pick and drag/drop (images are the phase-2 extractDeal seam).
@@ -324,89 +270,294 @@ function exampleButton(label: string, text: string): HTMLElement {
   }, [label]);
 }
 
-// ---- Analyse ----------------------------------------------------------------
+// ---- Setup: the card-layout editor ------------------------------------------
 
-function analyse(): void {
-  const check = checkDraft(state.hands);
-  if (!check.ok || !check.deal) return;
-  deal = check.deal;
+const setupBoard = h('section', { class: 'form ap-board' }, []);
+
+function afterLayoutMutation(): void {
+  selectedCard = null;
+  pushHash();
+  renderSetup();
+  maybeSolveTable();
+}
+
+function moveSelected(zone: Zone): void {
+  if (selectedCard === null) return;
+  moveCard(layout, selectedCard, zone);
+  afterLayoutMutation();
+}
+
+// Dragging: pointer events (HTML5 drag-and-drop is useless on touch). A press
+// that moves more than a few pixels lifts a ghost chip; drop lands on the
+// zone under the pointer. A plain tap falls through to the click handler,
+// which toggles selection for the tap-then-"⤵ here" alternative.
+interface DragOp {
+  card: Card;
+  src: HTMLElement;
+  startX: number;
+  startY: number;
+  active: boolean;
+  ghost: HTMLElement | null;
+  over: HTMLElement | null;
+}
+let drag: DragOp | null = null;
+let suppressClick = false;
+
+function zoneAt(x: number, y: number): { zone: Zone; el: HTMLElement } | null {
+  const hit = document.elementFromPoint(x, y);
+  const el = hit?.closest<HTMLElement>('[data-zone]') ?? null;
+  if (!el) return null;
+  return { zone: el.dataset.zone as Zone, el };
+}
+
+function dragStart(e: PointerEvent, card: Card): void {
+  if (mode !== 'setup' || drag !== null) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const src = e.currentTarget as HTMLElement;
+  try {
+    src.setPointerCapture(e.pointerId);
+  } catch {
+    // jsdom and very old browsers — tap-to-select still works.
+  }
+  drag = { card, src, startX: e.clientX, startY: e.clientY, active: false, ghost: null, over: null };
+}
+
+function dragMove(e: PointerEvent): void {
+  if (!drag || e.currentTarget !== drag.src) return;
+  const dx = e.clientX - drag.startX;
+  const dy = e.clientY - drag.startY;
+  if (!drag.active) {
+    if (dx * dx + dy * dy < 64) return; // an 8px slop keeps taps as taps
+    drag.active = true;
+    const suit = suitOf(drag.card);
+    drag.ghost = h('span', { class: 'ap-ghost' + (redSuit(suit) ? ' red' : '') }, [
+      SUIT_SYMBOLS[suit], RANK_LABELS[rankOf(drag.card)],
+    ]);
+    document.body.append(drag.ghost);
+    drag.src.classList.add('drag-src');
+  }
+  drag.ghost!.style.left = `${e.clientX - 18}px`;
+  drag.ghost!.style.top = `${e.clientY - 48}px`;
+  const target = zoneAt(e.clientX, e.clientY);
+  const el = target && target.zone !== zoneOf(layout, drag.card) ? target.el : null;
+  if (drag.over !== el) {
+    drag.over?.classList.remove('droptarget');
+    drag.over = el;
+    drag.over?.classList.add('droptarget');
+  }
+}
+
+function dragEnd(e: PointerEvent): void {
+  if (!drag || e.currentTarget !== drag.src) return;
+  const op = drag;
+  drag = null;
+  op.ghost?.remove();
+  op.src.classList.remove('drag-src');
+  op.over?.classList.remove('droptarget');
+  if (!op.active) return; // a tap — the click handler selects
+  suppressClick = true;
+  window.setTimeout(() => (suppressClick = false), 0);
+  const target = zoneAt(e.clientX, e.clientY);
+  if (target && moveCard(layout, op.card, target.zone)) afterLayoutMutation();
+}
+
+function dragCancel(): void {
+  if (!drag) return;
+  drag.ghost?.remove();
+  drag.src.classList.remove('drag-src');
+  drag.over?.classList.remove('droptarget');
+  drag = null;
+}
+
+function setupChip(card: Card): HTMLElement {
+  const suit = suitOf(card);
+  return h('button', {
+    class: 'ap-card grab' + (redSuit(suit) ? ' red' : '') + (selectedCard === card ? ' sel' : ''),
+    onclick: () => {
+      if (suppressClick) return;
+      selectedCard = selectedCard === card ? null : card;
+      renderSetup();
+    },
+    onpointerdown: (e: Event) => dragStart(e as PointerEvent, card),
+    onpointermove: (e: Event) => dragMove(e as PointerEvent),
+    onpointerup: (e: Event) => dragEnd(e as PointerEvent),
+    onpointercancel: () => dragCancel(),
+  }, [RANK_LABELS[rankOf(card)]]);
+}
+
+function suitRow(suit: Suit, cards: Card[], chip: (c: Card) => HTMLElement): HTMLElement {
+  const sorted = cards.filter((c) => suitOf(c) === suit).sort((a, b) => rankOf(b) - rankOf(a));
+  return h('div', { class: 'ap-suitrow' }, [
+    h('span', { class: 'sym' + (redSuit(suit) ? ' red' : '') }, [SUIT_SYMBOLS[suit]]),
+    ...sorted.map(chip),
+  ]);
+}
+
+function movePill(zone: Zone): HTMLElement | null {
+  if (selectedCard === null || zoneOf(layout, selectedCard) === zone) return null;
+  return h('button', { class: 'ap-move-pill', title: 'Move the selected card here', onclick: () => moveSelected(zone) }, ['⤵ here']);
+}
+
+function seatZone(seat: Seat): HTMLElement {
+  const cards = layout[seat];
+  const count = cards.length;
+  const shade = count === 13 ? ' ok' : count < 13 ? ' short' : ' over';
+  const pill = movePill(seat);
+  return h('div', { class: `ap-zone ap-pos-${seat.toLowerCase()}${shade}`, 'data-zone': seat }, [
+    h('div', { class: 'ap-zone-head' }, [
+      h('span', { class: 'ap-hand-name' }, [SEAT_NAMES[seat]]),
+      h('span', { class: 'ap-zcount' + (count === 13 ? ' ok' : ' bad') }, [`${count}`, h('small', {}, ['/13'])]),
+      ...(pill ? [pill] : []),
+    ]),
+    ...SUITS.map((suit) => suitRow(suit, cards, setupChip)),
+  ]);
+}
+
+function poolZone(pool: Card[]): HTMLElement {
+  const pill = movePill('pool');
+  const fillTarget = poolFillTarget(layout);
+  return h('div', { class: 'ap-zone ap-pool' + (pool.length === 0 ? ' empty' : ''), 'data-zone': 'pool' }, [
+    h('div', { class: 'ap-zone-head' }, [
+      h('span', { class: 'ap-hand-name' }, ['Unassigned']),
+      h('span', { class: 'ap-zcount' + (pool.length === 0 ? ' ok' : '') }, [String(pool.length)]),
+      ...(pill ? [pill] : []),
+      ...(fillTarget
+        ? [h('button', { class: 'ap-move-pill', onclick: () => {
+            for (const card of poolOf(layout)) moveCard(layout, card, fillTarget);
+            afterLayoutMutation();
+          } }, [`all → ${fillTarget}`])]
+        : []),
+    ]),
+    pool.length === 0
+      ? h('p', { class: 'ap-pool-hint' }, ['Drag a card here to unassign it.'])
+      : h('div', {}, SUITS.map((suit) => suitRow(suit, pool, setupChip))),
+  ]);
+}
+
+function launcher(complete: boolean): HTMLElement {
+  if (!complete) {
+    return h('p', { class: 'hint ap-launch-hint' }, [
+      'Give every hand 13 cards — drag a card between hands, or tap it and then tap “⤵ here” where it goes.',
+    ]);
+  }
+  const kids: Array<Node | string> = [h('h2', {}, ['Play a contract'])];
+  const currentPbn = dealToPBN(dealFromLayout(layout));
+  if (state.contract && state.plays.length > 0 && playPbn === currentPbn) {
+    kids.push(h('button', { class: 'ap-btn primary', onclick: () => startPlay(state.contract!, { resume: true }) }, [
+      `Resume ${prettyContractText(state.contract)} — ${state.plays.length} card${state.plays.length === 1 ? '' : 's'} played`,
+    ]));
+  }
   if (importedContract) {
-    state.contract = importedContract;
-    importedContract = null;
-    state.plays = [];
-    state.redo = [];
+    kids.push(h('button', {
+      class: 'ap-btn primary',
+      onclick: () => startPlay(importedContract!, { importedPlayString: importedPlay }),
+    }, ['Play ', ...prettyContract(importedContract), ' (imported)']));
   }
-  if (state.contract) {
-    // Re-fit any pending or existing play to the (possibly edited) deal.
-    const raw = importedPlay ? playFromString(importedPlay) ?? [] : state.plays;
-    importedPlay = null;
-    const fit = sanitisePlays(deal, state.contract, raw);
-    state.plays = fit.plays;
-    state.redo = [];
+  if (tableRes) {
+    kids.push(makeableTable((c) => startPlay(c)));
+    kids.push(parLine()!);
+    kids.push(h('p', { class: 'hint' }, ['Tricks each declarer can take, double dummy. Tap a contract to play it out card by card.']));
+  } else {
+    kids.push(h('p', { class: 'ap-dd-line' }, ['Solving all 20 contracts…']));
   }
-  mode = 'analyse';
+  return h('div', { class: 'ap-launcher' }, kids);
+}
+
+function renderSetup(): void {
+  if (mode !== 'setup') return;
+  if (drag?.active) return; // a re-render would replace the captured chip mid-drag
+  const pool = poolOf(layout);
+  const complete = layoutComplete(layout);
+
+  const centerBits: Array<Node | string> = complete
+    ? [h('span', { class: 'ok' }, ['✓ 52 placed'])]
+    : [`${pool.length} unassigned`];
+  if (selectedCard !== null) {
+    const suit = suitOf(selectedCard);
+    centerBits.push(h('div', { class: 'ap-center-sel' }, [
+      h('span', { class: redSuit(suit) ? 'red' : '' }, [SUIT_SYMBOLS[suit]]),
+      `${RANK_LABELS[rankOf(selectedCard)]} selected`,
+    ]));
+  }
+
+  setupBoard.replaceChildren(
+    h('h2', {}, ['Set up the board']),
+    h('div', { class: 'ap-compass ap-setup' }, [
+      ...SEATS.map(seatZone),
+      h('div', { class: 'ap-center ap-pos-c' }, [h('span', { class: 'ap-tc-mid' }, centerBits)]),
+    ]),
+    poolZone(pool),
+    h('div', { class: 'ap-meta' }, [
+      h('label', {}, ['Dealer ', dealerSel]),
+      h('label', {}, ['Vul ', vulSel]),
+    ]),
+    launcher(complete),
+  );
+}
+
+/** Kick a table solve whenever the layout is complete (keyed, so cheap). */
+function maybeSolveTable(): void {
+  if (!layoutComplete(layout)) return;
+  void refreshTable(dealFromLayout(layout));
+}
+
+// ---- Entering and leaving play ----------------------------------------------
+
+function startPlay(c: Contract, opts?: { resume?: boolean; importedPlayString?: string | null }): void {
+  if (!layoutComplete(layout)) return;
+  deal = dealFromLayout(layout);
+  playPbn = dealToPBN(deal);
+  finishing = false;
+  pickerOpen = false;
+  if (opts?.resume && state.contract) {
+    state.plays = sanitisePlays(deal, state.contract, state.plays).plays;
+  } else {
+    state.contract = c;
+    const raw = opts?.importedPlayString ? playFromString(opts.importedPlayString) ?? [] : [];
+    state.plays = sanitisePlays(deal, c, raw).plays;
+  }
+  state.redo = [];
+  importedContract = null;
+  importedPlay = null;
+  mode = 'play';
   updateModeVisibility();
   pushHash();
-  void refreshTable();
+  void refreshTable(deal);
   renderAnalysis();
   void refreshScores();
 }
 
-function backToImport(): void {
-  mode = 'import';
+function backToSetup(): void {
+  mode = 'setup';
   finishing = false;
+  selectedCard = null;
   updateModeVisibility();
-  refreshValidation();
+  renderSetup();
+  maybeSolveTable();
 }
 
-async function refreshTable(): Promise<void> {
-  if (!deal) return;
-  const pbn = dealToPBN(deal);
+// ---- Solving ----------------------------------------------------------------
+
+async function refreshTable(forDeal: Deal): Promise<void> {
+  const pbn = dealToPBN(forDeal);
   const key = `${pbn}|${state.dealer}|${state.vul}`;
   if (tableKey === key && tableRes) return;
   tableKey = key;
   tableRes = null;
-  renderAnalysis();
+  renderCurrent();
   try {
     const res = await client.solveTable(pbn, seatIdx(state.dealer), ddsVulnerability(state.vul));
     if (tableKey !== key) return;
     tableRes = res;
-    if (!state.contract) defaultContractFromPar();
-    renderAnalysis();
-    void refreshScores();
+    renderCurrent();
   } catch {
     if (tableKey === key) tableRes = null;
   }
 }
 
-/** "2C-EW" / "4Sx-NS" / "1N-W" → a Contract (pair declarers → more tricks). */
-function contractFromParString(s: string): Contract | null {
-  const m = /([1-7])(NT|N|[SHDC])(x{0,2})[^-]*-\s*(NS|EW|[NESW])/i.exec(s);
-  if (!m || !tableRes) return null;
-  const strain = m[2].toUpperCase().startsWith('N') ? 4 : 'SHDC'.indexOf(m[2].toUpperCase());
-  const pair = m[4].toUpperCase();
-  let declarer: number;
-  if (pair === 'NS' || pair === 'EW') {
-    const [a, b] = pair === 'NS' ? [0, 2] : [1, 3];
-    declarer = tableRes.table[strain][a] >= tableRes.table[strain][b] ? a : b;
-  } else {
-    declarer = seatIdx(pair as Seat);
-  }
-  return { level: Number(m[1]), strain, declarer, doubled: (m[3] ? m[3].length : 0) as 0 | 1 | 2 };
-}
-
-function defaultContractFromPar(): void {
-  if (!tableRes) return;
-  for (const s of tableRes.parContracts) {
-    const c = contractFromParString(s);
-    if (c) {
-      state.contract = { ...c, doubled: 0 }; // play the par spot undoubled by default
-      state.plays = [];
-      state.redo = [];
-      pushHash();
-      return;
-    }
-  }
+function renderCurrent(): void {
+  if (mode === 'setup') renderSetup();
+  else renderAnalysis();
 }
 
 async function refreshScores(): Promise<void> {
@@ -532,7 +683,49 @@ function setContract(c: Contract): void {
   void refreshScores();
 }
 
-// ---- Rendering: analysis view ----------------------------------------------
+// ---- Shared: makeable table + par -------------------------------------------
+
+function makeableTable(onPick: (c: Contract) => void): HTMLElement {
+  const strains = [0, 1, 2, 3, 4];
+  const declOrder = [0, 2, 1, 3]; // N, S, E, W — partnerships together
+  const headRow = h('tr', {}, [
+    h('th', {}, []),
+    ...strains.map((s) => h('th', { class: s === 1 || s === 2 ? 'red' : '' }, [s === 4 ? 'NT' : SUIT_SYMBOLS[SUITS[s]]])),
+  ]);
+  const rows = declOrder.map((d) =>
+    h('tr', {}, [
+      h('th', {}, [SEATS[d]]),
+      ...strains.map((s) => {
+        const tricks = tableRes!.table[s][d];
+        const sel = mode === 'play' && state.contract && state.contract.strain === s && state.contract.declarer === d;
+        const level = Math.max(1, tricks - 6);
+        return h('td', {
+          class: (tricks >= 7 ? 'make' : '') + (sel ? ' sel' : ''),
+          title: `Play ${level}${s === 4 ? 'NT' : SUIT_SYMBOLS[SUITS[s]]} by ${SEATS[d]}`,
+          onclick: () => onPick({ level, strain: s, declarer: d, doubled: 0 }),
+        }, [String(tricks)]);
+      }),
+    ]),
+  );
+  return h('table', { class: 'ap-dd-table' }, [h('thead', {}, [headRow]), h('tbody', {}, [...rows])]);
+}
+
+function parLine(): HTMLElement | null {
+  if (!tableRes) return null;
+  const bits: Array<Node | string> = ['Par ', h('b', {}, [scoreLabel(tableRes.parScore)]), ' for NS'];
+  const pretty = tableRes.parContracts.map(prettyParContract).filter((s) => s !== '');
+  if (pretty.length > 0) bits.push(`: ${pretty.join(', ')}`);
+  return h('p', { class: 'ap-par' }, bits);
+}
+
+function prettyParContract(s: string): string {
+  const m = /([1-7])(NT|N|[SHDC])(x{0,2})[^-]*-\s*(NS|EW|[NESW])/i.exec(s);
+  if (!m) return '';
+  const strain = m[2].toUpperCase().startsWith('N') ? 'NT' : SUIT_SYMBOLS[m[2].toUpperCase() as Suit];
+  return `${m[1]}${strain}${m[3]} by ${m[4].toUpperCase().split('').join('/')}`;
+}
+
+// ---- Rendering: play view ---------------------------------------------------
 
 const analysisBox = h('section', { class: 'form ap-analysis' }, []);
 
@@ -550,10 +743,6 @@ function prettyContractText(c: Contract): string {
   return `${c.level}${STRAIN_LETTERS[c.strain]}${'x'.repeat(c.doubled)} by ${SEATS[c.declarer]}`;
 }
 
-function cardChipLabel(card: Card): string {
-  return RANK_LABELS[rankOf(card)];
-}
-
 /** Screen slot (n/e/s/w area) for a seat, honouring the rotation toggle. */
 function slotOf(seat: number): string {
   const anchor = rotateView && state.contract ? state.contract.declarer : 2; // South at the bottom by default
@@ -561,7 +750,7 @@ function slotOf(seat: number): string {
 }
 
 function renderAnalysis(): void {
-  if (mode !== 'analyse' || !deal) return;
+  if (mode !== 'play' || !deal) return;
   const contract = state.contract;
   const view = contract ? computePlay(deal, contract, state.plays) : null;
 
@@ -591,7 +780,7 @@ function renderAnalysis(): void {
     h('span', { class: 'spacer', style: 'flex:1' }, []),
     h('button', { class: 'ap-btn small', onclick: () => { rotateView = !rotateView; renderAnalysis(); } },
       [rotateView ? 'N to top' : 'Declarer down']),
-    h('button', { class: 'ap-btn small', onclick: () => backToImport() }, ['Edit deal']),
+    h('button', { class: 'ap-btn small', onclick: () => backToSetup() }, ['Edit deal']),
   ]);
 
   // ---- Result / DD line
@@ -642,7 +831,7 @@ function renderAnalysis(): void {
           disabled: !isTurn || !isLegal,
           onclick: () => playCard(card),
         }, [
-          cardChipLabel(card),
+          RANK_LABELS[rankOf(card)],
           ...(s !== undefined ? [h('span', { class: 'dd' }, [String(s)])] : []),
         ]);
       });
@@ -740,37 +929,13 @@ function renderAnalysis(): void {
   // ---- Makeable table + par
   const tableKids: Array<Node | string> = [];
   if (tableRes) {
-    const strains = [0, 1, 2, 3, 4];
-    const declOrder = [0, 2, 1, 3]; // N, S, E, W — partnerships together
-    const headRow = h('tr', {}, [
-      h('th', {}, []),
-      ...strains.map((s) => h('th', { class: s === 1 || s === 2 ? 'red' : '' }, [s === 4 ? 'NT' : SUIT_SYMBOLS[SUITS[s]]])),
-    ]);
-    const rows = declOrder.map((d) =>
-      h('tr', {}, [
-        h('th', {}, [SEATS[d]]),
-        ...strains.map((s) => {
-          const tricks = tableRes!.table[s][d];
-          const sel = contract && contract.strain === s && contract.declarer === d;
-          const level = Math.max(1, tricks - 6);
-          return h('td', {
-            class: (tricks >= 7 ? 'make' : '') + (sel ? ' sel' : ''),
-            title: `Play ${level}${s === 4 ? 'NT' : SUIT_SYMBOLS[SUITS[s]]} by ${SEATS[d]}`,
-            onclick: () => setContract({ level, strain: s, declarer: d, doubled: 0 }),
-          }, [String(tricks)]);
-        }),
-      ]),
-    );
-    tableKids.push(h('table', { class: 'ap-dd-table' }, [h('thead', {}, [headRow]), h('tbody', {}, [...rows])]));
-    const parBits: Array<Node | string> = ['Par ', h('b', {}, [scoreLabel(tableRes.parScore)]), ' for NS'];
-    const pretty = tableRes.parContracts.map(prettyParContract).filter((s) => s !== '');
-    if (pretty.length > 0) parBits.push(`: ${pretty.join(', ')}`);
-    tableKids.push(h('p', { class: 'ap-par' }, parBits));
+    tableKids.push(makeableTable((c) => setContract(c)));
+    tableKids.push(parLine()!);
     tableKids.push(h('p', { class: 'hint' }, ['Tricks each declarer can take, double dummy. Tap a cell to play that contract.']));
   } else {
     tableKids.push(h('p', { class: 'ap-dd-line' }, ['Solving all 20 contracts…']));
   }
-  const makeable = h('details', { class: 'tool-panel', open: true }, [
+  const makeable = h('details', { class: 'tool-panel' }, [
     h('summary', {}, ['Makeable contracts & par']),
     h('div', { class: 'tool-panel-body' }, tableKids),
   ]);
@@ -787,13 +952,6 @@ function renderAnalysis(): void {
   ]));
   analysisBox.replaceChildren(...kids);
   if (history) history.scrollLeft = history.scrollWidth; // keep the newest trick in view
-}
-
-function prettyParContract(s: string): string {
-  const m = /([1-7])(NT|N|[SHDC])(x{0,2})[^-]*-\s*(NS|EW|[NESW])/i.exec(s);
-  if (!m) return '';
-  const strain = m[2].toUpperCase().startsWith('N') ? 'NT' : SUIT_SYMBOLS[m[2].toUpperCase() as Suit];
-  return `${m[1]}${strain}${m[3]} by ${m[4].toUpperCase().split('').join('/')}`;
 }
 
 function copyLinkButton(): HTMLElement {
@@ -857,22 +1015,15 @@ const importSection = h('section', { class: 'form ap-import' }, [
   ]),
   feedback,
   noteBox,
-  buildGrid(),
-  errorBox,
-  missingBox,
-  h('div', { class: 'ap-meta' }, [
-    h('label', {}, ['Dealer ', dealerSel]),
-    h('label', {}, ['Vul ', vulSel]),
-    h('span', { style: 'flex:1' }, []),
-    analyseBtn,
-  ]),
   fileInput,
 ]);
 wireDrop(importSection);
 
+const setupWrap = h('div', {}, [importSection, setupBoard]);
+
 function updateModeVisibility(): void {
-  importSection.hidden = mode !== 'import';
-  analysisBox.hidden = mode !== 'analyse';
+  setupWrap.hidden = mode !== 'setup';
+  analysisBox.hidden = mode !== 'play';
 }
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -883,7 +1034,7 @@ if (app) {
       h('h1', {}, ['WesPlay']),
       h('p', { class: 'tagline' }, ['Import any deal and play it out, double dummy.']),
     ]),
-    importSection,
+    setupWrap,
     analysisBox,
   );
 }
@@ -891,7 +1042,8 @@ if (app) {
 // A shared link (#d=…) reopens the exact position.
 (function loadFromHash(): void {
   updateModeVisibility();
-  refreshValidation();
+  syncMetaControls();
+  renderSetup();
   const m = /[#&]d=([^&]+)/.exec(location.hash);
   if (m) {
     const st = decodeAnalyzeState(m[1]);
