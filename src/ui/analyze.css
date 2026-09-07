@@ -80,13 +80,15 @@
 .ap-compass {
   display: grid; gap: 8px;
   grid-template-areas: "n n n" "w c e" "s s s";
-  grid-template-columns: minmax(112px, 1fr) auto minmax(112px, 1fr);
+  /* Equal side columns keep the centre box dead-centre whatever W/E hold. */
+  grid-template-columns: 1fr auto 1fr;
   align-items: start; justify-items: start; margin-top: 4px;
 }
 .ap-pos-n { grid-area: n; } .ap-pos-e { grid-area: e; } .ap-pos-s { grid-area: s; }
 .ap-pos-w { grid-area: w; }
-/* North and South sit centred over the diagram */
+/* North and South sit centred over the diagram; West/East fill their columns. */
 .ap-pos-n, .ap-pos-s { justify-self: center; }
+.ap-pos-w, .ap-pos-e { justify-self: stretch; }
 .ap-pos-c { grid-area: c; align-self: center; justify-self: center; }
 
 .ap-hand { border: 1px solid transparent; border-radius: 10px; padding: 4px 6px; }
@@ -121,8 +123,8 @@
 /* Current trick in the middle */
 .ap-center {
   display: grid; grid-template-areas: ". tn ." "tw tc te" ". ts .";
-  gap: 3px; padding: 8px; border-radius: 10px; background: #eef3ee; border: 1px solid var(--line);
-  min-width: 118px; justify-items: center; align-items: center;
+  gap: 4px; padding: 10px; border-radius: 10px; background: #eef3ee; border: 1px solid var(--line);
+  min-width: 134px; min-height: 134px; justify-items: center; align-items: center; align-content: center;
 }
 .ap-tcard { grid-area: tc; }
 .ap-tc-n { grid-area: tn; } .ap-tc-e { grid-area: te; } .ap-tc-s { grid-area: ts; } .ap-tc-w { grid-area: tw; }
@@ -143,7 +145,9 @@
 
 .ap-zone {
   border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: #fbfcfd;
-  min-width: 108px;
+  /* Roomy by default: a six-card suit fits on one line (16px symbol + 6×34px
+     chips + gaps + padding); longer suits wrap and the tray grows. */
+  min-width: 254px;
 }
 .ap-zone.ok { background: #fff; }
 .ap-zone.short { background: #fdf7e6; border-color: #e4cf8e; }
@@ -251,7 +255,11 @@
   .site-nav { flex-wrap: wrap; }
   .site-nav .nav-link { min-width: calc(50% - 40px); flex: 1 1 40%; }
   #app { padding: 14px 10px 40px; }
-  .ap-compass { gap: 5px; grid-template-columns: minmax(96px, 1fr) auto minmax(96px, 1fr); }
+  .ap-compass { gap: 5px; }
+  /* Two 254px trays cannot share a phone screen — equal columns instead,
+     with long suits wrapping inside the tray. */
+  .ap-zone { min-width: 0; }
+  .ap-center { min-width: 104px; min-height: 104px; }
   .ap-card { width: 31px; height: 38px; font-size: 15px; }
   .ap-suitrow { gap: 2px; min-height: 38px; }
 }

@@ -754,7 +754,9 @@ function renderAnalysis(): void {
   const contract = state.contract;
   const view = contract ? computePlay(deal, contract, state.plays) : null;
 
-  // Per-card DD lookup for the seat to move.
+  // Per-card DD lookup for the seat to move. Badges show the side's TOTAL
+  // tricks (already won + future from this card), so the numbers stay on one
+  // scale for the whole hand instead of counting down to zero.
   const scoreByCard = new Map<Card, number>();
   let maxScore = -1;
   if (scores) {
@@ -763,6 +765,9 @@ function renderAnalysis(): void {
       if (s.score > maxScore) maxScore = s.score;
     }
   }
+  const moverBase = view && contract && view.toPlay !== null
+    ? (view.toPlay % 2 === contract.declarer % 2 ? view.declarerTricks : view.defenderTricks)
+    : 0;
 
   // ---- Header row
   const contractChip = h('button', {
@@ -832,7 +837,7 @@ function renderAnalysis(): void {
           onclick: () => playCard(card),
         }, [
           RANK_LABELS[rankOf(card)],
-          ...(s !== undefined ? [h('span', { class: 'dd' }, [String(s)])] : []),
+          ...(s !== undefined ? [h('span', { class: 'dd' }, [String(moverBase + s)])] : []),
         ]);
       });
       return h('div', { class: 'ap-suitrow' }, [
@@ -948,7 +953,7 @@ function renderAnalysis(): void {
   if (history) kids.push(h('div', {}, [history]));
   kids.push(makeable);
   kids.push(h('p', { class: 'ap-hintline' }, [
-    'Card numbers show the tricks that side can still take, double dummy — green keeps the maximum, amber/red costs tricks. Tap any highlighted card to play it.',
+    'Card numbers show the total tricks that side finishes with, double dummy, if it plays that card — green keeps the maximum, amber/red costs tricks. Tap any highlighted card to play it.',
   ]));
   analysisBox.replaceChildren(...kids);
   if (history) history.scrollLeft = history.scrollWidth; // keep the newest trick in view
