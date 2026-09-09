@@ -2,7 +2,7 @@ import { h } from './dom';
 
 // 'lab' and 'calendar' are no longer linked in the nav, but their standalone
 // pages still call siteNav() with those keys, so they stay in the union.
-type NavKey = 'deal' | 'play' | 'odds' | 'lab' | 'bidding' | 'calendar' | 'compare';
+type NavKey = 'deal' | 'play' | 'odds' | 'lab' | 'bidding' | 'calendar' | 'compare' | 'wesbot';
 
 /** Top navigation shared by the app's pages. */
 export function siteNav(active: NavKey): HTMLElement {
@@ -29,6 +29,7 @@ export function siteNav(active: NavKey): HTMLElement {
     link('./odds.html', 'WesOdds', 'Suit break calculator', 'odds'),
     link('./bidding.html', 'WesData', 'Championship Data', 'bidding'),
     link('./comp.html', 'WesComp', 'Which opening wins?', 'compare'),
+    link('https://play.wesbridge.net', 'WesBot', 'Practice table', 'wesbot'),
     rank,
   ]);
 }
