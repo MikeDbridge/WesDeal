@@ -1,0 +1,265 @@
+/* WesPlay (analyze.html): import panel, review grid, and the play-out view.
+   Mobile-first: the page is mostly used on a phone, so touch targets are big,
+   the compass compacts gracefully, and the play controls stick to the bottom. */
+
+/* ---- Import panel ---------------------------------------------------------- */
+
+.ap-import-text {
+  width: 100%; min-height: 108px; resize: vertical;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #fff; color: var(--ink);
+}
+.ap-import-text:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.ap-import.dragover .ap-import-text { outline: 2px dashed var(--accent); outline-offset: -1px; background: #f2faf4; }
+
+.ap-import-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.ap-feedback { font-size: 13px; min-height: 19px; }
+.ap-feedback .ok { color: var(--accent); font-weight: 600; }
+.ap-feedback .bad { color: var(--red); font-weight: 600; }
+.ap-note { color: var(--muted); font-size: 12.5px; margin: 4px 0 0; }
+
+.ap-examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+.ap-examples-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ---- Buttons --------------------------------------------------------------- */
+
+.ap-btn {
+  font: inherit; font-size: 13.5px; padding: 7px 14px; border: 1px solid var(--line);
+  border-radius: 8px; background: #fff; color: var(--ink); cursor: pointer; white-space: nowrap;
+}
+.ap-btn:hover { border-color: var(--accent); }
+.ap-btn:disabled { opacity: 0.45; cursor: default; }
+.ap-btn:disabled:hover { border-color: var(--line); }
+.ap-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.ap-btn.small { font-size: 12.5px; padding: 4px 10px; }
+
+/* ---- Review grid ----------------------------------------------------------- */
+
+.ap-grid-scroll { overflow-x: auto; margin-top: 12px; }
+.ap-grid { border-collapse: collapse; width: 100%; min-width: 430px; }
+.ap-grid th { font-size: 12px; color: var(--muted); font-weight: 600; padding: 3px 6px; text-align: left; }
+.ap-grid th.red { color: var(--red); }
+.ap-grid td { padding: 3px 6px 3px 0; }
+.ap-grid td.ap-seat { font-weight: 700; width: 26px; padding-right: 8px; }
+.ap-grid input {
+  width: 100%; min-width: 74px; padding: 7px 8px;
+  border: 1px solid var(--line); border-radius: 6px; background: #fff;
+  font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.ap-grid input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.ap-grid tr.bad input { border-color: var(--red); }
+.ap-grid .ap-count { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ap-grid .ap-count.ok { color: var(--accent); font-weight: 700; }
+.ap-grid .ap-count.bad { color: var(--red); font-weight: 700; }
+.ap-errors { margin: 8px 0 0; color: var(--red); font-size: 12.5px; }
+.ap-errors div { margin-top: 2px; }
+.ap-missing { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+.ap-missing b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
+
+.ap-meta { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 12px; }
+.ap-meta label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.ap-select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
+
+/* ---- Analysis: board strip ------------------------------------------------- */
+
+.ap-board-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin-bottom: 10px; }
+.ap-contract-chip {
+  font-weight: 800; font-size: 17px; padding: 5px 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: #fff; cursor: pointer;
+}
+.ap-contract-chip:hover { border-color: var(--accent); }
+.ap-board-info { color: var(--muted); font-size: 13px; }
+.ap-tricks { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ap-dd-line { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ap-dd-line b { color: var(--ink); }
+
+/* ---- Compass and hands ----------------------------------------------------- */
+
+.ap-compass {
+  display: grid; gap: 8px;
+  grid-template-areas: "n n n" "w c e" "s s s";
+  /* Equal side columns keep the centre box dead-centre whatever W/E hold. */
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start; justify-items: start; margin-top: 4px;
+}
+.ap-pos-n { grid-area: n; } .ap-pos-e { grid-area: e; } .ap-pos-s { grid-area: s; }
+.ap-pos-w { grid-area: w; }
+/* North and South sit centred over the diagram; West/East fill their columns. */
+.ap-pos-n, .ap-pos-s { justify-self: center; }
+.ap-pos-w, .ap-pos-e { justify-self: stretch; }
+.ap-pos-c { grid-area: c; align-self: center; justify-self: center; }
+
+.ap-hand { border: 1px solid transparent; border-radius: 10px; padding: 4px 6px; }
+.ap-hand.turn { border-color: var(--accent); background: #f4faf6; }
+.ap-hand-name { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 2px 2px; }
+.ap-hand.turn .ap-hand-name { color: var(--accent); }
+.ap-hand-name .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-left: 5px; vertical-align: 1px; }
+
+.ap-suitrow { display: flex; align-items: center; gap: 3px; min-height: 40px; flex-wrap: wrap; }
+.ap-suitrow .sym { width: 16px; text-align: center; font-size: 14px; flex: none; }
+
+.ap-card {
+  position: relative; flex: none;
+  width: 34px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 7px;
+  background: #fff; cursor: pointer; font: 700 16px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink); box-shadow: 0 1px 1px rgba(20, 30, 45, 0.08);
+  display: inline-flex; align-items: flex-start; justify-content: center; padding-top: 5px;
+}
+.ap-card.red { color: var(--red); }
+.ap-card:disabled { cursor: default; opacity: 0.42; box-shadow: none; }
+.ap-card .dd {
+  position: absolute; left: 0; right: 0; bottom: 2px;
+  font-size: 9.5px; font-weight: 700; line-height: 1; color: var(--muted);
+}
+.ap-card.best { border-color: var(--accent); background: #e6f4ea; }
+.ap-card.best .dd { color: var(--accent); }
+.ap-card.cost1 { border-color: #d9b23c; background: #fbf3dc; }
+.ap-card.cost1 .dd { color: #8a5a1a; }
+.ap-card.cost2 { border-color: #d98a7a; background: #fbe7e2; }
+.ap-card.cost2 .dd { color: var(--red); }
+
+/* Current trick in the middle */
+.ap-center {
+  display: grid; grid-template-areas: ". tn ." "tw tc te" ". ts .";
+  gap: 4px; padding: 10px; border-radius: 10px; background: #eef3ee; border: 1px solid var(--line);
+  min-width: 134px; min-height: 134px; justify-items: center; align-items: center; align-content: center;
+}
+.ap-tcard { grid-area: tc; }
+.ap-tc-n { grid-area: tn; } .ap-tc-e { grid-area: te; } .ap-tc-s { grid-area: ts; } .ap-tc-w { grid-area: tw; }
+.ap-tc {
+  min-width: 33px; height: 38px; border-radius: 6px; border: 1px solid var(--line); background: #fff;
+  display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+  font: 700 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0 4px;
+  box-shadow: 0 1px 1px rgba(20, 30, 45, 0.1);
+}
+.ap-tc.empty { border-style: dashed; background: transparent; box-shadow: none; color: #b9c1cb; font-size: 10px; font-weight: 600; }
+.ap-tc.led { border-color: var(--accent); }
+.ap-tc.prev { opacity: 0.5; }
+.ap-tc.prev.won { opacity: 0.9; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ap-tc .red { color: var(--red); }
+.ap-tc-mid { grid-area: tc; font-size: 11px; color: var(--muted); text-align: center; }
+
+/* ---- Setup: card-layout editor ---------------------------------------------- */
+
+.ap-zone {
+  border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: #fbfcfd;
+  /* Roomy by default: a six-card suit fits on one line (16px symbol + 6×34px
+     chips + gaps + padding); longer suits wrap and the tray grows. */
+  min-width: 254px;
+}
+.ap-zone.ok { background: #fff; }
+.ap-zone.short { background: #fdf7e6; border-color: #e4cf8e; }
+.ap-zone.over { background: #fdedea; border-color: #e2a89e; }
+.ap-zone.droptarget { outline: 2px solid var(--accent); outline-offset: -1px; background: #eef7f1; }
+
+.ap-zone-head { display: flex; align-items: center; gap: 8px; margin: 0 0 3px 2px; min-height: 24px; }
+.ap-zcount { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ap-zcount small { font-weight: 500; color: var(--muted); font-size: 10px; }
+.ap-zcount.ok { color: var(--accent); }
+.ap-zcount.bad { color: #a2681a; }
+.ap-zone.over .ap-zcount.bad { color: var(--red); }
+
+.ap-move-pill {
+  font: 600 11.5px/1 inherit; font-family: inherit; padding: 5px 9px;
+  border: 1px solid var(--accent); border-radius: 999px; background: #e6f4ea; color: var(--accent);
+  cursor: pointer; white-space: nowrap;
+}
+.ap-move-pill:hover { background: var(--accent); color: var(--accent-ink); }
+
+.ap-card.grab { touch-action: none; cursor: grab; -webkit-user-select: none; user-select: none; }
+.ap-card.sel { outline: 2px solid var(--accent); outline-offset: 1px; background: #e6f4ea; }
+.ap-card.drag-src { opacity: 0.35; }
+
+.ap-ghost {
+  position: fixed; z-index: 60; pointer-events: none;
+  min-width: 38px; height: 44px; padding: 0 6px; border-radius: 8px;
+  border: 1px solid var(--accent); background: #fff;
+  display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+  font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  box-shadow: 0 6px 16px rgba(20, 30, 45, 0.28); transform: scale(1.08);
+}
+.ap-ghost.red { color: var(--red); }
+
+.ap-pool { margin-top: 10px; }
+.ap-pool.empty { border-style: dashed; background: #fbfcfd; }
+.ap-pool-hint { color: #aeb6c0; font-size: 12.5px; margin: 4px 2px 6px; }
+
+.ap-center-sel { margin-top: 4px; font-weight: 700; color: var(--ink); font-size: 12px; }
+.ap-center-sel .red { color: var(--red); }
+.ap-tc-mid .ok { color: var(--accent); font-weight: 700; }
+
+.ap-launcher { margin-top: 14px; }
+.ap-launcher .ap-btn.primary { margin: 0 8px 10px 0; }
+.ap-launch-hint { margin-top: 12px; }
+
+/* ---- Play controls (sticky on phones) -------------------------------------- */
+
+.ap-controls {
+  position: sticky; bottom: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 10px 12px; margin: 14px -16px -16px; border-top: 1px solid var(--line);
+  background: var(--panel);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(6px); border-radius: 0 0 10px 10px;
+}
+.ap-controls .spacer { flex: 1; }
+.ap-hintline { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+
+/* ---- Makeable table + par --------------------------------------------------- */
+
+.ap-dd-table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ap-dd-table th { font-size: 13px; color: var(--muted); font-weight: 600; padding: 4px 8px; text-align: center; }
+.ap-dd-table th.red { color: var(--red); }
+.ap-dd-table td {
+  text-align: center; padding: 6px 8px; min-width: 40px; border: 1px solid var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; background: #fff;
+}
+.ap-dd-table td:hover { background: #f2f5f8; }
+.ap-dd-table td.make { font-weight: 700; }
+.ap-dd-table td.sel { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.ap-par { margin: 10px 0 0; font-size: 13.5px; }
+.ap-par b { font-variant-numeric: tabular-nums; }
+
+/* ---- Contract picker -------------------------------------------------------- */
+
+.ap-picker { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfd; }
+.ap-picker-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.ap-picker-row:first-child { margin-top: 0; }
+.ap-picker-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; width: 100%; }
+.ap-pick {
+  min-width: 40px; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: #fff; font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1; cursor: pointer;
+}
+.ap-pick.red { color: var(--red); }
+.ap-pick.sel { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* ---- Trick history ---------------------------------------------------------- */
+
+.ap-history { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 6px; }
+.ap-trick {
+  flex: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: #fff;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; text-align: left;
+}
+.ap-trick:hover { border-color: var(--accent); }
+.ap-trick .tno { color: var(--muted); font-size: 10.5px; }
+.ap-trick .win { font-weight: 700; }
+.ap-trick .decl { color: var(--accent); }
+.ap-result-final { font-size: 15px; font-weight: 700; margin: 8px 0 0; }
+.ap-result-final .score { font-variant-numeric: tabular-nums; }
+
+/* ---- Small screens ---------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .site-nav { flex-wrap: wrap; }
+  .site-nav .nav-link { min-width: calc(50% - 40px); flex: 1 1 40%; }
+  #app { padding: 14px 10px 40px; }
+  .ap-compass { gap: 5px; }
+  /* Two 254px trays cannot share a phone screen — equal columns instead,
+     with long suits wrapping inside the tray. */
+  .ap-zone { min-width: 0; }
+  .ap-center { min-width: 104px; min-height: 104px; }
+  .ap-card { width: 31px; height: 38px; font-size: 15px; }
+  .ap-suitrow { gap: 2px; min-height: 38px; }
+}
