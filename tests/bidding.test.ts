@@ -24,7 +24,13 @@ import {
   classifyRespStyle,
   respHandType,
   textureIndex,
+  matchesRule,
+  deriveConventionalShape,
+  twoLowestUnbid,
+  percentileOf,
+  BREADTHS,
   type SeatFeatures,
+  type BidRule,
   type MatchVp,
 } from '../research/bidding/lib';
 import { compileFilter, type HandContext } from '../src/engine/filter';
@@ -38,6 +44,7 @@ function feat(
   const sorted = [...len].sort((a, b) => b - a);
   return {
     hcp,
+    knr: hcp,
     len,
     akq: opts.akq ?? [1, 1, 1, 1],
     akqjt: opts.akqjt ?? opts.akq ?? [1, 1, 1, 1],
@@ -523,5 +530,122 @@ describe('classifyPair', () => {
   });
   it('median works for even counts', () => {
     expect(median([1, 2, 3, 4])).toBe(2.5);
+  });
+});
+
+describe('matchesRule', () => {
+  // A (1S)-style overcall box: 5+ spades, top(s,5)>=1, hcp 7..15.
+  const box: BidRule = {
+    common: [{ suit: 0, min: 5 }],
+    quality: { suit: 0, minTop5: 1 },
+    anyOf: [{ label: 'any', hcp: { min: 7, max: 15 } }],
+    filterExpr: '',
+  };
+  it('accepts a hand inside the box', () => {
+    expect(matchesRule(box, feat([5, 3, 3, 2], 11, { akqjt: [2, 0, 0, 0] }))).toBe(true);
+  });
+  it('rejects on suit length, quality, and both HCP tails', () => {
+    expect(matchesRule(box, feat([4, 4, 3, 2], 11, { akqjt: [2, 0, 0, 0] }))).toBe(false); // <5 spades
+    expect(matchesRule(box, feat([5, 3, 3, 2], 11, { akqjt: [0, 0, 0, 0] }))).toBe(false); // no top-5 card
+    expect(matchesRule(box, feat([5, 3, 3, 2], 6, { akqjt: [2, 0, 0, 0] }))).toBe(false); // too weak
+    expect(matchesRule(box, feat([5, 3, 3, 2], 16, { akqjt: [2, 0, 0, 0] }))).toBe(false); // too strong
+  });
+  it('qualityWeak binds only below 11 HCP', () => {
+    const rule: BidRule = {
+      common: [{ suit: 0, min: 5 }],
+      qualityWeak: { suit: 0, minTop5: 2 },
+      anyOf: [{ label: 'any', hcp: { min: 5, max: 16 } }],
+      filterExpr: '',
+    };
+    expect(matchesRule(rule, feat([5, 3, 3, 2], 8, { akqjt: [1, 0, 0, 0] }))).toBe(false); // weak + thin suit
+    expect(matchesRule(rule, feat([5, 3, 3, 2], 8, { akqjt: [2, 0, 0, 0] }))).toBe(true); // weak + sound suit
+    expect(matchesRule(rule, feat([5, 3, 3, 2], 13, { akqjt: [1, 0, 0, 0] }))).toBe(true); // sound values excuse it
+  });
+  it('satisfies with at least one branch (their-suit split)', () => {
+    const rule: BidRule = {
+      common: [{ suit: 0, min: 5 }],
+      anyOf: [
+        { label: 'short in theirs', hcp: { min: 7, max: 17 }, suit: [{ suit: 2, max: 2 }] },
+        { label: 'length in theirs', hcp: { min: 9, max: 17 }, suit: [{ suit: 2, min: 3 }] },
+      ],
+      filterExpr: '',
+    };
+    expect(matchesRule(rule, feat([5, 4, 2, 2], 7))).toBe(true); // short branch, 7 ok
+    expect(matchesRule(rule, feat([5, 2, 3, 3], 7))).toBe(false); // length branch needs 9
+    expect(matchesRule(rule, feat([5, 2, 3, 3], 9))).toBe(true); // length branch, 9 ok
+  });
+});
+
+describe('twoLowestUnbid', () => {
+  it('returns the two lowest-ranked suits other than the opener', () => {
+    // Engine idx 0=♠ 1=♥ 2=♦ 3=♣; ascending rank ♣<♦<♥<♠.
+    expect(twoLowestUnbid(3)).toEqual([2, 1]); // 1♣ opened → ♦,♥
+    expect(twoLowestUnbid(2)).toEqual([3, 1]); // 1♦ opened → ♣,♥
+    expect(twoLowestUnbid(1)).toEqual([3, 2]); // 1♥ opened → ♣,♦
+    expect(twoLowestUnbid(0)).toEqual([3, 2]); // 1♠ opened → ♣,♦
+  });
+});
+
+describe('deriveConventionalShape', () => {
+  // Feed an Agg the hands that made a bid, then check the detected shape.
+  const build = (hands: SeatFeatures[], theirSuit: number): Agg => {
+    const agg = new Agg();
+    for (const f of hands) agg.add(f, null, theirSuit, false);
+    return agg;
+  };
+  it('detects unusual 2NT as the two lowest unbid suits (5-5)', () => {
+    // Over 1♣ (theirSuit=3): field holds ♦+♥ 5-5.
+    const hands = Array.from({ length: 40 }, () => feat([2, 5, 5, 1], 9));
+    const rule = deriveConventionalShape(build(hands, 3), 3);
+    expect(rule).not.toBeNull();
+    expect(matchesRule(rule!, feat([2, 5, 5, 1], 9))).toBe(true); // 5-5 red
+    expect(matchesRule(rule!, feat([5, 5, 2, 1], 9))).toBe(false); // 5-5 majors, not the shape
+  });
+  it('unions a two-way jump (both majors OR a long suit)', () => {
+    // Over 1♣: half the field has 5-5 majors, half has 6+ diamonds.
+    const hands = [
+      ...Array.from({ length: 20 }, () => feat([5, 5, 2, 1], 10)),
+      ...Array.from({ length: 20 }, () => feat([2, 2, 6, 3], 9)),
+    ];
+    const rule = deriveConventionalShape(build(hands, 3), 3);
+    expect(rule).not.toBeNull();
+    expect(matchesRule(rule!, feat([5, 5, 2, 1], 10))).toBe(true); // majors leg
+    expect(matchesRule(rule!, feat([2, 2, 6, 3], 9))).toBe(true); // long-diamond leg
+    expect(matchesRule(rule!, feat([3, 3, 4, 3], 9))).toBe(false); // neither
+  });
+  it('returns null for a shapeless (balanced) field', () => {
+    const hands = Array.from({ length: 40 }, () => feat([4, 3, 3, 3], 15));
+    expect(deriveConventionalShape(build(hands, 1), 1)).toBeNull();
+  });
+});
+
+describe('breadth presets', () => {
+  it('percentileOf reads nearest-rank percentiles off a histogram', () => {
+    const hist = new Uint32Array(20);
+    for (let v = 5; v <= 14; v++) hist[v] = 10; // uniform 5..14, n=100
+    expect(percentileOf(hist, 0.05)).toBe(5);
+    expect(percentileOf(hist, 0.5)).toBe(9);
+    expect(percentileOf(hist, 0.99)).toBe(14);
+    expect(percentileOf(new Uint32Array(5), 0.5)).toBe(0); // empty
+  });
+  it('conservative narrows and aggressive widens the HCP band', () => {
+    const agg = new Agg();
+    for (let hcp = 5; hcp <= 18; hcp++)
+      for (let k = 0; k < 20; k++) agg.add(feat([5, 3, 3, 2], hcp), 0, null, false);
+    const band = (name: string): { min: number; max: number } => {
+      const b = BREADTHS.find((x) => x.name === name)!;
+      const rule = deriveSuitBidRule(agg, 0, null, false, b);
+      const mins = rule.anyOf.map((br) => br.hcp.min);
+      const maxs = rule.anyOf.map((br) => br.hcp.max ?? 40);
+      return { min: Math.min(...mins), max: Math.max(...maxs) };
+    };
+    const cons = band('conservative');
+    const norm = band('normal');
+    const aggr = band('aggressive');
+    expect(cons.min).toBeGreaterThan(aggr.min); // tighter floor
+    expect(cons.max).toBeLessThan(aggr.max); // tighter ceiling
+    expect(norm.min).toBeGreaterThanOrEqual(aggr.min);
+    expect(norm.min).toBeLessThanOrEqual(cons.min);
+    expect(norm.max).toBeLessThanOrEqual(aggr.max);
   });
 });

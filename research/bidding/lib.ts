@@ -12,6 +12,7 @@
  */
 
 import { HCP_BY_CARD } from '../../src/engine/cards';
+import { knrPoints } from '../../src/engine/knr';
 import { SEATS, type Seat } from '../../src/engine/deal';
 import { parsePBN } from '../lib';
 
@@ -159,6 +160,8 @@ export function checkAuction(
 
 export interface SeatFeatures {
   hcp: number;
+  /** Kaplan-Rubens hand valuation (honour-quality + shape aware). */
+  knr: number;
   /** Suit lengths, engine order 0=♠ 1=♥ 2=♦ 3=♣. */
   len: number[];
   /** Count of A/K/Q per suit. */
@@ -241,7 +244,7 @@ export function featuresFromPbn(pbn: string): SeatFeatures[] {
     const sorted = [...len].sort((a, b) => b - a);
     const balanced =
       sorted[3] >= 2 && sorted[0] <= 5 && !(sorted[0] === 5 && sorted[1] === 4);
-    return { hcp, len, akq, akqjt, txi, stop, balanced };
+    return { hcp, knr: knrPoints(cards), len, akq, akqjt, txi, stop, balanced };
   });
 }
 
@@ -466,6 +469,8 @@ export class Agg {
   maxMajHist = new Uint32Array(14);
   minMinHist = new Uint32Array(14);
   maxMinHist = new Uint32Array(14);
+  /** Min length among the two lowest-ranked UNBID suits (unusual-NT shape). */
+  twoLowUnbidMinHist = new Uint32Array(14);
   /**
    * Mutually-exclusive shape patterns for convention detection:
    * 0 = both majors 4+, 1 = else a 5+ major, 2 = else a 5+ minor, 3 = rest.
@@ -516,6 +521,8 @@ export class Agg {
     this.patternHist[pattern]++;
     this.respTypeHist[respHandType(f)]++;
     if (theirSuit !== null && theirSuit < 4) {
+      const [lo1, lo2] = twoLowestUnbid(theirSuit);
+      this.twoLowUnbidMinHist[Math.min(f.len[lo1], f.len[lo2])]++;
       if (!this.hcpByTheirLen) this.hcpByTheirLen = new Uint32Array(4 * (MAX_HCP + 1));
       this.hcpByTheirLen[theirLenBucket(f.len[theirSuit]) * (MAX_HCP + 1) + f.hcp]++;
       this.theirN++;
@@ -564,6 +571,7 @@ export class Agg {
       this.maxMajHist[l] += o.maxMajHist[l];
       this.minMinHist[l] += o.minMinHist[l];
       this.maxMinHist[l] += o.maxMinHist[l];
+      this.twoLowUnbidMinHist[l] += o.twoLowUnbidMinHist[l];
     }
     for (let p = 0; p < 4; p++) this.patternHist[p] += o.patternHist[p];
     for (let r = 0; r < RESP_TYPES.length; r++) this.respTypeHist[r] += o.respTypeHist[r];
@@ -829,10 +837,74 @@ function buildExpr(rule: Omit<BidRule, 'filterExpr'>): string {
   return all.join(' and ');
 }
 
-/** Percentile-based HCP range [p5, p95] of a histogram. */
-function hcpRange(hist: ArrayLike<number>): { min: number; max: number } {
-  const st = histStats(hist);
-  return { min: st.p[0], max: st.p[6] };
+/**
+ * Does a hand's features satisfy a derived rule? Evaluates the structured form
+ * directly (common + quality + stopper + one branch), mirroring buildExpr, so
+ * the filter-accuracy audit can test box-membership without a rank mask. The
+ * `balanced` flag (a dealer toggle, not part of filterExpr) is included when set.
+ */
+export function matchesRule(rule: BidRule, f: SeatFeatures): boolean {
+  const condOk = (c: SuitCond): boolean =>
+    (c.min === undefined || f.len[c.suit] >= c.min) &&
+    (c.max === undefined || f.len[c.suit] <= c.max);
+  for (const c of rule.common) if (!condOk(c)) return false;
+  if (rule.quality && f.akqjt[rule.quality.suit] < rule.quality.minTop5) return false;
+  if (
+    rule.qualityWeak &&
+    !(f.hcp >= 11 || f.akqjt[rule.qualityWeak.suit] >= rule.qualityWeak.minTop5)
+  )
+    return false;
+  if (rule.stopper !== undefined && !f.stop[rule.stopper]) return false;
+  if (rule.balanced && !f.balanced) return false;
+  return rule.anyOf.some(
+    (b) =>
+      f.hcp >= b.hcp.min &&
+      (b.hcp.max === undefined || f.hcp <= b.hcp.max) &&
+      (b.suit ?? []).every(condOk),
+  );
+}
+
+/** Nearest-rank percentile `q` (0..1) of a histogram (value = index). */
+export function percentileOf(hist: ArrayLike<number>, q: number): number {
+  let n = 0;
+  for (let v = 0; v < hist.length; v++) n += hist[v];
+  if (n === 0) return 0;
+  const target = q * n;
+  let cum = 0;
+  let last = 0;
+  for (let v = 0; v < hist.length; v++) {
+    if (hist[v] > 0) last = v;
+    cum += hist[v];
+    if (cum >= target) return v;
+  }
+  return last;
+}
+
+/**
+ * Filter breadth — how much of the observed range a derived rule admits. The
+ * field's overcall RANGE is essentially style-invariant (conservative and
+ * aggressive pairs bid the same hands, only at different rates), so these are
+ * coverage levels of that one shared range, not player archetypes: `conservative`
+ * keeps the high-confidence core, `aggressive` reaches the observed extremes.
+ * `loQ`/`hiQ` set the HCP band; `shapeCov` sets the suit-length / quality floors
+ * (higher coverage ⇒ looser floor, admitting the fringe such as 4-card suits).
+ */
+export interface Breadth {
+  name: 'conservative' | 'normal' | 'aggressive';
+  loQ: number;
+  hiQ: number;
+  shapeCov: number;
+}
+export const BREADTHS: readonly Breadth[] = [
+  { name: 'conservative', loQ: 0.2, hiQ: 0.87, shapeCov: 0.65 },
+  { name: 'normal', loQ: 0.05, hiQ: 0.95, shapeCov: 0.9 },
+  { name: 'aggressive', loQ: 0.01, hiQ: 0.99, shapeCov: 0.97 },
+];
+export const NORMAL_BREADTH: Breadth = BREADTHS[1];
+
+/** Percentile HCP range of a histogram, at the given breadth's quantiles. */
+function hcpRange(hist: ArrayLike<number>, b: Breadth = NORMAL_BREADTH): { min: number; max: number } {
+  return { min: percentileOf(hist, b.loQ), max: percentileOf(hist, b.hiQ) };
 }
 
 /**
@@ -843,14 +915,15 @@ function hcpRange(hist: ArrayLike<number>): { min: number; max: number } {
 function qualityClauses(
   agg: Agg,
   bidSuit: number,
+  b: Breadth = NORMAL_BREADTH,
 ): { quality?: BidRule['quality']; qualityWeak?: BidRule['qualityWeak'] } {
   const total = agg.qualHist.reduce((a, b) => a + b, 0);
   if (total < 25) return {};
   const weakN = agg.qualWeakHist.reduce((a, b) => a + b, 0);
   const soundN = agg.qualSoundHist.reduce((a, b) => a + b, 0);
   if (weakN >= 25 && soundN >= 25) {
-    const weakMin = minLenAtCoverage(agg.qualWeakHist, 0.9);
-    const soundMin = minLenAtCoverage(agg.qualSoundHist, 0.9);
+    const weakMin = minLenAtCoverage(agg.qualWeakHist, b.shapeCov);
+    const soundMin = minLenAtCoverage(agg.qualSoundHist, b.shapeCov);
     if (weakMin > soundMin) {
       return {
         quality: soundMin >= 1 ? { suit: bidSuit, minTop5: soundMin } : undefined,
@@ -858,8 +931,96 @@ function qualityClauses(
       };
     }
   }
-  const overall = minLenAtCoverage(agg.qualHist, 0.9);
+  const overall = minLenAtCoverage(agg.qualHist, b.shapeCov);
   return overall >= 1 ? { quality: { suit: bidSuit, minTop5: overall } } : {};
+}
+
+/** Engine indices of the two lowest-ranked suits other than `theirSuit`. */
+export function twoLowestUnbid(theirSuit: number): [number, number] {
+  const rankAsc = [3, 2, 1, 0]; // ♣ ♦ ♥ ♠ (lowest first)
+  const unbid = rankAsc.filter((s) => s !== theirSuit);
+  return [unbid[0], unbid[1]];
+}
+
+/** Fraction of a length histogram at or above `k`. */
+function shareAtLeast(hist: ArrayLike<number>, k: number): number {
+  let total = 0;
+  let at = 0;
+  for (let l = 0; l < hist.length; l++) {
+    total += hist[l];
+    if (l >= k) at += hist[l];
+  }
+  return total === 0 ? 0 : at / total;
+}
+
+const CONV_SHAPE_MIN_SHARE = 0.3;
+
+/**
+ * Shape for a conventional / two-suited overcall the natural derivation cannot
+ * pin down: unusual 2NT, a jump cue, or a jump the field plays two ways. Detects
+ * which shape components the hands actually hold — the two lowest unbid suits 5+,
+ * both majors 4+, or a single 6+ suit — and unions those covering ≥30%. Returns
+ * null when nothing is common enough, so a genuinely formless bid stays an HCP
+ * range rather than gaining a made-up shape.
+ */
+export function deriveConventionalShape(
+  agg: Agg,
+  theirSuit: number | null,
+  b: Breadth = NORMAL_BREADTH,
+): BidRule | null {
+  if (agg.n < 25 || theirSuit === null || theirSuit >= 4) return null;
+  const whole = hcpRange(agg.hcpHist, b);
+  const [lo1, lo2] = twoLowestUnbid(theirSuit);
+  interface Comp {
+    label: string;
+    conds: SuitCond[];
+    share: number;
+  }
+  const comps: Comp[] = [
+    {
+      label: `${SUIT_CHAR[lo1]}+${SUIT_CHAR[lo2]} 5+`,
+      conds: [
+        { suit: lo1, min: 5 },
+        { suit: lo2, min: 5 },
+      ],
+      share: shareAtLeast(agg.twoLowUnbidMinHist, 5),
+    },
+  ];
+  // Both majors 4+ (majors two-suiter) — only when neither major is the opening.
+  if (theirSuit !== 0 && theirSuit !== 1) {
+    comps.push({
+      label: 'both majors 4+',
+      conds: [
+        { suit: 0, min: 4 },
+        { suit: 1, min: 4 },
+      ],
+      share: shareAtLeast(agg.minMajHist, 4),
+    });
+  }
+  // A single natural 6+ suit (weak jump overcall, or a two-way jump's natural leg).
+  for (let s = 0; s < 4; s++) {
+    comps.push({ label: `${SUIT_CHAR[s]} 6+`, conds: [{ suit: s, min: 6 }], share: shareAtLeast(agg.lenHist[s], 6) });
+  }
+  const kept: Comp[] = [];
+  for (const c of comps.filter((x) => x.share >= CONV_SHAPE_MIN_SHARE).sort((a, b) => b.share - a.share)) {
+    // A lone-suit branch already covered by a kept two-suiter is not a separate
+    // shape — it is that two-suiter's marginal, and standalone it over-accepts
+    // one-suiters (e.g. a spurious "h6+" leg beside a real ♣+♥ two-suiter).
+    if (
+      c.conds.length === 1 &&
+      kept.some((k) => k.conds.length === 2 && k.conds.some((kc) => kc.suit === c.conds[0].suit))
+    ) {
+      continue;
+    }
+    kept.push(c);
+    if (kept.length >= 3) break;
+  }
+  if (kept.length === 0) return null;
+  const rule: Omit<BidRule, 'filterExpr'> = {
+    anyOf: kept.map((c) => ({ label: c.label, hcp: whole, suit: c.conds })),
+    common: [],
+  };
+  return { ...rule, filterExpr: buildExpr(rule) };
 }
 
 /**
@@ -875,8 +1036,9 @@ export function deriveSuitBidRule(
   bidSuit: number,
   theirSuit: number | null,
   facingNT = false,
+  b: Breadth = NORMAL_BREADTH,
 ): BidRule {
-  const whole = hcpRange(agg.hcpHist);
+  const whole = hcpRange(agg.hcpHist, b);
   // Cue bid → two-suited: lengths live in the other suits.
   if (theirSuit !== null && bidSuit === theirSuit) {
     const common: SuitCond[] = [];
@@ -904,6 +1066,12 @@ export function deriveSuitBidRule(
         return { ...rule, filterExpr: buildExpr(rule) };
       }
     }
+    // No clean two-suiter found — detect the field's actual shape(s) before
+    // falling back to a shapeless HCP range (e.g. a cue the field plays two ways).
+    if (common.length === 0) {
+      const conv = deriveConventionalShape(agg, theirSuit, b);
+      if (conv) return conv;
+    }
     const rule: Omit<BidRule, 'filterExpr'> = {
       anyOf: [{ label: 'two-suiter', hcp: whole }],
       common,
@@ -911,7 +1079,14 @@ export function deriveSuitBidRule(
     return { ...rule, filterExpr: buildExpr(rule) };
   }
 
-  const bidMin = minLenAtCoverage(agg.lenHist[bidSuit], 0.9);
+  const bidMin = minLenAtCoverage(agg.lenHist[bidSuit], b.shapeCov);
+
+  // A jump / conventional overcall with no natural suit at coverage: detect the
+  // two-suiter or long-suit shape the field holds instead of an HCP range.
+  if (!facingNT && bidMin < 3) {
+    const conv = deriveConventionalShape(agg, theirSuit, b);
+    if (conv) return conv;
+  }
 
   // Suit bid over a NT opening whose own suit is NOT long: conventional.
   // Detect the shape the field actually holds (defence-to-1NT conventions).
@@ -1002,7 +1177,7 @@ export function deriveSuitBidRule(
           { label: `with ♣${secondMin}+`, hcp: whole, suit: [{ suit: 3, min: secondMin }] },
         ],
         common,
-        ...qualityClauses(agg, bidSuit),
+        ...qualityClauses(agg, bidSuit, b),
       };
       return { ...rule, filterExpr: buildExpr(rule) };
     }
@@ -1019,18 +1194,18 @@ export function deriveSuitBidRule(
       anyOf = [
         {
           label: `short in theirs (≤2): lighter`,
-          hcp: { min: shortSt.p[0], max: whole.max },
+          hcp: { min: percentileOf(short, b.loQ), max: whole.max },
           suit: [{ suit: theirSuit, max: 2 }],
         },
         {
           label: `length in theirs (3+): sounder`,
-          hcp: { min: longSt.p[0], max: whole.max },
+          hcp: { min: percentileOf(long, b.loQ), max: whole.max },
           suit: [{ suit: theirSuit, min: 3, max: Math.max(3, theirMax) }],
         },
       ];
     }
   }
-  const rule: Omit<BidRule, 'filterExpr'> = { anyOf, common, ...qualityClauses(agg, bidSuit) };
+  const rule: Omit<BidRule, 'filterExpr'> = { anyOf, common, ...qualityClauses(agg, bidSuit, b) };
   return { ...rule, filterExpr: buildExpr(rule) };
 }
 
@@ -1040,8 +1215,12 @@ export function deriveSuitBidRule(
  * weak raises): the real message is support + a strength band, and the named
  * suit is incidental.
  */
-export function deriveRaiseishRule(agg: Agg, partnerSuit: number): BidRule {
-  const whole = hcpRange(agg.hcpHist);
+export function deriveRaiseishRule(
+  agg: Agg,
+  partnerSuit: number,
+  b: Breadth = NORMAL_BREADTH,
+): BidRule {
+  const whole = hcpRange(agg.hcpHist, b);
   const supportMin = minLenAtCoverage(agg.lenHist[partnerSuit], 0.9);
   const rule: Omit<BidRule, 'filterExpr'> = {
     anyOf: [{ label: 'raise-equivalent (transfer/raise treatments)', hcp: whole }],
@@ -1057,8 +1236,12 @@ export function deriveRaiseishRule(agg: Agg, partnerSuit: number): BidRule {
  * — doubles of a minor demand both majors, doubles of a major the other major
  * plus tolerance for the unbid minors.
  */
-export function deriveDoubleRule(agg: Agg, theirSuit: number): BidRule {
-  const whole = hcpRange(agg.hcpHist);
+export function deriveDoubleRule(
+  agg: Agg,
+  theirSuit: number,
+  b: Breadth = NORMAL_BREADTH,
+): BidRule {
+  const whole = hcpRange(agg.hcpHist, b);
   const st = histStats(agg.hcpHist);
   const strongT = Math.max(15, Math.min(18, st.p[5])); // p90, clamped
   const common: SuitCond[] = [];
@@ -1105,12 +1288,12 @@ export function deriveDoubleRule(agg: Agg, theirSuit: number): BidRule {
   ) {
     shapeBranches.push({
       label: 'takeout shape, short in theirs',
-      hcp: { min: capHcp(shortSt.p[0]), max: strongT - 1 },
+      hcp: { min: capHcp(percentileOf(agg.hcpForBuckets([0, 1]), b.loQ)), max: strongT - 1 },
       suit: [{ suit: theirSuit, max: 2 }, ...support],
     });
     shapeBranches.push({
       label: 'takeout shape, length in theirs',
-      hcp: { min: capHcp(longSt.p[0]), max: strongT - 1 },
+      hcp: { min: capHcp(percentileOf(agg.hcpForBuckets(longBuckets), b.loQ)), max: strongT - 1 },
       suit: [{ suit: theirSuit, min: 3, max: theirMax }, ...support],
     });
   } else {
@@ -1128,8 +1311,15 @@ export function deriveDoubleRule(agg: Agg, theirSuit: number): BidRule {
 }
 
 /** Rule for a natural NT call: HCP range, balance, stopper in their suit. */
-export function deriveNtRule(agg: Agg, theirSuit: number | null): BidRule {
-  const whole = hcpRange(agg.hcpHist);
+export function deriveNtRule(
+  agg: Agg,
+  theirSuit: number | null,
+  b: Breadth = NORMAL_BREADTH,
+): BidRule {
+  // Unusual NT and other two-suited NT overcalls: shape, not a balanced range.
+  const shaped = deriveConventionalShape(agg, theirSuit, b);
+  if (shaped) return shaped;
+  const whole = hcpRange(agg.hcpHist, b);
   const balanced = agg.n > 0 && agg.balanced / agg.n >= 0.8 ? true : undefined;
   const stopper =
     theirSuit !== null && agg.theirN >= 25 && agg.theirStop / agg.theirN >= 0.85
@@ -1145,9 +1335,9 @@ export function deriveNtRule(agg: Agg, theirSuit: number | null): BidRule {
 }
 
 /** Plain HCP-range rule (P, XX, doubles without takeout anatomy, …). */
-export function deriveHcpRule(agg: Agg): BidRule {
+export function deriveHcpRule(agg: Agg, b: Breadth = NORMAL_BREADTH): BidRule {
   const rule: Omit<BidRule, 'filterExpr'> = {
-    anyOf: [{ label: 'any', hcp: hcpRange(agg.hcpHist) }],
+    anyOf: [{ label: 'any', hcp: hcpRange(agg.hcpHist, b) }],
     common: [],
   };
   return { ...rule, filterExpr: buildExpr(rule) };
@@ -1160,7 +1350,12 @@ export function deriveHcpRule(agg: Agg): BidRule {
  * "hearts", and a multi-way 1S as "weak no-major OR GF no-major OR GF with a
  * long minor". Falls back to the plain natural derivation for real suits.
  */
-export function deriveRespSuitRule(agg: Agg, bidSuit: number, theirSuit: number | null): BidRule {
+export function deriveRespSuitRule(
+  agg: Agg,
+  bidSuit: number,
+  theirSuit: number | null,
+  b: Breadth = NORMAL_BREADTH,
+): BidRule {
   if (agg.n >= 25) {
     const share4 = (s: number): number => {
       let c = 0;
@@ -1168,7 +1363,7 @@ export function deriveRespSuitRule(agg: Agg, bidSuit: number, theirSuit: number 
       return c / agg.n;
     };
     if (share4(bidSuit) < 0.5) {
-      const whole = hcpRange(agg.hcpHist);
+      const whole = hcpRange(agg.hcpHist, b);
       const t = agg.respTypeHist;
       const share = (idxs: number[]): number =>
         idxs.reduce((a, i) => a + t[i], 0) / agg.n;
@@ -1264,7 +1459,7 @@ export function deriveRespSuitRule(agg: Agg, bidSuit: number, theirSuit: number 
       return { ...rule, filterExpr: buildExpr(rule) };
     }
   }
-  return deriveSuitBidRule(agg, bidSuit, theirSuit);
+  return deriveSuitBidRule(agg, bidSuit, theirSuit, false, b);
 }
 
 // ---------------------------------------------------------------------------

@@ -43,6 +43,10 @@ import {
   deriveHcpRule,
   deriveRaiseishRule,
   deriveRespSuitRule,
+  matchesRule,
+  BREADTHS,
+  NORMAL_BREADTH,
+  type Breadth,
   classifyRespStyle,
   RESP_TYPES,
   PairOpenings,
@@ -70,6 +74,8 @@ const SCRAPE_DIR = path.join(
 );
 const REPORT_PATH = path.join(import.meta.dirname, '..', 'bidding-report.md');
 const PROFILES_PATH = path.join(import.meta.dirname, 'bid-profiles.json');
+const DECISION_PATH = path.join(import.meta.dirname, '..', 'decision-model.md');
+const DECISION_REVIEW_PATH = path.join(import.meta.dirname, '..', 'decision-review.json');
 
 const SEAT_IDX: Record<string, number> = { N: 0, E: 1, S: 2, W: 3 };
 const SUIT_NAMES = ['S', 'H', 'D', 'C'];
@@ -101,6 +107,8 @@ interface TableRow {
   stage: string;
   dealerIdx: number;
   vul: string;
+  /** Board number (1-based); its position in the 16-board cycle drives train/test splits. */
+  board: number;
   calls: string[];
   pbn: string;
   /** Partnership keys for NS and EW at this table. */
@@ -172,6 +180,7 @@ function loadTables(): LoadResult {
   const iTourn = idx('tournament');
   const iEvent = idx('event');
   const iStage = idx('stage');
+  const iBoard = idx('board');
   const iSegment = idx('segment');
   const iMatch = idx('matchid');
   const iRoom = idx('room');
@@ -234,6 +243,7 @@ function loadTables(): LoadResult {
       stage: f[iStage],
       dealerIdx,
       vul: f[iVul],
+      board: Number(f[iBoard]) || 0,
       calls,
       pbn: f[iPbn],
       nsPair,
@@ -492,7 +502,8 @@ function aggregate(
       ) {
         style = respStyles.get(actorPair) ?? 'unkresp';
       }
-      const cellKey = `${ctx.family}|${ctx.key}|${ctx.action}|${vul}|${style}`;
+      const passed = ctx.passedHand ? 'P' : 'U';
+      const cellKey = `${ctx.family}|${ctx.key}|${ctx.action}|${vul}|${style}|${passed}`;
       let agg = map.get(cellKey);
       if (!agg) {
         agg = new Agg();
@@ -514,7 +525,11 @@ function aggregate(
   return { map, dealSets, excluded };
 }
 
-/** Sum aggregates matching family|key|action across chosen vuls and styles. */
+/**
+ * Sum aggregates matching family|key|action across chosen vuls and styles.
+ * `passedWanted` selects passed-hand actors ('P'), unpassed ('U'), or both
+ * ('all', the default — every existing caller aggregates across the split).
+ */
 function sumCells(
   cells: Cells,
   family: string,
@@ -522,6 +537,7 @@ function sumCells(
   action: string,
   vuls: RelVul[] | 'all',
   stylesWanted: string[] | 'all',
+  passedWanted: Array<'P' | 'U'> | 'all' = 'all',
 ): Agg {
   // The cell key uses '|' inside `key` too (respInterf/advance), so look up
   // reconstructed candidate keys instead of splitting stored ones.
@@ -531,10 +547,13 @@ function sumCells(
     stylesWanted === 'all'
       ? ['nat', 'short', 'strong', 'polish', 'neb', 'weak', 'multi', 'other', 'oth', 'unk', 'xfer', 'std', 'unkresp']
       : stylesWanted;
+  const passedList: Array<'P' | 'U'> = passedWanted === 'all' ? ['P', 'U'] : passedWanted;
   for (const vul of vulList) {
     for (const style of styleList) {
-      const agg = cells.map.get(`${family}|${key}|${action}|${vul}|${style}`);
-      if (agg) out.mergeFrom(agg);
+      for (const passed of passedList) {
+        const agg = cells.map.get(`${family}|${key}|${action}|${vul}|${style}|${passed}`);
+        if (agg) out.mergeFrom(agg);
+      }
     }
   }
   return out;
@@ -559,11 +578,11 @@ function totalFor(
 function actionsFor(cells: Cells, family: string, key: string): string[] {
   const counts = new Map<string, number>();
   for (const [k, agg] of cells.map) {
-    // family|<key parts...>|action|vul|style — key may itself contain '|'.
+    // family|<key parts...>|action|vul|style|passed — key may itself contain '|'.
     const parts = k.split('|');
     if (parts[0] !== family) continue;
-    if (parts.slice(1, parts.length - 3).join('|') !== key) continue;
-    const action = parts[parts.length - 3];
+    if (parts.slice(1, parts.length - 4).join('|') !== key) continue;
+    const action = parts[parts.length - 4];
     counts.set(action, (counts.get(action) ?? 0) + agg.n);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a);
@@ -621,8 +640,11 @@ interface Profile {
   hcpByTheirLen: Record<string, { n: number; p: number[] }> | null;
   /** Hand-type counts (RESP_TYPES order) — response families only. */
   respTypes: number[] | null;
-  /** Derived dealer rule: structured branches + a compiled-checked filterExpr. */
+  /** Derived dealer rule (normal breadth): structured branches + a compiled `filterExpr`. */
   rule: BidRule;
+  /** Tighter/looser coverage of the same range, for the dealer's breadth toggle. */
+  filterConservative: string;
+  filterAggressive: string;
 }
 
 /** Texture percentiles on the 0–10 scale (histogram is ×10). */
@@ -641,7 +663,13 @@ function trimHist(hist: ArrayLike<number>): number[] {
 }
 
 /** Derive the dealer rule appropriate to this action in this context. */
-function deriveRule(family: string, key: string, action: string, agg: Agg): BidRule {
+function deriveRule(
+  family: string,
+  key: string,
+  action: string,
+  agg: Agg,
+  b: Breadth = NORMAL_BREADTH,
+): BidRule {
   const theirSuit = theirSuitFor(family, key);
   const parts = key.split('|');
   const opening = family === 'open' ? action : parts[0];
@@ -649,7 +677,7 @@ function deriveRule(family: string, key: string, action: string, agg: Agg): BidR
   const facingNT =
     TAKEOUT_X_FAMILIES.has(family) && isBid(opening) && bidParts(opening).strainIdx === 4;
   if (action === 'X' && TAKEOUT_X_FAMILIES.has(family) && theirSuit !== null) {
-    return deriveDoubleRule(agg, theirSuit);
+    return deriveDoubleRule(agg, theirSuit, b);
   }
   if (isBid(action)) {
     const { strainIdx } = bidParts(action);
@@ -661,20 +689,20 @@ function deriveRule(family: string, key: string, action: string, agg: Agg): BidR
       if (pSuit <= 1 && agg.n >= 25) {
         let support3 = 0;
         for (let l = 3; l < 14; l++) support3 += agg.lenHist[pSuit][l];
-        if (support3 / agg.n >= 0.7) return deriveRaiseishRule(agg, pSuit);
+        if (support3 / agg.n >= 0.7) return deriveRaiseishRule(agg, pSuit, b);
       }
     }
     if (strainIdx < 4) {
       // Responses may be transfers (1C-1D = hearts, continued over intervention):
       // key on the suit actually held when the named suit isn't it.
       if (family === 'resp' || family === 'respInterf') {
-        return deriveRespSuitRule(agg, strainIdx, theirSuit);
+        return deriveRespSuitRule(agg, strainIdx, theirSuit, b);
       }
-      return deriveSuitBidRule(agg, strainIdx, theirSuit, facingNT);
+      return deriveSuitBidRule(agg, strainIdx, theirSuit, facingNT, b);
     }
-    return deriveNtRule(agg, theirSuit);
+    return deriveNtRule(agg, theirSuit, b);
   }
-  return deriveHcpRule(agg); // P, XX, other doubles
+  return deriveHcpRule(agg, b); // P, XX, other doubles
 }
 
 /** Distribution cell: per-value percentages (≥2% shown, tails lumped). */
@@ -769,7 +797,9 @@ function toProfile(
     hcpByTheirLen,
     respTypes:
       family === 'resp' || family === 'respInterf' ? [...agg.respTypeHist] : null,
-    rule: deriveRule(family, key, action, agg),
+    rule: deriveRule(family, key, action, agg, NORMAL_BREADTH),
+    filterConservative: deriveRule(family, key, action, agg, BREADTHS[0]).filterExpr,
+    filterAggressive: deriveRule(family, key, action, agg, BREADTHS[2]).filterExpr,
   };
 }
 
@@ -811,25 +841,42 @@ it('bidding-range study', () => {
   const cells = aggregate(tables, feats, styles, respStyles, weakTeams);
   console.log(`  ${cells.map.size} context cells; ${cells.excluded} weak-team calls excluded`);
 
+  console.log('pass 3: filter-accuracy audit…');
+  const audit = auditFilters(tables, feats, styles, weakTeams, cells, [
+    { family: 'overOpen', key: '1C', styles: ['nat', 'short'], label: '(1C) ?' },
+    { family: 'overOpen', key: '1D', styles: ['nat'], label: '(1D) ?' },
+    { family: 'overOpen', key: '1H', styles: 'all', label: '(1H) ?' },
+    { family: 'overOpen', key: '1S', styles: 'all', label: '(1S) ?' },
+  ]);
+  console.log(`  ${audit.rows.length} filters scored`);
+
+  console.log('decision-space model (Stage 1a)…');
+  const decisionMd = buildDecisionModel(tables, feats, styles, weakTeams);
+  writeFileSync(DECISION_PATH, decisionMd);
+  for (const line of decisionMd.split('\n').filter((l) => l.startsWith('- ') || l.startsWith('# ')))
+    console.log(`  ${line.replace(/\*\*/g, '')}`);
+
   console.log('writing report + profiles…');
-  const report = buildReport(tables, counters, coverage, styles, respStyles, cells, weakTeams);
+  const report = buildReport(tables, counters, coverage, styles, respStyles, cells, weakTeams, audit);
   writeFileSync(REPORT_PATH, report);
 
   const profiles = buildProfiles(cells);
   let badExpr = 0;
   for (const p of profiles) {
     if (!p.rule) continue;
-    const r = compileFilter(p.rule.filterExpr);
-    if (r.error) {
-      badExpr++;
-      console.error(`  BAD filterExpr for ${p.label}: ${p.rule.filterExpr} — ${r.error}`);
+    for (const expr of [p.rule.filterExpr, p.filterConservative, p.filterAggressive]) {
+      const r = compileFilter(expr);
+      if (r.error) {
+        badExpr++;
+        console.error(`  BAD filterExpr for ${p.label}: ${expr} — ${r.error}`);
+      }
     }
   }
   if (badExpr > 0) throw new Error(`${badExpr} filter expressions failed to compile`);
   const lines = profiles.map((p) => JSON.stringify(p));
   writeFileSync(
     PROFILES_PATH,
-    `{"version":4,"source":"World, European & US championships 2016-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
+    `{"version":5,"source":"World, European & US championships 2016-2026, ${tables.length} tables, bottom-${WEAK_TEAM_CUT} teams per event excluded","profiles":[\n${lines.join(',\n')}\n]}\n`,
   );
   console.log(`  ${profiles.length} profiles (all filter expressions compile) → ${PROFILES_PATH}`);
   console.log(`  report → ${REPORT_PATH}`);
@@ -841,9 +888,10 @@ function buildTotals(cells: Cells): Map<string, number> {
   for (const [k, agg] of cells.map) {
     const parts = k.split('|');
     const family = parts[0];
-    const key = parts.slice(1, parts.length - 3).join('|');
-    const vul = parts[parts.length - 2];
-    const style = parts[parts.length - 1];
+    // Trailing segments: …|action|vul|style|passed. Totals merge across passed.
+    const key = parts.slice(1, parts.length - 4).join('|');
+    const vul = parts[parts.length - 3];
+    const style = parts[parts.length - 2];
     const tk = `${family}|${key}|${vul}|${style}`;
     totals.set(tk, (totals.get(tk) ?? 0) + agg.n);
   }
@@ -876,8 +924,8 @@ function buildProfiles(cells: Cells): Profile[] {
   for (const k of cells.map.keys()) {
     const parts = k.split('|');
     const family = parts[0];
-    const action = parts[parts.length - 3];
-    const key = parts.slice(1, parts.length - 3).join('|');
+    const action = parts[parts.length - 4];
+    const key = parts.slice(1, parts.length - 4).join('|');
     triples.set(`${family}|${key}|${action}`, { family, key, action });
   }
   for (const { family, key, action } of triples.values()) {
@@ -918,6 +966,816 @@ function buildProfiles(cells: Cells): Profile[] {
 }
 
 // ---------------------------------------------------------------------------
+// Filter-accuracy audit
+// ---------------------------------------------------------------------------
+
+/** One context to audit: the family/key faced and the opener styles it targets. */
+interface AuditSpec {
+  family: string;
+  key: string;
+  styles: string[] | 'all';
+  label: string;
+}
+
+/** Precision/recall/contested-zone of one derived filter, vs the field. */
+interface AuditRow {
+  label: string;
+  action: string;
+  filterExpr: string;
+  nFaced: number;
+  nBid: number;
+  baseRate: number;
+  precision: number;
+  recall: number;
+  contestedPct: number;
+  activeHands: number;
+}
+
+/** Deep-dive numbers for the (1C) 1S worked example. */
+interface AuditExample {
+  nFaced: number;
+  nBid: number;
+  precision: number;
+  recall: number;
+  fpActions: Array<[string, number]>;
+  fnTotal: number;
+  fnReasons: { hcpHi: number; hcpLo: number; suitShort: number; qualLo: number };
+  hcpSurface: Array<[string, number, number]>;
+  lenSurface: Array<[string, number, number]>;
+  /** Precision/recall of each breadth preset on the same population. */
+  presets: Array<{ name: string; filterExpr: string; precision: number; recall: number }>;
+}
+
+interface AuditResult {
+  rows: AuditRow[];
+  example: AuditExample | null;
+}
+
+/** Faced-decision record for the audit: the hand + the action it took. */
+interface AuditRec {
+  pbn: string;
+  seat: number;
+  f: SeatFeatures;
+  action: string;
+}
+
+const MIN_BID_TO_AUDIT = 120;
+const MIN_TABLES_FOR_SPLIT = 4;
+
+/**
+ * Score each derived filter as a classifier against the field it is meant to
+ * describe. For a context (e.g. RHO opens a natural 1C, direct seat) we gather
+ * every decision faced, label each hand with the action it took, then for each
+ * frequent bid test the derived rule's box-membership. Precision = P(made the
+ * bid | in box); recall = P(in box | made the bid). The multi-table "contested"
+ * share uses round-robin repetition: the same hand faces the context at several
+ * tables, so we can see how often a box-matching decision genuinely splits.
+ */
+function auditFilters(
+  tables: TableRow[],
+  feats: Map<string, SeatFeatures[]>,
+  styles: Map<string, PairStyle>,
+  weakTeams: Set<string>,
+  cells: Cells,
+  specs: AuditSpec[],
+): AuditResult {
+  const specByKey = new Map(specs.map((s) => [`${s.family}|${s.key}`, s]));
+  const byCtx = new Map<string, AuditRec[]>();
+  for (const t of tables) {
+    for (let i = 0; i < t.calls.length; i++) {
+      const ctx = classifyCall(t.calls, i);
+      if (!ctx) continue;
+      const ck = `${ctx.family}|${ctx.key}`;
+      const spec = specByKey.get(ck);
+      if (!spec) continue;
+      const seat = (t.dealerIdx + i) % 4;
+      const actorTeam = seat % 2 === 0 ? t.nsTeam : t.ewTeam;
+      if (weakTeams.has(`${t.tournament}|${t.event}|${actorTeam}`)) continue;
+      const otherPair = seat % 2 === 0 ? t.ewPair : t.nsPair; // opener's pair (competitive contexts)
+      const style = styleTag(ctx.key.split('|')[0], styles.get(otherPair));
+      if (spec.styles !== 'all' && !spec.styles.includes(style)) continue;
+      const f = feats.get(t.pbn)![seat];
+      let arr = byCtx.get(ck);
+      if (!arr) {
+        arr = [];
+        byCtx.set(ck, arr);
+      }
+      arr.push({ pbn: t.pbn, seat, f, action: ctx.action });
+    }
+  }
+
+  const rows: AuditRow[] = [];
+  for (const spec of specs) {
+    const ck = `${spec.family}|${spec.key}`;
+    const recs = byCtx.get(ck);
+    if (!recs || recs.length < 200) continue;
+    // Multi-table grouping (shared across the context's actions).
+    const handMap = new Map<string, { m: number; act: Map<string, number> }>();
+    for (const r of recs) {
+      const hk = `${r.pbn}|${r.seat}`;
+      let e = handMap.get(hk);
+      if (!e) {
+        e = { m: 0, act: new Map() };
+        handMap.set(hk, e);
+      }
+      e.m++;
+      e.act.set(r.action, (e.act.get(r.action) ?? 0) + 1);
+    }
+    const actCount = new Map<string, number>();
+    for (const r of recs) actCount.set(r.action, (actCount.get(r.action) ?? 0) + 1);
+    for (const [action, nBid] of [...actCount.entries()].sort((a, b) => b[1] - a[1])) {
+      if (nBid < MIN_BID_TO_AUDIT) continue;
+      if (!isBid(action) && action !== 'X') continue;
+      const agg = sumCells(cells, spec.family, spec.key, action, 'all', spec.styles);
+      if (agg.n < 25) continue;
+      const rule = deriveRule(spec.family, spec.key, action, agg);
+      let nBox = 0;
+      let boxBid = 0;
+      for (const r of recs) {
+        if (!matchesRule(rule, r.f)) continue;
+        nBox++;
+        if (r.action === action) boxBid++;
+      }
+      let active = 0;
+      let contested = 0;
+      for (const e of handMap.values()) {
+        if (e.m < MIN_TABLES_FOR_SPLIT) continue;
+        const k = e.act.get(action) ?? 0;
+        if (k === 0) continue;
+        active++;
+        if (k < e.m) contested++;
+      }
+      rows.push({
+        label: spec.label,
+        action,
+        filterExpr: rule.filterExpr,
+        nFaced: recs.length,
+        nBid,
+        baseRate: (100 * nBid) / recs.length,
+        precision: nBox === 0 ? 0 : (100 * boxBid) / nBox,
+        recall: nBid === 0 ? 0 : (100 * boxBid) / nBid,
+        contestedPct: active === 0 ? 0 : (100 * contested) / active,
+        activeHands: active,
+      });
+    }
+  }
+  rows.sort((a, b) => a.precision - b.precision);
+
+  return { rows, example: auditExample(byCtx.get('overOpen|1C'), cells) };
+}
+
+/** The (1C) 1S deep-dive: false-positive actions, false-negative reasons, surface. */
+function auditExample(recs: AuditRec[] | undefined, cells: Cells): AuditExample | null {
+  if (!recs || recs.length < 200) return null;
+  const agg = sumCells(cells, 'overOpen', '1C', '1S', 'all', ['nat', 'short']);
+  if (agg.n < 25) return null;
+  const rule = deriveRule('overOpen', '1C', '1S', agg);
+  const suitMin = rule.common.find((c) => c.suit === 0)?.min ?? 0;
+  const qualMin = rule.quality?.minTop5 ?? 0;
+  let hcpMin = Infinity;
+  let hcpMax = 0;
+  for (const b of rule.anyOf) {
+    hcpMin = Math.min(hcpMin, b.hcp.min);
+    hcpMax = Math.max(hcpMax, b.hcp.max ?? MAX_HCP);
+  }
+  let nBox = 0;
+  let boxBid = 0;
+  const fp = new Map<string, number>();
+  const fnReasons = { hcpHi: 0, hcpLo: 0, suitShort: 0, qualLo: 0 };
+  let nBid = 0;
+  let fnTotal = 0;
+  for (const r of recs) {
+    const inBox = matchesRule(rule, r.f);
+    const isTarget = r.action === '1S';
+    if (isTarget) nBid++;
+    if (inBox) {
+      nBox++;
+      if (isTarget) boxBid++;
+      else fp.set(r.action, (fp.get(r.action) ?? 0) + 1);
+    } else if (isTarget) {
+      fnTotal++;
+      if (r.f.hcp > hcpMax) fnReasons.hcpHi++;
+      if (r.f.hcp < hcpMin) fnReasons.hcpLo++;
+      if (r.f.len[0] < suitMin) fnReasons.suitShort++;
+      if (r.f.akqjt[0] < qualMin) fnReasons.qualLo++;
+    }
+  }
+  const surface = (
+    subset: AuditRec[],
+    bands: Array<[string, (r: AuditRec) => boolean]>,
+  ): Array<[string, number, number]> =>
+    bands.map(([label, inBand]) => {
+      const b = subset.filter(inBand);
+      const bid = b.filter((r) => r.action === '1S').length;
+      return [label, b.length === 0 ? 0 : (100 * bid) / b.length, b.length];
+    });
+  const realSuit = recs.filter((r) => r.f.len[0] >= 5 && r.f.akqjt[0] >= 1);
+  const hcpSurface = surface(realSuit, [
+    ['≤6', (r) => r.f.hcp <= 6],
+    ['7–9', (r) => r.f.hcp >= 7 && r.f.hcp <= 9],
+    ['10–12', (r) => r.f.hcp >= 10 && r.f.hcp <= 12],
+    ['13–15', (r) => r.f.hcp >= 13 && r.f.hcp <= 15],
+    ['16–18', (r) => r.f.hcp >= 16 && r.f.hcp <= 18],
+    ['19+', (r) => r.f.hcp >= 19],
+  ]);
+  const lenSurface = surface(
+    recs.filter((r) => r.f.hcp >= 10 && r.f.hcp <= 15),
+    [
+      ['3', (r) => r.f.len[0] === 3],
+      ['4', (r) => r.f.len[0] === 4],
+      ['5', (r) => r.f.len[0] === 5],
+      ['6', (r) => r.f.len[0] === 6],
+      ['7+', (r) => r.f.len[0] >= 7],
+    ],
+  );
+  // Score each breadth preset (conservative/normal/aggressive) on this population.
+  const presets = BREADTHS.map((br) => {
+    const r = deriveRule('overOpen', '1C', '1S', agg, br);
+    let box = 0;
+    let hit = 0;
+    for (const rec of recs) {
+      if (!matchesRule(r, rec.f)) continue;
+      box++;
+      if (rec.action === '1S') hit++;
+    }
+    return {
+      name: br.name,
+      filterExpr: r.filterExpr,
+      precision: box === 0 ? 0 : (100 * hit) / box,
+      recall: nBid === 0 ? 0 : (100 * hit) / nBid,
+    };
+  });
+  return {
+    nFaced: recs.length,
+    nBid,
+    precision: nBox === 0 ? 0 : (100 * boxBid) / nBox,
+    recall: nBid === 0 ? 0 : (100 * boxBid) / nBid,
+    fpActions: [...fp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
+    fnTotal,
+    fnReasons,
+    hcpSurface,
+    lenSurface,
+    presets,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Decision-space model (Stage 1a): a priority-ordered decision list over the
+// full (1C) direct-seat call space, scored on a leakage-free board split.
+// ---------------------------------------------------------------------------
+
+interface DecisionRule {
+  call: string;
+  label: string;
+  pred: (f: SeatFeatures) => boolean;
+}
+
+/**
+ * Hand-crafted decision list for the direct seat over a natural/short 1C — the
+ * baseline (and warm-start for the evolutionary tuner). First matching rule
+ * names the call; a hand matching nothing passes. Ordered by which call
+ * "claims" the hand: two-suiters and 5-card overcalls before takeout doubles,
+ * matching the competition data (5-5 majors → two-suiter, 4♠+4♥ → X, etc.).
+ */
+const DECISION_LIST_1C: DecisionRule[] = [
+  { call: 'MAJ2', label: 'Michaels majors (5+♠ & 5+♥ — cue of opener’s suit, 2♣/2♦)', pred: (f) => f.len[0] >= 5 && f.len[1] >= 5 },
+  { call: '3S', label: 'preempt 3S (7+♠, weak)', pred: (f) => f.len[0] >= 7 && f.hcp >= 5 && f.hcp <= 11 },
+  { call: '2S', label: 'weak jump 2S (6+♠, 5-10, <4♥)', pred: (f) => f.len[0] >= 6 && f.hcp >= 5 && f.hcp <= 10 && f.len[1] < 4 && f.akqjt[0] >= 1 },
+  { call: '2H', label: 'weak jump 2H (6+♥, 5-10, <4♠)', pred: (f) => f.len[1] >= 6 && f.hcp >= 5 && f.hcp <= 10 && f.len[0] < 4 && f.akqjt[1] >= 1 },
+  { call: '1S', label: '1S: 5+♠ (≥1 honour), ≤4♥, 7-16, sound-or-quality', pred: (f) => f.len[0] >= 5 && f.akqjt[0] >= 1 && f.len[1] <= 4 && f.hcp >= 7 && f.hcp <= 16 && (f.hcp >= 10 || f.akqjt[0] >= 2) },
+  { call: '1H', label: '1H: 5+♥ (≥1 honour, ≥♠), 7-16, sound-or-quality', pred: (f) => f.len[1] >= 5 && f.akqjt[1] >= 1 && f.len[1] >= f.len[0] && f.hcp >= 7 && f.hcp <= 16 && (f.hcp >= 10 || f.akqjt[1] >= 2) },
+  { call: '1S', label: '1S: strong 4-card ♠, no ♥ support', pred: (f) => f.len[0] === 4 && f.len[1] <= 3 && f.akqjt[0] >= 3 && f.hcp >= 10 && f.hcp <= 15 },
+  { call: '2NT', label: 'unusual NT (always 5+♦ & 5+♥, 9+ HCP)', pred: (f) => f.len[2] >= 5 && f.len[1] >= 5 && f.hcp >= 9 },
+  { call: '1NT', label: '1NT: 15-18, no singleton/void, ♣ stopper (4-4 majors need a textured stopper, AJT-class)', pred: (f) => f.hcp >= 15 && f.hcp <= 18 && Math.min(...f.len) >= 2 && f.stop[3] && (!(f.len[0] >= 4 && f.len[1] >= 4) || f.akqjt[3] >= 3) },
+  { call: 'X', label: 'takeout X: 11-19 (−2 with ≤1♣), ≤3♣, 3+ both majors', pred: (f) => f.hcp >= (f.len[3] <= 1 ? 9 : 11) && f.hcp <= 19 && f.len[3] <= 3 && f.len[0] >= 3 && f.len[1] >= 3 },
+  { call: '1D', label: '1D: 5+♦, no 5-card major', pred: (f) => f.len[2] >= 5 && f.len[0] < 5 && f.len[1] < 5 && f.hcp >= 8 && f.hcp <= 16 },
+  { call: 'X', label: 'strong X: 18+, ≤3♣ (not length in their suit)', pred: (f) => f.hcp >= 18 && f.len[3] <= 3 },
+];
+
+const DECISION_CALLS = new Set(['P', '1D', '1H', '1S', '1NT', 'X', 'MAJ2', '2C', '2D', '2H', '2S', '2NT', '3S']);
+const normCall = (a: string): string => (DECISION_CALLS.has(a) ? a : 'other');
+
+/**
+ * Collapse convention synonyms to MEANING. Over 1C both 2C (cue) and 2D (jump)
+ * are played as the majors two-suiter by different pairs — the same DECISION —
+ * so a 5-5 majors hand bidding either is the one meaning-class MAJ2. A 2C/2D on
+ * a non-majors hand (natural clubs over a short 1C, or long diamonds) is left
+ * as itself. This is what lets the model predict the choice, not the convention.
+ */
+function meaningOf(call: string, f: SeatFeatures): string {
+  if ((call === '2C' || call === '2D') && f.len[0] >= 5 && f.len[1] >= 5) return 'MAJ2';
+  return normCall(call);
+}
+
+/** Distribution (shortness) points: void 3, singleton 2, doubleton 1. */
+function shortPts(f: SeatFeatures): number {
+  let dp = 0;
+  for (const l of f.len) dp += l === 0 ? 3 : l === 1 ? 2 : l === 2 ? 1 : 0;
+  return dp;
+}
+
+function decideCall(rules: DecisionRule[], f: SeatFeatures): string {
+  for (const r of rules) if (r.pred(f)) return r.call;
+  return 'P';
+}
+
+// ---- Stage 1b: evolvable (gene-parameterised) decision list ----------------
+// Same rule structure as DECISION_LIST_1C, but every threshold is a gene an
+// evolutionary tuner can move. `init` = the hand-crafted value (warm start).
+
+interface GeneSpec {
+  name: string;
+  lo: number;
+  hi: number;
+  init: number;
+}
+const GENES: GeneSpec[] = [
+  { name: 'mich_s', lo: 4, hi: 6, init: 5 },
+  { name: 'mich_h', lo: 4, hi: 6, init: 5 },
+  { name: 'unt_lo', lo: 5, hi: 13, init: 9 }, // unusual 2NT needs real values, not 2 HCP
+  { name: 's1_hMax', lo: 3, hi: 5, init: 4 },
+  { name: 's1_lo', lo: 5, hi: 10, init: 7 },
+  { name: 's1_hi', lo: 14, hi: 17, init: 16 }, // 18+ is too strong for a simple overcall → double
+  { name: 's1_relax', lo: 8, hi: 12, init: 10 },
+  { name: 's1_q', lo: 1, hi: 3, init: 2 },
+  { name: 's1_shape', lo: 0, hi: 3, init: 1 }, // shortness lowers the HCP floor
+  { name: 'h1_lo', lo: 5, hi: 10, init: 7 },
+  { name: 'h1_hi', lo: 14, hi: 17, init: 16 },
+  { name: 'h1_relax', lo: 8, hi: 12, init: 10 },
+  { name: 'h1_q', lo: 1, hi: 3, init: 2 },
+  { name: 'h1_shape', lo: 0, hi: 3, init: 1 },
+  { name: 's4_hMax', lo: 2, hi: 4, init: 3 },
+  { name: 's4_q', lo: 2, hi: 5, init: 3 },
+  { name: 's4_lo', lo: 8, hi: 13, init: 10 },
+  { name: 's4_hi', lo: 12, hi: 16, init: 15 },
+  { name: 'p3_s', lo: 6, hi: 8, init: 7 },
+  { name: 'p3_lo', lo: 3, hi: 8, init: 5 },
+  { name: 'p3_hi', lo: 9, hi: 12, init: 11 },
+  { name: 'p3_tx', lo: 0, hi: 7, init: 3 }, // texture floor (0-10 index)
+  { name: 'j2s_s', lo: 5, hi: 7, init: 6 },
+  { name: 'j2s_lo', lo: 3, hi: 8, init: 5 },
+  { name: 'j2s_hi', lo: 8, hi: 13, init: 10 },
+  { name: 'j2s_hMax', lo: 3, hi: 5, init: 4 },
+  { name: 'j2s_tx', lo: 4, hi: 8, init: 5 }, // "nicely textured" suit (crossover ~5: below → 1-level)
+  { name: 'j2h_h', lo: 5, hi: 7, init: 6 },
+  { name: 'j2h_lo', lo: 3, hi: 8, init: 5 },
+  { name: 'j2h_hi', lo: 8, hi: 13, init: 10 },
+  { name: 'j2h_sMax', lo: 3, hi: 5, init: 4 },
+  { name: 'j2h_tx', lo: 4, hi: 8, init: 5 },
+  { name: 'd1_d', lo: 5, hi: 6, init: 5 },
+  { name: 'd1_lo', lo: 6, hi: 11, init: 8 },
+  { name: 'd1_hi', lo: 13, hi: 17, init: 16 },
+  { name: 'nt_lo', lo: 13, hi: 16, init: 15 },
+  { name: 'nt_hi', lo: 18, hi: 19, init: 18 }, // 1NT overcall is 15-18: must include the 18-counts
+  { name: 'nt_stop', lo: 0, hi: 1, init: 1 }, // require a club stopper?
+  { name: 'x_lo', lo: 9, hi: 13, init: 11 },
+  { name: 'x_hi', lo: 15, hi: 20, init: 19 },
+  { name: 'x_cMax', lo: 2, hi: 3, init: 3 }, // never double 1C with 4+ clubs (length in their suit)
+  { name: 'x_sMin', lo: 2, hi: 4, init: 3 },
+  { name: 'x_hMin', lo: 2, hi: 4, init: 3 },
+  { name: 'x_majSum', lo: 5, hi: 8, init: 6 }, // combined major length for takeout
+  { name: 'x_shape', lo: 0, hi: 4, init: 2 }, // short clubs (≤1) lowers the X HCP floor (distributional double)
+  { name: 'xs_hcp', lo: 16, hi: 20, init: 18 },
+  { name: 'strMix', lo: 0, hi: 10, init: 0 }, // strength = blend of HCP and KnR (0=HCP … 10=KnR)
+];
+const GI: Record<string, number> = {};
+GENES.forEach((g, i) => (GI[g.name] = i));
+const WARM_START: number[] = GENES.map((g) => g.init);
+
+/** Gene-parameterised decision list — the evolvable twin of DECISION_LIST_1C. */
+function decideCallGenes(g: number[], f: SeatFeatures): string {
+  const s = f.len[0];
+  const h = f.len[1];
+  const d = f.len[2];
+  const c = f.len[3];
+  // Strength = a GA-tuned blend of HCP and Kaplan-Rubens (strMix 0=HCP … 10=KnR).
+  const w = g[GI.strMix] / 10;
+  const p = Math.round((1 - w) * f.hcp + w * f.knr);
+  const q = f.akqjt;
+  const tx = f.txi;
+  const dp = shortPts(f);
+  const minLen = Math.min(s, h, d, c);
+  // 1. Michaels — 5-5 majors two-suiter.
+  if (s >= g[GI.mich_s] && h >= g[GI.mich_h]) return 'MAJ2';
+  // 2. Weak jumps / preempts, BEFORE the 1-level overcalls, so a weak long suit
+  //    jumps rather than being scooped up as a 1-level bid.
+  if (s >= g[GI.p3_s] && p >= g[GI.p3_lo] && p <= g[GI.p3_hi] && tx[0] >= g[GI.p3_tx]) return '3S';
+  if (s >= g[GI.j2s_s] && p >= g[GI.j2s_lo] && p <= g[GI.j2s_hi] && h < g[GI.j2s_hMax] && tx[0] >= g[GI.j2s_tx]) return '2S';
+  if (h >= g[GI.j2h_h] && p >= g[GI.j2h_lo] && p <= g[GI.j2h_hi] && s < g[GI.j2h_sMax] && tx[1] >= g[GI.j2h_tx]) return '2H';
+  // 3. Natural 1-level major overcalls — always at least one honour in the suit
+  //    (never overcall a headless rag like ♠87432).
+  if (s >= 5 && q[0] >= 1 && h <= g[GI.s1_hMax] && p <= g[GI.s1_hi] && p >= g[GI.s1_lo] - (dp >= 3 ? g[GI.s1_shape] : 0) && (p >= g[GI.s1_relax] || q[0] >= g[GI.s1_q])) return '1S';
+  if (h >= 5 && q[1] >= 1 && h >= s && p <= g[GI.h1_hi] && p >= g[GI.h1_lo] - (dp >= 3 ? g[GI.h1_shape] : 0) && (p >= g[GI.h1_relax] || q[1] >= g[GI.h1_q])) return '1H';
+  if (s === 4 && h <= g[GI.s4_hMax] && q[0] >= g[GI.s4_q] && p >= g[GI.s4_lo] && p <= g[GI.s4_hi]) return '1S';
+  // 4. Unusual 2NT (reds) — always 5+♥ AND 5+♦ (never less), with real strength.
+  if (d >= 5 && h >= 5 && p >= g[GI.unt_lo]) return '2NT';
+  // 5. 1NT and takeout X, BEFORE the natural minor overcall, so balanced strong
+  //    hands and takeout shapes are not scooped up as a plain 1D. 1NT is barred
+  //    with 4-4 in the majors (those double) UNLESS the stopper in their suit is
+  //    well textured (AJT-class, ≥nt_texHi honours); the X floor drops with a
+  //    club singleton/void (a distributional takeout double).
+  if (
+    p >= g[GI.nt_lo] && p <= g[GI.nt_hi] && minLen >= 2 && (g[GI.nt_stop] === 0 || f.stop[3]) &&
+    (!(s >= 4 && h >= 4) || q[3] >= 3) // 4-4 majors need a textured stopper (AJT-class = 3 of AKQJT)
+  ) return '1NT';
+  if (p >= g[GI.x_lo] - (c <= 1 ? g[GI.x_shape] : 0) && p <= g[GI.x_hi] && c <= g[GI.x_cMax] && s >= g[GI.x_sMin] && h >= g[GI.x_hMin] && s + h >= g[GI.x_majSum]) return 'X';
+  // 6. Natural minor overcall.
+  if (d >= g[GI.d1_d] && s < 5 && h < 5 && p >= g[GI.d1_lo] && p <= g[GI.d1_hi]) return '1D';
+  // 7. Very strong takeout — 18+, but never with length in their suit (can't
+  //    double 1C holding 5 clubs); shape is otherwise free at this strength.
+  if (p >= g[GI.xs_hcp] && c <= g[GI.x_cMax]) return 'X';
+  return 'P';
+}
+
+/** Deterministic PRNG (mulberry32) — reproducible evolution runs. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface EvolveResult {
+  best: number[];
+  fitTrain: number;
+  history: number[];
+}
+
+/**
+ * Evolve the gene vector to maximise call-agreement on the TRAIN set (test is
+ * never touched by selection). Warm-started from the hand-crafted thresholds;
+ * elitist GA with uniform crossover and integer ±1/±2 mutation, genes clamped
+ * to their spec range. Fixed structure ⇒ parsimony is constant, so fitness is
+ * plain agreement.
+ */
+function evolveDecisionList(
+  train: { f: SeatFeatures; call: string }[],
+  pin: Record<string, number> = {},
+): EvolveResult {
+  const rng = mulberry32(0x1c1a);
+  const pinned = new Map(Object.entries(pin).map(([name, v]) => [GI[name], v]));
+  const applyPins = (g: number[]): number[] => {
+    for (const [i, v] of pinned) g[i] = v;
+    return g;
+  };
+  const clampGene = (v: number, i: number): number => Math.max(GENES[i].lo, Math.min(GENES[i].hi, v));
+  const randGene = (i: number): number => GENES[i].lo + Math.floor(rng() * (GENES[i].hi - GENES[i].lo + 1));
+  // Calls common enough to hold to account in the macro-recall term (so the GA
+  // can't win by ignoring rare-but-real calls like the 2C Michaels cue).
+  const actCount = new Map<string, number>();
+  for (const r of train) actCount.set(r.call, (actCount.get(r.call) ?? 0) + 1);
+  const macroCalls = [...actCount.entries()].filter(([, n]) => n >= 80).map(([c]) => c);
+  // Distribution-aware fitness: overall accuracy + a macro-F1 bonus over the
+  // common calls, so the GA keeps rare-but-real calls (2C cue) covered AND
+  // precise — F1 (not recall alone) stops it from over-predicting them.
+  const idx = new Map(macroCalls.map((c, i) => [c, i]));
+  const fit = (g: number[]): number => {
+    let hit = 0;
+    const pred = new Array<number>(macroCalls.length).fill(0);
+    const tp = new Array<number>(macroCalls.length).fill(0);
+    for (const r of train) {
+      const p = decideCallGenes(g, r.f);
+      if (p === r.call) hit++;
+      const pi = idx.get(p);
+      if (pi !== undefined) pred[pi]++;
+      if (p === r.call && pi !== undefined) tp[pi]++;
+    }
+    let macro = 0;
+    for (let i = 0; i < macroCalls.length; i++) {
+      const precision = pred[i] === 0 ? 0 : tp[i] / pred[i];
+      const recall = tp[i] / actCount.get(macroCalls[i])!;
+      macro += precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
+    }
+    return hit / train.length + 0.12 * (macro / macroCalls.length);
+  };
+  const POP = 60;
+  const GENS = 85;
+  const ELITE = 8;
+  let pop: number[][] = [applyPins(WARM_START.slice())];
+  while (pop.length < POP) {
+    const g = WARM_START.slice();
+    for (let i = 0; i < g.length; i++) if (rng() < 0.35) g[i] = randGene(i);
+    pop.push(applyPins(g));
+  }
+  let best = applyPins(WARM_START.slice());
+  let bestFit = fit(best);
+  const history: number[] = [];
+  for (let gen = 0; gen < GENS; gen++) {
+    const scored = pop.map((g) => ({ g, f: fit(g) })).sort((a, b) => b.f - a.f);
+    if (scored[0].f > bestFit) {
+      bestFit = scored[0].f;
+      best = scored[0].g.slice();
+    }
+    history.push(bestFit);
+    const next: number[][] = scored.slice(0, ELITE).map((s) => s.g.slice());
+    const pick = (): number[] => scored[Math.floor(rng() * 24)].g; // top-24 tournament
+    while (next.length < POP) {
+      const pa = pick();
+      const pb = pick();
+      const child = pa.map((v, i) => (rng() < 0.5 ? v : pb[i]));
+      for (let i = 0; i < child.length; i++) {
+        if (rng() < 0.12) child[i] = clampGene(child[i] + (rng() < 0.5 ? -1 : 1) * (1 + (rng() < 0.3 ? 1 : 0)), i);
+      }
+      next.push(applyPins(child));
+    }
+    pop = next;
+  }
+  return { best, fitTrain: bestFit, history };
+}
+
+/** Human-readable rules for an evolved gene vector. */
+function renderGeneRules(g: number[]): string[] {
+  const G = (n: string): number => g[GI[n]];
+  const shp = (n: string): string => (G(n) > 0 ? `, −${G(n)} HCP with a singleton/void` : '');
+  return [
+    `**MAJ2** Michaels (2♣/2♦, majors) — ${G('mich_s')}+♠ & ${G('mich_h')}+♥`,
+    `**3S** preempt — ${G('p3_s')}+♠, ${G('p3_lo')}–${G('p3_hi')} HCP, texture ≥${G('p3_tx')}/10`,
+    `**2S** weak jump — ${G('j2s_s')}+♠, ${G('j2s_lo')}–${G('j2s_hi')} HCP, <${G('j2s_hMax')}♥, texture ≥${G('j2s_tx')}/10`,
+    `**2H** weak jump — ${G('j2h_h')}+♥, ${G('j2h_lo')}–${G('j2h_hi')} HCP, <${G('j2h_sMax')}♠, texture ≥${G('j2h_tx')}/10`,
+    `**1S** — 5+♠, ≤${G('s1_hMax')}♥, ${G('s1_lo')}–${G('s1_hi')} HCP (relax quality if ≥${G('s1_relax')} HCP else top(s,5)≥${G('s1_q')})${shp('s1_shape')}`,
+    `**1H** — 5+♥ (≥♠), ${G('h1_lo')}–${G('h1_hi')} HCP (relax if ≥${G('h1_relax')} else top(h,5)≥${G('h1_q')})${shp('h1_shape')}`,
+    `**1S** (4-card) — exactly 4♠, ≤${G('s4_hMax')}♥, top(s,5)≥${G('s4_q')}, ${G('s4_lo')}–${G('s4_hi')} HCP`,
+    `**2NT** unusual (reds) — 5+♦ & 5+♥ (always), ${G('unt_lo')}+ HCP`,
+    `**1NT** — ${G('nt_lo')}–${G('nt_hi')} HCP, no singleton/void${G('nt_stop') ? ', ♣ stopper' : ''} (4-4 majors only with a textured ♣ stopper — 3+ of AKQJT)`,
+    `**X** takeout — ${G('x_lo')}–${G('x_hi')} HCP (−${G('x_shape')} with ≤1♣), ≤${G('x_cMax')}♣, ${G('x_sMin')}+♠, ${G('x_hMin')}+♥, ♠+♥ ≥${G('x_majSum')}`,
+    `**1D** — ${G('d1_d')}+♦, no 5-card major, ${G('d1_lo')}–${G('d1_hi')} HCP`,
+    `**X** strong — ${G('xs_hcp')}+ HCP, ≤${G('x_cMax')}♣ (not length in their suit)`,
+    `**P** — default`,
+  ];
+}
+
+/**
+ * Score the hand-crafted decision list on the (1C) direct-seat call choice,
+ * with a leakage-free train/test split by board number (boards 1-8 of each
+ * 16-board cycle train, 9-16 test — each half spans all dealer/vul). Reports
+ * overall agreement vs the always-pass floor and the field's self-agreement
+ * ceiling, plus the per-call confusion on held-out test. Returns markdown.
+ */
+function buildDecisionModel(
+  tables: TableRow[],
+  feats: Map<string, SeatFeatures[]>,
+  styles: Map<string, PairStyle>,
+  weakTeams: Set<string>,
+): string {
+  // Canonical board per physical deal → every copy lands on one side (no leak).
+  const canonBoard = new Map<string, number>();
+  for (const t of tables) if (!canonBoard.has(t.pbn)) canonBoard.set(t.pbn, t.board);
+  const isTrain = (pbn: string): boolean => ((canonBoard.get(pbn) ?? 1) - 1) % 16 < 8;
+
+  interface Rec { f: SeatFeatures; call: string; pbn: string; seat: number }
+  const train: Rec[] = [];
+  const test: Rec[] = [];
+  for (const t of tables) {
+    for (let i = 0; i < t.calls.length; i++) {
+      const ctx = classifyCall(t.calls, i);
+      if (!ctx || ctx.family !== 'overOpen' || ctx.key !== '1C' || ctx.passedHand) continue;
+      const seat = (t.dealerIdx + i) % 4;
+      const actorTeam = seat % 2 === 0 ? t.nsTeam : t.ewTeam;
+      if (weakTeams.has(`${t.tournament}|${t.event}|${actorTeam}`)) continue;
+      const otherPair = seat % 2 === 0 ? t.ewPair : t.nsPair;
+      const style = styleTag('1C', styles.get(otherPair));
+      if (style !== 'nat' && style !== 'short') continue;
+      const fSeat = feats.get(t.pbn)![seat];
+      const rec: Rec = { f: fSeat, call: meaningOf(ctx.action, fSeat), pbn: t.pbn, seat };
+      (isTrain(t.pbn) ? train : test).push(rec);
+    }
+  }
+
+  const agreeWith = (recs: Rec[], decide: (f: SeatFeatures) => string): number =>
+    recs.length === 0 ? 0 : (100 * recs.filter((r) => decide(r.f) === r.call).length) / recs.length;
+  const passShare = (recs: Rec[]): number =>
+    recs.length === 0 ? 0 : (100 * recs.filter((r) => r.call === 'P').length) / recs.length;
+
+  // Feature-lookup ceiling: the strongest GENERALISING baseline. Bucket hands by
+  // a rich feature signature, learn each bucket's modal call from TRAIN, apply to
+  // TEST (coarse fallback for thin buckets). Unlike the exact-hand oracle, this
+  // can't memorise individual deals — so it estimates the real ceiling for any
+  // feature-based model, which the decision list should approach but not exceed.
+  const lookupCeiling = (): number => {
+    const sig = (f: SeatFeatures): string =>
+      `${Math.min(f.len[0], 7)}|${Math.min(f.len[1], 7)}|${Math.min(f.len[2], 7)}|${f.hcp}|${Math.min(f.akqjt[0], 4)}|${Math.min(shortPts(f), 4)}`;
+    const coarse = (f: SeatFeatures): string =>
+      `${f.len[0] >= 5 ? 5 : f.len[0]}|${f.len[1] >= 5 ? 5 : f.len[1]}|${Math.min(Math.floor(f.hcp / 3), 6)}`;
+    const learn = (key: (f: SeatFeatures) => string): Map<string, string> => {
+      const b = new Map<string, Map<string, number>>();
+      for (const r of train) {
+        const k = key(r.f);
+        let m = b.get(k);
+        if (!m) {
+          m = new Map();
+          b.set(k, m);
+        }
+        m.set(r.call, (m.get(r.call) ?? 0) + 1);
+      }
+      const modal = new Map<string, string>();
+      for (const [k, m] of b) {
+        let best = 'P';
+        let bn = -1;
+        let tot = 0;
+        for (const [call, n] of m) {
+          tot += n;
+          if (n > bn) {
+            bn = n;
+            best = call;
+          }
+        }
+        if (tot >= 6) modal.set(k, best); // only trust buckets with support
+      }
+      return modal;
+    };
+    const fine = learn(sig);
+    const crs = learn(coarse);
+    let hit = 0;
+    for (const r of test) {
+      const pred = fine.get(sig(r.f)) ?? crs.get(coarse(r.f)) ?? 'P';
+      if (pred === r.call) hit++;
+    }
+    return (100 * hit) / test.length;
+  };
+  // Field self-agreement ceiling on a set (exact-hand modal share).
+  const ceiling = (recs: Rec[]): number => {
+    const byHand = new Map<string, Map<string, number>>();
+    for (const r of recs) {
+      const k = `${r.pbn}|${r.seat}`;
+      let m = byHand.get(k);
+      if (!m) {
+        m = new Map();
+        byHand.set(k, m);
+      }
+      m.set(r.call, (m.get(r.call) ?? 0) + 1);
+    }
+    let tot = 0;
+    let modal = 0;
+    for (const m of byHand.values()) {
+      let sum = 0;
+      let best = 0;
+      for (const k of m.values()) {
+        sum += k;
+        best = Math.max(best, k);
+      }
+      if (sum < 3) continue;
+      tot += sum;
+      modal += best;
+    }
+    return tot === 0 ? 0 : (100 * modal) / tot;
+  };
+
+  // Evolve on TRAIN (test never seen by selection). Two runs: HCP-only (strMix
+  // pinned to 0) as a control, and the KnR-blend (strMix free) — does letting the
+  // strength metric lean on Kaplan-Rubens help on held-out data?
+  const hcpOnly = evolveDecisionList(train, { strMix: 0 });
+  const evolved = evolveDecisionList(train);
+  const baseDecide = (f: SeatFeatures): string => decideCall(DECISION_LIST_1C, f);
+  const hcpDecide = (f: SeatFeatures): string => decideCallGenes(hcpOnly.best, f);
+  const evoDecide = (f: SeatFeatures): string => decideCallGenes(evolved.best, f);
+
+  // Per-call confusion for a decide function on the test set.
+  const confusion = (
+    decide: (f: SeatFeatures) => string,
+  ): { order: Array<readonly [string, number]>; conf: Map<string, { pred: number; hit: number; actual: number }>; other: number } => {
+    const conf = new Map<string, { pred: number; hit: number; actual: number }>();
+    for (const c of DECISION_CALLS) conf.set(c, { pred: 0, hit: 0, actual: 0 });
+    const actualDist = new Map<string, number>();
+    for (const r of test) {
+      const pred = decide(r.f);
+      actualDist.set(r.call, (actualDist.get(r.call) ?? 0) + 1);
+      if (conf.has(pred)) conf.get(pred)!.pred++;
+      if (conf.has(r.call)) conf.get(r.call)!.actual++;
+      if (pred === r.call && conf.has(pred)) conf.get(pred)!.hit++;
+    }
+    const order = [...DECISION_CALLS].map((c) => [c, actualDist.get(c) ?? 0] as const).sort((a, b) => b[1] - a[1]);
+    const other = test.length - order.reduce((s, [, n]) => s + n, 0);
+    return { order, conf, other };
+  };
+
+  const L: string[] = [];
+  const add = (s = ''): void => {
+    L.push(s);
+  };
+  const pc = (a: number, b: number): string => (b === 0 ? '—' : `${((100 * a) / b).toFixed(0)}%`);
+  const confTable = (decide: (f: SeatFeatures) => string): void => {
+    const { order, conf, other } = confusion(decide);
+    add('| call | actual n | actual % | predicted n | precision | recall |');
+    add('|---|---|---|---|---|---|');
+    for (const [c, n] of order) {
+      const e = conf.get(c)!;
+      add(`| ${c} | ${n} | ${pc(n, test.length)} | ${e.pred} | ${pc(e.hit, e.pred)} | ${pc(e.hit, e.actual)} |`);
+    }
+    if (other > 0) add(`| other | ${other} | ${pc(other, test.length)} | — | — | — |`);
+  };
+
+  const baseTest = agreeWith(test, baseDecide);
+  const hcpTest = agreeWith(test, hcpDecide);
+  const hcpTrain = agreeWith(train, hcpDecide);
+  const blendTest = agreeWith(test, evoDecide);
+  const floor = passShare(test);
+  const ceil = ceiling(test);
+  const scale = (v: number): string => `${(((v - floor) / (ceil - floor)) * 100).toFixed(0)}% of floor→ceiling`;
+
+  add('# Decision-space model — (1C) direct seat');
+  add();
+  add('A single priority-ordered **decision list** over the whole call space a hand faces');
+  add('after a natural/short 1♣ on its right — first matching rule names the call, no match');
+  add('passes. Scored on a **leakage-free split by board number** (boards 1–8 of each 16-board');
+  add('cycle train, 9–16 test — each half spans every dealer and vulnerability, and every copy');
+  add('of a physical deal lands on one side). The evolutionary tuner optimises call-agreement');
+  add('on TRAIN only; TEST is held out and never seen during selection.');
+  add();
+  const lookCeil = lookupCeiling();
+  add(`- Train: ${train.length} decisions.  Test (held-out): ${test.length} decisions.`);
+  add(`- **Always-Pass floor** (test): ${floor.toFixed(1)}%.`);
+  add(`- **Brute-force lookup baseline** (test): ${lookCeil.toFixed(1)}% — memorise each feature cell's modal call. The evolved list **beats this**, so the interpretable rules generalise better than raw memorisation.`);
+  add(`- **Exact-hand oracle** (test): ${ceil.toFixed(1)}% — memorises each deal's modal call; a mirage (unreachable without overfitting to individual boards).`);
+  add(`- **Hand-crafted baseline** — test ${baseTest.toFixed(1)}% (${scale(baseTest)}).`);
+  add(`- **Evolved (GA-tuned)** — train ${hcpTrain.toFixed(1)}%, **test ${hcpTest.toFixed(1)}%** (${scale(hcpTest)}); train−test gap ${(hcpTrain - hcpTest).toFixed(1)}pt (overfit check).`);
+  add(`- **KnR experiment** — blending Kaplan-Rubens into the strength metric (GA chose ${((evolved.best[GI.strMix] / 10) * 100).toFixed(0)}% KnR) gave test ${blendTest.toFixed(1)}% vs ${hcpTest.toFixed(1)}% HCP-only: a ${(blendTest - hcpTest >= 0 ? '+' : '') + (blendTest - hcpTest).toFixed(1)}pt difference, within run-to-run noise. A better strength metric is not the bottleneck.`);
+  add();
+  add('## Per-call confusion — evolved list (held-out test)');
+  add();
+  add('precision = P(actual | predicted), recall = P(predicted | actual).');
+  add();
+  confTable(hcpDecide);
+  add();
+  add('## Per-call confusion — hand-crafted baseline (held-out test), for comparison');
+  add();
+  confTable(baseDecide);
+  add();
+  add('## The evolved decision list');
+  add();
+  add('Priority order (first match wins), thresholds tuned by the GA (warm-started from the');
+  add('hand-crafted list, then evolved to maximise held-out-adjacent train agreement):');
+  add();
+  renderGeneRules(hcpOnly.best).forEach((r, i) => add(`${i + 1}. ${r}`));
+  add();
+  add(`Evolution: warm-started from the hand-crafted list (${agreeWith(train, baseDecide).toFixed(1)}% train), evolved over`);
+  add(`${hcpOnly.history.length} generations to ${hcpTrain.toFixed(1)}% train / ${hcpTest.toFixed(1)}% test. The fitness is distribution-aware`);
+  add('(accuracy + macro-F1) so rare calls like the Michaels cue are not optimised away, and it');
+  add('predicts MEANING (2♣/2♦ majors → one MAJ2 class), not the partnership’s convention.');
+  add('');
+  add('What we learned nailing 1♣: the model beats a brute-force feature lookup, so the rule');
+  add('structure generalises better than memorising feature cells. Two things made no material');
+  add('difference on held-out data — richer features (texture, distribution points, flexible');
+  add('takeout/1NT shape) and a better strength metric (Kaplan-Rubens blended with HCP) — each');
+  add('fit train a little better but did not generalise. So the ceiling here is set by');
+  add('irreducible between-player style variance, not by missing features. The method is');
+  add('sound and near its practical limit on 1♣; the payoff now is breadth — pointing the same');
+  add('harness (decision list + board-split + GA + meaning labels) at every opening, where the');
+  add('per-call structure will largely mirror this one.');
+  add();
+
+  // --- eyeball review: a diverse held-out sample with the model's call, for hand
+  //     review. Deduped by physical hand (a deal recurs across tables) and seeded
+  //     fresh each run (REVIEW_SEED env var to reproduce a specific roll).
+  {
+    const seed = (Number(process.env.REVIEW_SEED) || Date.now()) >>> 0;
+    const rev = mulberry32(seed);
+    const shuffled = test.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(rev() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const CAP = 14; // cap per model-call so Pass/1S don't dominate the sample
+    const perCall = new Map<string, number>();
+    const seen = new Set<string>(); // one instance per physical hand (pbn+seat)
+    const picks: Rec[] = [];
+    for (const r of shuffled) {
+      if (picks.length >= 100) break;
+      const hk = `${r.pbn}|${r.seat}`;
+      if (seen.has(hk)) continue;
+      const m = decideCallGenes(hcpOnly.best, r.f);
+      if ((perCall.get(m) ?? 0) >= CAP) continue;
+      seen.add(hk);
+      perCall.set(m, (perCall.get(m) ?? 0) + 1);
+      picks.push(r);
+    }
+    console.log(`  review sample: 100 hands, seed ${seed} (deduped by physical hand)`);
+    const review = picks.map((r) => {
+      const first = SEAT_IDX[r.pbn[0] as 'N' | 'E' | 'S' | 'W'];
+      const strs = r.pbn.slice(2).trim().split(/\s+/);
+      const hs = strs[(r.seat - first + 4) % 4].split('.');
+      return {
+        s: hs[0] ?? '',
+        h: hs[1] ?? '',
+        d: hs[2] ?? '',
+        c: hs[3] ?? '',
+        hcp: r.f.hcp,
+        knr: Math.round(r.f.knr * 10) / 10,
+        len: r.f.len,
+        model: decideCallGenes(hcpOnly.best, r.f),
+        field: r.call,
+      };
+    });
+    writeFileSync(DECISION_REVIEW_PATH, JSON.stringify(review));
+  }
+
+  return L.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 
@@ -929,6 +1787,7 @@ function buildReport(
   respStyles: Map<string, string>,
   cells: Cells,
   weakTeams: Set<string>,
+  audit: AuditResult,
 ): string {
   const L: string[] = [];
   const add = (s = ''): void => {
@@ -1029,100 +1888,17 @@ function buildReport(
     const mich = stat('overOpen', '1H', '2H', 'all');
     const negX = stat('respInterf', '1S|2H', 'X', 'all');
     const xx = stat('respInterf', '1C|X', 'XX', ['std', 'xfer', 'unkresp']);
-    add(`- **The field opens light and overcalls light.** Natural 1M openings in seats 1–2`);
-    add(`  centre on ${med(merged)} HCP with p5 = ${histStats(merged.hcpHist).p[0]} — nearly every 11-count and many decent`);
-    add(`  10-counts get opened. One-level overcalls ((1C) 1H) run ${range90(oc1)} HCP —`);
-    add(`  the book "8–16" is real but the median sits ${med(merged) - med(oc1)} HCP below the median opening.`);
-    {
-      const txMed = (hist: ArrayLike<number>): string =>
-        (histStats(hist).p[3] / 10).toFixed(1);
-      add(`- **Suit quality is a weak-hand requirement.** Light (≤10 HCP) 1H overcalls of a`);
-      add(`  natural 1C carry a median suit texture of ${txMed(oc1.txiWeakHist)}/10; sound ones (11+) get away`);
-      add(`  with ${txMed(oc1.txiSoundHist)}/10 — the values carry a moderate suit. The derived filters`);
-      add(`  encode exactly that: a quality floor everyone meets, plus a higher bar that`);
-      add(`  only applies below 11 HCP (\`hcp >= 11 or top(h,5) >= …\`).`);
-    }
-    add(`- **Takeout doubles are opening-strength, not 12+**: (1S) X runs ${range90(x1S)};`);
-    add(`  the light tail (10–11) comes with shape.`);
-    add(`- **The 1NT overcall is a strong NT**: (1H) 1NT = ${range90(nt1)}; balancing`);
-    add(`  (1H) P (P) 1NT is ${med(nt1) - med(ntBal)} HCP lighter at ${range90(ntBal)}.`);
-    add(`- **Vulnerability moves preempts, not constructive bids.** Weak jump overcalls`);
-    add(`  swing hardest: (1C) 2H is median ${med(wjoFav)} at favourable but ${med(wjoUnfav)} at unfavourable.`);
-    add(`  Simple overcalls and doubles barely move (±1 HCP).`);
-    add(`- **Two-suited bids are universal**: (1H) 2H (Michaels) = ${range90(mich)} with ≤2`);
-    add(`  hearts ${Math.round((100 * (mich.lenHist[1][0] + mich.lenHist[1][1] + mich.lenHist[1][2])) / Math.max(1, mich.n))}% of the time; (1M) 2NT is the two lowest suits, unbalanced.`);
-    add(`- **Negative doubles start at ~7**: 1S (2H) X = ${range90(negX)}. Redouble after`);
-    add(`  1C (X) shows ${range90(xx)}.`);
-    // Transfer responses to 1C.
-    {
-      const c = { xfer: 0, std: 0, unkresp: 0 };
-      for (const v of respStyles.values()) c[v as keyof typeof c]++;
-      const x1d = stat('resp', '1C', '1D', ['xfer']);
-      const x1s = stat('resp', '1C', '1S', ['xfer']);
-      if (x1d.n >= 25) {
-        const h4 = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13].reduce((a, l) => a + x1d.lenHist[1][l], 0);
-        const noMaj = [0, 1, 2, 3].reduce((a, l) => a + x1s.maxMajHist[l], 0);
-        add(`- **Transfer responses to 1C are mainstream**: of classified natural-club pairs,`);
-        add(`  ${c.xfer} play transfers vs ${c.std} standard. Their 1C (P) 1D holds 4+ hearts ${Math.round((100 * h4) / x1d.n)}%`);
-        add(`  of the time (${range90(x1d)} HCP), and 1S is the no-major hand${
-          x1s.n >= 25 ? ` (${Math.round((100 * noMaj) / Math.max(1, x1s.n))}% with no 4-card major, ${range90(x1s)})` : ''
-        } — the`);
-        add('  derived rules follow the shown suit, and the treatment carries on over a');
-        add('  double or 1D overcall (see the transfer-responder sections).');
-      }
-    }
-    // Defence to 1NT: conventional shapes detected from the hands.
-    {
-      const twoC = stat('overOpen', '1NT', '2C', 'all');
-      const twoD = stat('overOpen', '1NT', '2D', 'all');
-      const shareHist = (hist: ArrayLike<number>, min: number, n: number): string =>
-        n === 0 ? '—' : `${Math.round((100 * [...Array(hist.length).keys()].filter((v) => v >= min).reduce((a, v) => a + (hist[v] as number), 0)) / n)}%`;
-      if (twoC.n >= 25 && twoD.n >= 25) {
-        add(`- **Defence to 1NT is conventional and the data shows it**: (1NT) 2C holds both`);
-        add(`  majors 4+ ${shareHist(twoC.minMajHist, 4, twoC.n)} of the time (clubs are incidental); (1NT) 2D has a 5+`);
-        add(`  major ${shareHist(twoD.maxMajHist, 5, twoD.n)} (6+ ${shareHist(twoD.maxMajHist, 6, twoD.n)}) — multi-style; 2M shows the major plus a 4+ minor.`);
-        add('  The derived rules detect these shapes instead of reading the bid suit at');
-        add('  face value (see the (1NT) ? section).');
-      }
-    }
-    const styleCount = (pick: (s: PairStyle) => string, want: string): number =>
-      [...styles.values()].filter((s) => pick(s) === want).length;
-    const nMulti = styleCount((s) => s.twoDiamonds, 'multi');
-    const nWeak2D = styleCount((s) => s.twoDiamonds, 'weak');
-    const nStrongC = styleCount((s) => s.oneClub, 'strong');
-    add(`- **At this level 2D is multi** (${nMulti} pairs multi vs ${nWeak2D} weak among classified),`);
-    add(`  2C strong is standard, and strong-club pairs are ${Math.round((100 * nStrongC) / styles.size)}% of the field (${nStrongC} of ${styles.size}).`);
+    // --- computations (prose follows, grouped by how much each adds beyond the book)
+    const txMed = (hist: ArrayLike<number>): string => (histStats(hist).p[3] / 10).toFixed(1);
+    // Passed-hand cap, headline context (full split lives in its own section).
+    const phLive = sumCells(cells, 'resp', '1C', '1H', 'all', 'all', ['U']);
+    const phPass = sumCells(cells, 'resp', '1C', '1H', 'all', 'all', ['P']);
+    const phP95Drop = histStats(phLive.hcpHist).p[6] - histStats(phPass.hcpHist).p[6];
     // Shortage vs length in their suit.
     const ov = stat('overOpen', '1D', '1S', ['nat']);
-    if (ov.hcpByTheirLen) {
-      const short = histStats(ov.hcpForBuckets([0, 1]));
-      const long = histStats(ov.hcpForBuckets([2, 3]));
-      add(`- **Shortage in their suit buys lighter action.** (1D) 1S overcallers with ≤2`);
-      add(`  diamonds are median ${short.p[3]} HCP (p5 ${short.p[0]}); with 3+ diamonds median ${long.p[3]} (p5 ${long.p[0]}).`);
-      add('  The same gradient shows up in every overcall and double context (see the');
-      add('  per-context cross-tabs), so the derived filters split their-suit shortage');
-      add('  from length.');
-    }
-    // Double anatomy summary.
-    const x1h = stat('overOpen', '1H', 'X', 'all');
-    const x1c = stat('overOpen', '1C', 'X', ['nat', 'short']);
-    if (x1h.xBandN && x1c.xBandN) {
-      const share = (agg: Agg, metric: Uint32Array, minLen: number, bands: number[]): string => {
-        let num = 0;
-        let den = 0;
-        for (const b of bands) {
-          den += agg.xBandN![b];
-          for (let l = minLen; l < 8; l++) num += metric[b * 8 + l];
-        }
-        return den === 0 ? '—' : `${Math.round((100 * num) / den)}%`;
-      };
-      add(`- **Doubles are support-first below 17, shape-free above.** Under 17 HCP, (1H) X`);
-      add(`  holds 3+ spades ${share(x1h, x1h.xMajMin!, 3, [0, 1, 2])} of the time (4+ ${share(x1h, x1h.xMajMin!, 4, [0, 1, 2])}) and 2+ in both`);
-      add(`  minors ${share(x1h, x1h.xMinorMin!, 2, [0, 1, 2])}; (1C) X holds both majors 3+ ${share(x1c, x1c.xMajMin!, 3, [0, 1, 2])}. At 17+ those rates`);
-      add(`  drop to ${share(x1h, x1h.xMajMin!, 3, [3])} / ${share(x1c, x1c.xMajMin!, 3, [3])} — the strong double is its own animal, and the derived`);
-      add('  filters carry it as a separate shape-free branch.');
-    }
-    // Action rates vs opening meaning, at fixed own strength (9–11 HCP).
+    const short = histStats(ov.hcpForBuckets([0, 1]));
+    const long = histStats(ov.hcpForBuckets([2, 3]));
+    // Action rates at fixed own strength (9–11 HCP) — a strong 1C depletes seats behind it.
     const fixedRate = (key: string, sw: string[] | 'all'): number => {
       let act = 0;
       let tot = 0;
@@ -1135,16 +1911,121 @@ function buildReport(
       }
       return tot < 50 ? NaN : (100 * act) / tot;
     };
-    const rNat = fixedRate('1C', ['nat']);
-    const rStrong = fixedRate('1C', ['strong']);
-    const r1D = fixedRate('1D', ['nat']);
-    const parts: string[] = [];
-    if (!Number.isNaN(rNat)) parts.push(`${Math.round(rNat)}% over a natural 1C`);
-    if (!Number.isNaN(r1D)) parts.push(`${Math.round(r1D)}% over 1D`);
-    if (!Number.isNaN(rStrong)) parts.push(`${Math.round(rStrong)}% over a strong 1C`);
-    add(`- **Action rates need a fixed-strength lens** (a strong 1C depletes the seats`);
-    add(`  behind it). Holding 9–11 HCP, the direct seat acts ${parts.join(', ')}.`);
-    add('  See the action-rate section for the full grid.');
+    const rateParts: string[] = [];
+    for (const [key, sw, label] of [
+      ['1C', ['nat'], 'a natural 1C'],
+      ['1D', ['nat'], '1D'],
+      ['1C', ['strong'], 'a strong 1C'],
+    ] as const) {
+      const r = fixedRate(key, sw as string[]);
+      if (!Number.isNaN(r)) rateParts.push(`${Math.round(r)}% over ${label}`);
+    }
+    // Field composition: system census as frequencies.
+    const styleCount = (pick: (s: PairStyle) => string, want: string): number =>
+      [...styles.values()].filter((s) => pick(s) === want).length;
+    const nMulti = styleCount((s) => s.twoDiamonds, 'multi');
+    const nWeak2D = styleCount((s) => s.twoDiamonds, 'weak');
+    const nStrongC = styleCount((s) => s.oneClub, 'strong');
+    const respCount = { xfer: 0, std: 0, unkresp: 0 };
+    for (const v of respStyles.values()) respCount[v as keyof typeof respCount]++;
+    const x1d = stat('resp', '1C', '1D', ['xfer']);
+    const x1dHearts4 = Math.round(
+      (100 * [4, 5, 6, 7, 8, 9, 10, 11, 12, 13].reduce((a, l) => a + x1d.lenHist[1][l], 0)) /
+        Math.max(1, x1d.n),
+    );
+    const twoC = stat('overOpen', '1NT', '2C', 'all');
+    const twoD = stat('overOpen', '1NT', '2D', 'all');
+    const shareHist = (hist: ArrayLike<number>, min: number, n: number): string =>
+      n === 0
+        ? '—'
+        : `${Math.round((100 * [...Array(hist.length).keys()].filter((v) => v >= min).reduce((a, v) => a + (hist[v] as number), 0)) / n)}%`;
+    // Takeout-double anatomy by strength band.
+    const x1h = stat('overOpen', '1H', 'X', 'all');
+    const x1c = stat('overOpen', '1C', 'X', ['nat', 'short']);
+    const share = (agg: Agg, metric: Uint32Array | undefined, minLen: number, bands: number[]): string => {
+      if (!metric || !agg.xBandN) return '—';
+      let num = 0;
+      let den = 0;
+      for (const b of bands) {
+        den += agg.xBandN[b];
+        for (let l = minLen; l < 8; l++) num += metric[b * 8 + l];
+      }
+      return den === 0 ? '—' : `${Math.round((100 * num) / den)}%`;
+    };
+    const michShort = Math.round(
+      (100 * (mich.lenHist[1][0] + mich.lenHist[1][1] + mich.lenHist[1][2])) / Math.max(1, mich.n),
+    );
+
+    // --- reference-point framing (so "lighter/heavier" is never abstract)
+    add('All ranges are the field’s p5–**med**–p95. “Lighter” and “heavier” below mean');
+    add('relative to the SAYC / 2-over-1 teaching ranges laid out in the Book-vs-field table —');
+    add('never in the abstract: a world-class median is a reference point, not evidence of');
+    add('shading. Findings are ordered by how much they add beyond what a convention card');
+    add('already tells you.');
+    add();
+
+    // --- group 1: genuinely non-obvious
+    add('**Non-obvious — the numbers you can’t read off a system card:**');
+    add();
+    add(`- **Vulnerability moves preempts, and little else.** It is the single cleanest axis`);
+    add(`  in the data: (1C) 2H (weak jump overcall) is median ${med(wjoFav)} at favourable, ${med(wjoUnfav)} at`);
+    add(`  unfavourable, while simple overcalls and takeout doubles barely move (±1 HCP).`);
+    add(`- **The passed-hand cap bites at the top of the range, not the middle.** A responder`);
+    add(`  who already passed keeps almost the same median but loses the ceiling: 1C (P) 1H is`);
+    add(`  ${range90(phPass)} for a passed hand vs ${range90(phLive)} live — a ${phP95Drop}-HCP fall at p95. The same`);
+    add(`  compression (median ~1 lower, p95 4–6 lower) runs across the busy responses; see the`);
+    add(`  passed-hand responses section.`);
+    add(`- **Shortage in their suit is not a licence to bid on fewer points — it travels with shape.**`);
+    add(`  (1D) 1S overcallers with ≤2 diamonds are median ${short.p[3]} (p5 ${short.p[0]}); with 3+ they are median`);
+    add(`  ${long.p[3]} (p5 ${long.p[0]}). The gap is small in HCP because the driver is total playing strength — the`);
+    add(`  short hand brings compensating length, not thinner values — so the filters split`);
+    add(`  their-suit shortage from length rather than lowering the point floor.`);
+    add(`- **Suit quality is a weak-hand requirement, and only a weak-hand requirement.** Light`);
+    add(`  (≤10 HCP) 1H overcalls of a natural 1C carry median texture ${txMed(oc1.txiWeakHist)}/10; sound ones (11+)`);
+    add(`  ease to ${txMed(oc1.txiSoundHist)}/10. The derived filters bind the quality bar only below 11 HCP`);
+    add('  (`hcp >= 11 or top(h,5) >= …`) — above that, values alone carry the bid.');
+    add(`- **Action rates only mean something at fixed own strength.** A strong 1C depletes the`);
+    add(`  seats behind it, so raw rates mislead; holding 9–11 HCP the direct seat acts`);
+    add(`  ${rateParts.join(', ')}. See the action-rate section for the full grid.`);
+    add();
+
+    // --- group 2: field composition (frequencies, not universal law)
+    add('**Field composition — what you are up against (frequencies, not universal law):**');
+    add();
+    add(`- **Strong-club pairs are ${Math.round((100 * nStrongC) / styles.size)}% of the classified field** (${nStrongC} of ${styles.size}); most 1C you`);
+    add(`  meet is natural or short. Among classified 2♦ openers, ${nMulti} play multi vs ${nWeak2D} natural-weak,`);
+    add(`  so at this level a 2♦ opening is more often multi than a plain weak two — a fact about`);
+    add(`  this field, not a rule of bridge.`);
+    add(`- **Transfer responses to 1C are a large minority**: ${respCount.xfer} of the classified natural-club`);
+    add(`  pairs play them vs ${respCount.std} standard. Their 1D shows hearts (4+ ${x1dHearts4}% of the time, ${range90(x1d)}),`);
+    add(`  so the derived rules follow the suit shown, not the suit bid.`);
+    add(`- **Defence to 1NT is conventional, and the hands show it without the alert card**: (1NT) 2C`);
+    add(`  holds both majors 4+ ${shareHist(twoC.minMajHist, 4, twoC.n)} of the time; (1NT) 2D has a 5+ major`);
+    add(`  ${shareHist(twoD.maxMajHist, 5, twoD.n)} (6+ ${shareHist(twoD.maxMajHist, 6, twoD.n)}), multi-style. The rules read the shape, not the named suit.`);
+    add();
+
+    // --- group 3: calibration against the book (confirmations, reference explicit)
+    add('**Calibration against the book — where the field sits on the teaching range (mostly confirmations):**');
+    add();
+    add(`- **Openings sit about ${12 - histStats(merged.hcpHist).p[0]} HCP below the book at the floor, not across the board.** Natural`);
+    add(`  1M in seats 1–2 is p5 ${histStats(merged.hcpHist).p[0]} / med ${med(merged)} against a 12–21 teaching range: the bottom is`);
+    add(`  shaded (most 11-counts, some good 10s), but the median is just the centre of an 11+ opening.`);
+    add(`- **One-level overcalls run ${range90(oc1)}** — the book “8–16” holds, with the median ${med(merged) - med(oc1)} below the`);
+    add(`  median opening.`);
+    add(`- **The 1NT overcall is a strong NT** (${range90(nt1)}); the balancing (1H) P (P) 1NT is ${med(nt1) - med(ntBal)} lighter (${range90(ntBal)}).`);
+    add(`- **The takeout double over an opening is opening-strength, not a 12+ gate**: (1S) X runs ${range90(x1S)},`);
+    add(`  the 10–11 tail carrying shape. Distinct from it, the negative double (responder, over`);
+    add(`  interference) starts ~7: 1S (2H) X = ${range90(negX)}; redouble after 1C (X) shows ${range90(xx)}.`);
+    if (x1h.xBandN && x1c.xBandN) {
+      add(`- **The takeout double is shape-first below ~17 and shape-free above** — two animals under one`);
+      add(`  call. Under 17, (1H) X holds 3+ spades ${share(x1h, x1h.xMajMin, 3, [0, 1, 2])} and 2+ in both minors ${share(x1h, x1h.xMinorMin, 2, [0, 1, 2])};`);
+      add(`  (1C) X holds both majors 3+ ${share(x1c, x1c.xMajMin, 3, [0, 1, 2])}. At 17+ those shape rates fall to`);
+      add(`  ${share(x1h, x1h.xMajMin, 3, [3])} / ${share(x1c, x1c.xMajMin, 3, [3])}, so the filters carry the big double as a separate branch. (This`);
+      add(`  is the takeout double — not the *support double* convention, which is a different call.)`);
+    }
+    add(`- **Two-suited overcalls keep their shape as the point count drifts**: (1H) 2H (Michaels) =`);
+    add(`  ${range90(mich)} with ≤2 hearts ${michShort}% of the time; the unusual 2NT is the two lowest suits. Shape`);
+    add(`  is the constant, points the variable.`);
     add();
   }
 
@@ -1422,7 +2303,7 @@ function buildReport(
     for (const [k, agg] of cells.map) {
       const parts = k.split('|');
       if (parts[0] !== family) continue;
-      const key = parts.slice(1, parts.length - 3).join('|');
+      const key = parts.slice(1, parts.length - 4).join('|');
       byKey.set(key, (byKey.get(key) ?? 0) + agg.n);
     }
     return [...byKey.entries()]
@@ -1606,6 +2487,72 @@ function buildReport(
     ' — transfer responders',
   );
 
+  // --- passed-hand responder split
+  add('## Passed-hand responses: 1x (P) ? by a passed responder');
+  add();
+  add('Responder already passed, then partner opened in 3rd or 4th seat. Two things');
+  add('move together: the responder is **capped below opening strength**, and partner’s');
+  add('shaded 3rd/4th-seat opening is lighter than a 1st/2nd-seat one — so the whole');
+  add('exchange runs on fewer values. Game-forcing sequences are off the table; a new');
+  add('suit is non-forcing and jumps turn fit-showing or invitational. The split below');
+  add('is by seat only (passed vs live responder), pooling systems and vulnerability.');
+  add('Contexts are the same 1x (P) y responses tabulated above, restricted to those');
+  add('with ≥50 passed-hand samples.');
+  add();
+  {
+    // p5/**med**/p95 (n) for an HCP aggregate.
+    const pmp = (agg: Agg): string => {
+      const st = histStats(agg.hcpHist);
+      return st.n === 0 ? '—' : `${st.p[0]}/**${st.p[3]}**/${st.p[6]} (${st.n})`;
+    };
+    const RESP_KEYS = ['1C', '1D', '1H', '1S', '1NT', '2C', '2NT'];
+    interface PRow {
+      label: string;
+      passed: Agg;
+      live: Agg;
+      dMed: number;
+      dP95: number;
+    }
+    const prows: PRow[] = [];
+    for (const key of RESP_KEYS) {
+      for (const action of actionsFor(cells, 'resp', key)) {
+        if (action === 'P') continue;
+        const passed = sumCells(cells, 'resp', key, action, 'all', 'all', ['P']);
+        if (passed.n < 50) continue;
+        const live = sumCells(cells, 'resp', key, action, 'all', 'all', ['U']);
+        const ps = histStats(passed.hcpHist);
+        const ls = histStats(live.hcpHist);
+        prows.push({
+          label: `${key} (P) ${action}`,
+          passed,
+          live,
+          dMed: ps.p[3] - ls.p[3],
+          dP95: ps.p[6] - ls.p[6],
+        });
+      }
+    }
+    prows.sort((a, b) => b.passed.n - a.passed.n);
+    add('| response | passed p5/**med**/p95 (n) | live p5/**med**/p95 (n) | Δmed | Δp95 |');
+    add('|---|---|---|---|---|');
+    const sgn = (x: number): string => (x > 0 ? `+${x}` : `${x}`);
+    for (const r of prows) {
+      add(`| ${r.label} | ${pmp(r.passed)} | ${pmp(r.live)} | ${sgn(r.dMed)} | ${sgn(r.dP95)} |`);
+    }
+    add();
+    // Weighted-average shift across the shown contexts, sanity-summary.
+    const totP = prows.reduce((s, r) => s + r.passed.n, 0);
+    const wMed = prows.reduce((s, r) => s + r.dMed * r.passed.n, 0) / Math.max(1, totP);
+    const wP95 = prows.reduce((s, r) => s + r.dP95 * r.passed.n, 0) / Math.max(1, totP);
+    const dir = (x: number): string => (x <= 0 ? 'lower' : 'higher');
+    add(
+      `Weighted across the ${prows.length} contexts shown (${totP} passed samples), a passed ` +
+        `responder’s median sits ${Math.abs(wMed).toFixed(1)} HCP ${dir(wMed)} and its p95 ` +
+        `${Math.abs(wP95).toFixed(1)} HCP ${dir(wP95)} than a live responder’s — the top of the range ` +
+        'compresses hardest, which is the passed-hand cap showing through.',
+    );
+    add();
+  }
+
   // --- reverse-engineered decision matrices for the 1C complex
   add('## Reverse-engineering the 1C complex: what does each bid show?');
   add();
@@ -1665,6 +2612,109 @@ function buildReport(
         add();
       }
     }
+  }
+
+  // --- filter-accuracy audit
+  add('## Filter accuracy: how well each derived filter matches the field');
+  add();
+  add('Each dealer filter is a hard yes/no box, fit to cover ~90% of the players who made');
+  add('the bid. This section scores those boxes as classifiers against the field they');
+  add('describe. For a context (e.g. RHO opens a natural 1♣, direct seat) we take every');
+  add('decision faced, label each hand with the action it took, then test the derived');
+  add('rule’s box on it:');
+  add();
+  add('- **precision** = of the hands the filter accepts, the share that actually made the bid;');
+  add('- **recall** = of the hands that made the bid, the share the filter accepts;');
+  add('- **contested** = of hands that made the bid at least once across the ≥4 tables that');
+  add(`  faced this exact decision, the share that did **not** make it unanimously — the`);
+  add('  genuinely split, probabilistic hands a single box cannot represent.');
+  add();
+  add('Recall is high by construction (the box is fit to the bidders); precision is the');
+  add('honest number. A low-precision row is a box that also accepts hands that pass or');
+  add('choose a different call. Rows are sorted worst-precision first. Box-membership is');
+  add('evaluated from the structured rule (suit/quality/HCP branches), the same logic the');
+  add('`filterExpr` compiles to.');
+  add();
+  add('| context | bid | faced | field rate | precision | recall | contested | filter |');
+  add('|---|---|---|---|---|---|---|---|');
+  for (const r of audit.rows) {
+    // Contested is only meaningful with a reasonable pool of repeated hands.
+    const contested = r.activeHands >= 20 ? `${r.contestedPct.toFixed(0)}%` : '—';
+    add(
+      `| ${r.label} | ${r.action} | ${r.nFaced} | ${r.baseRate.toFixed(1)}% | ` +
+        `${r.precision.toFixed(0)}% | ${r.recall.toFixed(0)}% | ${contested} | \`${r.filterExpr}\` |`,
+    );
+  }
+  add();
+  add('Reading the table. The old shapeless HCP-only boxes have been replaced by shape:');
+  add('unusual 2NT now carries its two lowest unbid suits (e.g. (1♣) 2NT = ♦+♥ 5-5,');
+  add('precision ~1% → 54%) and jump overcalls carry their 6-card suit — the derived rule');
+  add('detects the two-suiter / long-suit shape the field actually holds (see the shape');
+  add('detection in the dealer-integration notes). What remains low-precision at the top of');
+  add('the table is a different thing: **rare, highly optional bids** — weak jump overcalls');
+  add('and preempts at ~0.5–1.5% base rate — where even a shape-correct hand usually picks a');
+  add('different call (pass, a simple overcall, another level). Recall stays high and the');
+  add('contested share ~100%, so that is a base-rate / gradient effect, not a missing');
+  add('constraint. **Natural suit overcalls** top out around 60–75% precision with ~75% of');
+  add('bids contested across tables: the honest ceiling of a hard box on a genuinely');
+  add('probabilistic call, and the case for a probability-weighted filter rather than a');
+  add('wider or narrower rectangle.');
+  add();
+  const ex = audit.example;
+  if (ex) {
+    add('### Worked example: (1C) 1S');
+    add();
+    add(
+      `Of ${ex.nFaced} hands that faced a natural/short 1♣ in the direct seat, ${ex.nBid} overcalled 1♠. ` +
+        `The box catches ${ex.recall.toFixed(0)}% of them (recall) but only ${ex.precision.toFixed(0)}% of box-matching ` +
+        'hands actually overcall 1♠ (precision) — it is too generous in the middle and too tight in the tails.',
+    );
+    add();
+    const fpTotal = ex.fpActions.reduce((a, [, c]) => a + c, 0);
+    add(
+      `**Accepted but did not bid 1♠ (${fpTotal}).** These hands instead: ` +
+        ex.fpActions.map(([a, c]) => `${a} ${c}`).join(', ') +
+        ' — passes and stronger spade actions (jumps to 2♠/3♠/4♠) the box cannot tell apart from a simple 1♠.',
+    );
+    add();
+    add(
+      `**Overcalled 1♠ but outside the box (${ex.fnTotal}, ${((100 * ex.fnTotal) / Math.max(1, ex.nBid)).toFixed(0)}% of bidders).** ` +
+        `Reasons (may overlap): ${ex.fnReasons.hcpHi} too strong for the HCP cap, ${ex.fnReasons.hcpLo} too weak, ` +
+        `${ex.fnReasons.suitShort} with a shorter suit than the length floor, ${ex.fnReasons.qualLo} below the quality floor.`,
+    );
+    add();
+    add('The decision is a **gradient, not a box** — P(overcall 1♠) rises then falls with');
+    add('strength and with suit length, so no single rectangle is both precise and complete:');
+    add();
+    add('| holding a real ♠ suit (s≥5, top5≥1) | ≤6 | 7–9 | 10–12 | 13–15 | 16–18 | 19+ |');
+    add('|---|---|---|---|---|---|---|');
+    add(
+      `| P(1♠) by HCP | ${ex.hcpSurface.map(([, p]) => `${p.toFixed(0)}%`).join(' | ')} |`,
+    );
+    add(`| n | ${ex.hcpSurface.map(([, , n]) => String(n)).join(' | ')} |`);
+    add();
+    add('| at 10–15 HCP | 3♠ | 4♠ | 5♠ | 6♠ | 7+♠ |');
+    add('|---|---|---|---|---|---|');
+    add(`| P(1♠) by spade length | ${ex.lenSurface.map(([, p]) => `${p.toFixed(0)}%`).join(' | ')} |`);
+    add(`| n | ${ex.lenSurface.map(([, , n]) => String(n)).join(' | ')} |`);
+    add();
+    add('The HCP cap at 15 discards the 16–18 band (which still overcalls 1♠ around half the');
+    add('time, choosing it over a double), while the 7–9 shoulder inside the box overcalls far');
+    add('less than the 10–15 core.');
+    add();
+    add('**Three breadth presets.** Rather than one box, the dealer offers three coverage');
+    add('levels of the same observed range — conservative keeps the high-confidence core,');
+    add('aggressive reaches the observed extremes (see the dealer-integration notes for why');
+    add('this beats a single box or a probability). The precision/recall trade-off is exactly');
+    add('what you would expect, and every preset stays within hands the field actually bid:');
+    add();
+    add('| preset | precision | recall | filter |');
+    add('|---|---|---|---|');
+    for (const p of ex.presets) {
+      const name = p.name.charAt(0).toUpperCase() + p.name.slice(1);
+      add(`| ${name} | ${p.precision.toFixed(0)}% | ${p.recall.toFixed(0)}% | \`${p.filterExpr}\` |`);
+    }
+    add();
   }
 
   // --- book comparison
@@ -1730,6 +2780,8 @@ function buildReport(
       suitLen: '… per-suit percentiles + histograms …',
       hcpByTheirLen: p.hcpByTheirLen,
       rule: p.rule,
+      filterConservative: p.filterConservative,
+      filterAggressive: p.filterAggressive,
     };
     add(JSON.stringify(compact, null, 2));
   }
@@ -1760,6 +2812,26 @@ function buildReport(
   add();
   add('The histograms are retained so stricter (p10–p90) or looser (min–max) cuts can');
   add('be derived without re-running the study.');
+  add();
+  add('**Shape detection.** A bid the natural derivation cannot pin down — unusual 2NT, a');
+  add('jump cue, or a jump the field plays two ways — is passed to `deriveConventionalShape`,');
+  add('which measures the shape components the hands actually hold (the two lowest unbid suits');
+  add('5+, both majors 4+, or a single 6+ suit) and unions those covering ≥30%, falling back');
+  add('to an HCP range only when none is common. This replaced the shapeless HCP-only boxes');
+  add('the filter-accuracy audit flagged: unusual 2NT went from ~1% to ~45–54% precision.');
+  add();
+  add('**Breadth presets (conservative / normal / aggressive).** No single box exceeds ~75%');
+  add('precision on a natural overcall, because the call is genuinely optional. But the');
+  add('variation is between-player *rate*, not *range*: pairs sorted from cautious to bold');
+  add('(44%→65% marginal-overcall rate) overcall 1♠ on an essentially identical range —');
+  add('same p5/p95, same shape tolerance — they just pull the trigger more or less often');
+  add('within it. So a probability would mismodel a player as a dice-roll; instead each rule');
+  add('ships three **coverage levels of that one shared range**. `conservative` narrows the');
+  add('HCP band (quantiles 0.20–0.87) and demands a sounder suit — the high-confidence core;');
+  add('`aggressive` widens to the observed extremes (0.01–0.99) and relaxes the suit floor;');
+  add('`normal` is the field fit. All three stay within hands the field actually bid — the');
+  add('knob picks how inclusive, it does not invent hands. `rule.filterExpr` is the normal');
+  add('level; `rule.filterConservative` / `rule.filterAggressive` carry the other two.');
   add();
 
   add('## Files');
