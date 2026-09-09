@@ -12,12 +12,18 @@ so it supports much more (player/team analysis, lead stats, bidding, scoring).
 
 ## What's covered
 
-Nine championships plus two transnationals, 2017–2026 (~327k contracts / 18k
+Thirteen championships plus two transnationals, 2017–2026 (~567k contracts / 35k
 deals). See `TOURNAMENTS` in `scrape.ts`.
 
 - **World Team Championships** (`worldbridge.org`, codes `BB/VC/DOT/WUC`, RR +
   knockout QF/SF/FF): `lyon17` (3 events, no Mixed), `wuhan19`, `salso22`
   (Salsomaggiore, the postponed "2021" edition), `marrakech23`, `herning25`.
+- **World Bridge Series** (`worldbridge.org`, Katowice 2026, redesigned
+  microsite template — see "Page formats" below): the four open-entry world
+  knockout titles, each scraped knockout-only (`rrTournid: 0` — the qualifying
+  stage isn't published in this template): `katowice26` (Rosenblum Cup / Open
+  Teams, phases 64→FF), `katowice26mx` (Mixed Teams, 32→FF), `katowice26w`
+  (Women Teams, QF→FF), `katowice26s` (Senior Teams, QF→FF).
 - **Transnational Open Teams** (code `TNOT`): the open field that runs alongside
   the world/European championship — a large mixed-strength Swiss qualifier then a
   knockout. We scrape only the **knockout finals** (phase `16` = Round of 16,
@@ -52,6 +58,21 @@ deals). See `TOURNAMENTS` in `scrape.ts`.
 - **Bidding**: present in newer sites (2025, and all knockouts), all USBF PBN, and
   all BBO-LIN NABC KOs; the older round-robins (2017–2023) carry no auctions — the
   deal source is auto-detected.
+- **Page formats**: `Tournament.pageFormat` selects the parser set — `'classic'`
+  (default, `parse.ts`) for every worldbridge.org/eurobridge.org microsite through
+  2025, or `'cards2026'` (`parse2026.ts`) for the redesigned template introduced
+  for Katowice 2026 (card-grid hand records, a combined contract+declarer label,
+  one signed score per room instead of separate NS/EW columns, and an inline
+  rather than hover-tooltip bidding panel). Both parser sets produce the same
+  `MatchRecord`/`MatchBoard`/`Play` shape, so `scrape.ts`'s orchestration,
+  `flatten.ts`, and every downstream reader are unaware which template a
+  tournament uses. The `cards2026` template shows only a single-sided per-board
+  IMP bar value, not the classic template's separate home/away columns, so
+  `parse2026.ts` computes each board's IMPs itself from the two rooms' recorded
+  scores (`toImps` from `research/bidding/score.ts`) and cross-checks the result
+  against the page's own figure, logging any disagreement (`scrape.ts` prints an
+  aggregate agreement rate at the end of the run — 100% across every match
+  sampled while building this).
 - **Combined data**: `data/_all/{contracts,matches,deals}.csv` concatenates every
   tournament (each row carries its `tournament` + `event`) for a single load.
   Rebuilt by hand after adding a tournament — concatenate each `data/<tourn>/`
@@ -102,13 +123,17 @@ three CSVs plus `schema.sql` (MSSQL `CREATE TABLE` + `BULK INSERT`):
 
 ## How it works (and the non-obvious bits)
 
-- **Seat mapping.** Hand diagrams have no seat labels; position fixes them
-  (N top, W mid-left, E mid-right, S bottom → PBN in N E S W order). Verified two
-  ways: the bidding (board 1's mid-right hand is the 15-HCP 1NT opener = East)
-  and DD agreeing with real results (residuals centre on 0).
-- **Auctions** are pulled out of each contract cell's hover tooltip, normalised
-  to dealer-first calls (`P` `X` `XX` `1NT` `2D`…). Validated: for every 2025
-  contract, the auction's final bid equals the stated contract.
+- **Seat mapping.** Classic-template hand diagrams have no seat labels; position
+  fixes them (N top, W mid-left, E mid-right, S bottom → PBN in N E S W order).
+  Verified two ways: the bidding (board 1's mid-right hand is the 15-HCP 1NT
+  opener = East) and DD agreeing with real results (residuals centre on 0). The
+  `cards2026` template labels each compass position directly in its CSS class
+  (`pos-n`/`pos-w`/`pos-e`/`pos-s`), so `parse2026.ts` reads seats off that
+  instead of position.
+- **Auctions** are pulled out of each contract cell's hover tooltip (`cards2026`:
+  an inline bidding panel, same W-N-E-S / "-" pad / token grammar), normalised
+  to dealer-first calls (`P` `X` `XX` `1NT` `2D`…). Validated: for every 2025 and
+  every `cards2026` contract, the auction's final bid equals the stated contract.
 - **Large positive residuals are real, not bugs.** Declarers can beat
   double-dummy when defenders miss the DD defence (e.g. failing to draw trumps,
   letting a long side-suit run). Each row's score cross-checks the contract+tricks.
@@ -120,8 +145,9 @@ three CSVs plus `schema.sql` (MSSQL `CREATE TABLE` + `BULK INSERT`):
 
 | file | role |
 |------|------|
-| `parse.ts`    | pure HTML parsers (deals, results, teams/players, auctions) |
-| `scrape.ts`   | cached fetch + DD + per-match JSONL; `TOURNAMENTS` config |
+| `parse.ts`    | pure HTML parsers for the classic (pre-2026) template |
+| `parse2026.ts`| pure HTML parsers for the `cards2026` template (Katowice 2026); reuses parse.ts's small HTML primitives and auction/contract-cell parsers |
+| `scrape.ts`   | cached fetch + DD + per-match JSONL; `TOURNAMENTS` config; picks the parser set per `pageFormat` |
 | `flatten.ts`  | JSONL → contracts/matches/deals CSV + `schema.sql` |
 | `*.task.ts`   | vitest entry points for scrape / flatten |
 | `tests/`      | parser tests + real-HTML fixtures |

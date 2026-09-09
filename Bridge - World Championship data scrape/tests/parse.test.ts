@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseBoardAcrossDeal, parseBoardQboards, parseHands, parseKoSegment, parseMatchIds, parseMatchMeta, parseResults, parseRoundSpec } from '../parse';
+import { parseHands2026, parseKoSegment2026, parseMatchMeta2026, parseResults2026 } from '../parse2026';
 import handsHtml from './fixtures/handsacross-2550-r1.html?raw';
 import roundHtml from './fixtures/roundteams-2550-r1.html?raw';
 import boardHtml from './fixtures/boarddetails-153336.html?raw';
@@ -9,6 +10,9 @@ import mar23DealHtml from './fixtures/boardacross-2350-b1.html?raw';
 import mar23BoardHtml from './fixtures/boarddetails-2350-112644.html?raw';
 import mar23KoDealHtml from './fixtures/boardacrossko-2354-qf-b1.html?raw';
 import mar23KoBoardHtml from './fixtures/boarddetailsko-2354-113816.html?raw';
+import kat26HandsHtml from './fixtures/katowice26/handsacrossko-2650-ff-seg1.html?raw';
+import kat26BoardHtml from './fixtures/katowice26/boarddetailsko-2650-169032-ff.html?raw';
+import kat26PhaseHtml from './fixtures/katowice26/knockoutphase-2650-ff.html?raw';
 
 describe('parseHands', () => {
   const hands = parseHands(handsHtml);
@@ -155,5 +159,122 @@ describe('parseRoundSpec', () => {
     expect(parseRoundSpec('1')).toEqual([1]);
     expect(parseRoundSpec('1-3')).toEqual([1, 2, 3]);
     expect(parseRoundSpec('1,3,5-7')).toEqual([1, 3, 5, 6, 7]);
+  });
+});
+
+// ---- cards2026: the redesigned WBF template (2026 World Bridge Series, Katowice) ----
+// Fixtures are real pages from the Open Teams KO (Rosenblum Cup) final, tournid
+// 2650, matchid 169032 (ROSENTHAL v FLEISHER), segment 1. Values below were read
+// by eye off the live pages before being asserted here.
+
+describe('parseHands2026', () => {
+  const hands = parseHands2026(kat26HandsHtml);
+
+  it('finds all 14 boards of the segment', () => {
+    expect(hands.size).toBe(14);
+    expect([...hands.keys()].sort((a, b) => a - b)).toEqual([...Array(14)].map((_, i) => i + 1));
+  });
+
+  it('parses board 1 deal, dealer and vulnerability', () => {
+    const b1 = hands.get(1)!;
+    expect(b1.dealer).toBe('N');
+    expect(b1.vul).toBe('None');
+    // Seats are labelled directly (pos-n/w/e/s) — no positional inference needed.
+    expect(b1.pbn).toBe('N:J8642.6.KJ7.T532 9.KT832.QT653.K9 T5.Q975.982.AQ64 AKQ73.AJ4.A4.J87');
+  });
+
+  it('represents a void as an empty suit, not the literal en-dash placeholder', () => {
+    // Board 4, South: spades T987, hearts void (rendered on the page as "&#8211;").
+    const b4 = hands.get(4)!;
+    expect(b4.dealer).toBe('W');
+    expect(b4.vul).toBe('All');
+    const south = b4.pbn.split(' ')[2]; // PBN order N E S W
+    expect(south).toBe('T987..AQ986.J985');
+  });
+});
+
+describe('parseKoSegment2026', () => {
+  it('reads the segment number off the "Hand records" link', () => {
+    expect(parseKoSegment2026(kat26BoardHtml)).toBe(1);
+  });
+});
+
+describe('parseMatchMeta2026', () => {
+  const m = parseMatchMeta2026(kat26BoardHtml);
+
+  it('reads teams (no id — team links carry none) and the match IMP total', () => {
+    expect(m.home).toEqual({ name: 'ROSENTHAL', id: null });
+    expect(m.away).toEqual({ name: 'FLEISHER', id: null });
+    expect(m.impHome).toBe(8);
+    expect(m.impAway).toBe(46);
+    expect(m.vpHome).toBeNull(); // knockout-only template — VP never shown
+  });
+
+  it('places the eight players by explicitly-labelled room and seat, with eurobridge qryid as id', () => {
+    expect(m.open.N).toEqual({ name: 'ROSENTHAL Andrew', id: 29523 });
+    expect(m.open.W).toEqual({ name: 'BRINK Sjoert', id: 3391 });
+    expect(m.open.E).toEqual({ name: 'DRIJVER Bas', id: 16819 });
+    expect(m.open.S).toEqual({ name: 'SILVERSTEIN Aaron', id: 17578 });
+    expect(m.closed.N).toEqual({ name: 'BESSIS Thomas', id: 3470 });
+    expect(m.closed.W).toEqual({ name: 'WILLENKEN Chris', id: 5924 });
+    expect(m.closed.E).toEqual({ name: 'SCHALTZ Martin', id: 3328 });
+    expect(m.closed.S).toEqual({ name: 'LORENZINI Cedric', id: 7967 });
+  });
+});
+
+describe('parseResults2026', () => {
+  const { results, impChecks } = parseResults2026(kat26BoardHtml);
+
+  it('covers all 14 boards', () => {
+    expect(results.size).toBe(14);
+  });
+
+  it('parses board 1 both rooms: contract, declarer, tricks, lead, score, auction', () => {
+    const b1 = results.get(1)!;
+    expect(b1.open).toMatchObject({ contract: '4H', strain: 1, declarer: 1, doubled: 0, tricks: 10, lead: 'ST', ewPoints: 420, nsPoints: 0 });
+    expect(b1.open!.auction).toEqual(['P', '2H', 'P', '4H', 'P', 'P', 'P']);
+    expect(b1.closed).toMatchObject({ contract: '4H', declarer: 3, tricks: 8, lead: 'C3', nsPoints: 100, ewPoints: 0 });
+    expect(b1.closed!.auction).toEqual(['P', 'P', 'P', '1S', 'P', '1NT', 'P', '2NT', 'P', '3D', 'P', '3H', 'P', '3NT', 'P', '4H', 'P', 'P', 'P']);
+  });
+
+  it('parses board 3 as a flat board (identical result both rooms → 0 computed IMPs)', () => {
+    const b3 = results.get(3)!;
+    expect(b3.open).toMatchObject({ contract: '3NT', declarer: 1, tricks: 10, lead: 'S9', ewPoints: 630, nsPoints: 0 });
+    expect(b3.closed).toMatchObject({ contract: '3NT', declarer: 1, tricks: 10, lead: 'D2', ewPoints: 630, nsPoints: 0 });
+    expect(b3.impHome).toBe(0);
+    expect(b3.impAway).toBe(0);
+  });
+
+  it('parses board 13: a doubled contract, and computes the board IMP from both rooms’ scores', () => {
+    const b13 = results.get(13)!;
+    expect(b13.open).toMatchObject({ contract: '4Sx', level: 4, strain: 0, declarer: 1, doubled: 1, lead: 'HA', tricks: 7, nsPoints: 800, ewPoints: 0 });
+    expect(b13.open!.auction).toEqual(['P', '1S', '2H', '2S', '4H', 'X', 'P', '4S', 'X', 'P', 'P', 'P']);
+    expect(b13.closed).toMatchObject({ contract: '4H', declarer: 0, doubled: 0, lead: 'CQ', tricks: 10, nsPoints: 620, ewPoints: 0 });
+    // Open room home team (N-S) lost 800, closed room home team (E-W) lost 620 →
+    // home differential -800-(-620) = -180 → toImps(180) = 5 IMPs to the away team.
+    expect(b13.impHome).toBe(5);
+    expect(b13.impAway).toBe(0);
+  });
+
+  it('every scraped auction’s final bid equals the recorded contract', () => {
+    for (const [board, r] of results) {
+      for (const play of [r.open, r.closed]) {
+        if (!play || play.auction.length === 0) continue;
+        const bids = play.auction.filter((c) => /^[1-7]/.test(c));
+        expect(bids[bids.length - 1], `board ${board}`).toBe(play.contract.replace(/x+$/, ''));
+      }
+    }
+  });
+
+  it('computed per-board IMPs agree with the page’s own imp-h/imp-v figure on every board of this match', () => {
+    expect(impChecks.length).toBeGreaterThan(0);
+    for (const c of impChecks) expect(c, `board ${c.board}`).toMatchObject({ agree: true });
+  });
+});
+
+describe('parseMatchIds on a cards2026 knockoutphase page', () => {
+  it('lists the 4 match-segment ids of the Open Teams final (classic parseMatchIds is format-agnostic)', () => {
+    const ids = parseMatchIds(kat26PhaseHtml);
+    expect(ids.sort((a, b) => a - b)).toEqual([169032, 169033, 169034, 169035]);
   });
 });

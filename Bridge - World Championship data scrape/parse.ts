@@ -19,21 +19,25 @@ export type Seat = (typeof SEATS)[number];
 
 // ---- Small HTML helpers ----------------------------------------------------
 
-function symbolize(html: string): string {
+// Exported (not just used internally): parse2026.ts reuses these primitives for
+// the redesigned 2026 microsite template, which shares the same HTML idioms
+// (entity-coded suit symbols, &nbsp; padding, "x"/"xx" doubling markers) inside
+// a different page layout.
+export function symbolize(html: string): string {
   return html
     .replace(/&spades;/gi, 'S')
     .replace(/&hearts;/gi, 'H')
     .replace(/&diams;/gi, 'D')
     .replace(/&clubs;/gi, 'C');
 }
-function stripTags(html: string): string {
+export function stripTags(html: string): string {
   return html.replace(/<[^>]*>/g, '');
 }
-function decode(text: string): string {
+export function decode(text: string): string {
   return text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
 }
 /** Integer in a cell (blanks / "&nbsp;" → 0). */
-function intOf(cellHtml: string): number {
+export function intOf(cellHtml: string): number {
   const n = Number(stripTags(cellHtml).replace(/[^\d-]/g, ''));
   return Number.isFinite(n) ? n : 0;
 }
@@ -47,7 +51,7 @@ export interface Deal {
   pbn: string;
 }
 
-function cleanRanks(s: string): string {
+export function cleanRanks(s: string): string {
   return (s.match(/[AKQJT2-9]/g) ?? []).join('');
 }
 
@@ -89,7 +93,7 @@ export function parseHands(html: string): Map<number, Deal> {
   return out;
 }
 
-function normVul(s: string): string {
+export function normVul(s: string): string {
   const t = s.trim().toLowerCase();
   if (t.startsWith('none') || t === 'love' || t === '') return 'None';
   if (t.startsWith('all') || t.startsWith('both')) return 'All';
@@ -266,8 +270,12 @@ function normCall(raw: string): string {
  * four <td>s are the W/N/E/S header; the rest are calls in W-N-E-S order. Cells
  * before the dealer are "-" pads, so stripping leading pads yields a dealer-first
  * sequence. A truncated final cell (the site cuts the closing pass) is dropped.
+ *
+ * Exported: the 2026 template's bidding panel is a plain <table> in the same
+ * W-N-E-S / "-" pad / lowercase x-xx shape, just laid out inline instead of in a
+ * hover tooltip — this function works unmodified on either.
  */
-function parseAuction(spanInner: string): string[] {
+export function parseAuction(spanInner: string): string[] {
   const tds = [...spanInner.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => normCall(m[1]));
   const calls = tds.slice(4); // drop the W/N/E/S header row
   let i = 0;
@@ -280,7 +288,9 @@ function parseAuction(spanInner: string): string[] {
   return seq;
 }
 
-function parseContractCell(cellHtml: string): { level: number; strain: number; doubled: 0 | 1 | 2 } | null {
+/** Exported for reuse by parse2026.ts, whose contract markup differs only in
+ *  what wraps it (a <label> instead of a <td>), not in the token grammar. */
+export function parseContractCell(cellHtml: string): { level: number; strain: number; doubled: 0 | 1 | 2 } | null {
   const t = decode(stripTags(symbolize(cellHtml)))
     .replace(/ \d+ /g, '') // drop the span placeholder token (see parseResults)
     .replace(/\s+/g, '');

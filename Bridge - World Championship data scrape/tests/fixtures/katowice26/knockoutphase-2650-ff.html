@@ -1,0 +1,368 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Teams KO - Final</title>
+<style>
+:root{
+  --c-dark:#e6ebf5;
+  --c-light:#c6d4ec;
+  --c-font:#00194d;
+  --c-head-bg:#000066;
+  --c-head-fg:#FFFFFF;
+  --c-border:#999999;
+  --c-accent:#1a6fa3;
+  --home:#0000FF;
+  --vis:#BB0000;
+  /* fixed light chrome - DesignSystem 2b. Deliberately NOT from the event
+     scheme, so the page furniture is stable whatever the event colours are. */
+  --page:#e9edf3; --panel:#fff; --line:#d7dde5;
+  --ink:#1c2029; --chip:#3a404a; --strong:#14161c; --muted:#5b616b;
+  --rowh:36px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--page);color:var(--ink);font-family:"Segoe UI",Calibri,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%;padding:13px}
+a{color:inherit;text-decoration:none}
+img{border:0}
+.wrap{max-width:1120px;margin:0 auto}
+
+/* ---------- sticky top menu (DesignSystem 5) ---------- */
+.topbar{position:sticky;top:0;z-index:40;background:var(--page);padding-bottom:10px;margin-bottom:14px;box-shadow:0 8px 16px -10px rgba(20,30,50,.32)}
+.evhead{display:flex;flex-wrap:wrap;gap:9px}
+.evhead .cell{border-radius:12px;padding:12px 17px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 2px 10px rgba(20,30,50,.10)}
+.evhead .title{flex:2 1 300px;background:linear-gradient(155deg,rgba(255,255,255,.10),rgba(0,0,0,.16)),var(--c-dark);color:var(--c-font);font-size:clamp(16px,2.2vw,25px);font-weight:700;line-height:1.2}
+.evhead .round{flex:0 0 auto;min-width:118px;background:var(--c-head-bg);color:var(--c-head-fg);align-items:center;text-align:center}
+.evhead .round .lbl{font-size:10px;letter-spacing:.13em;text-transform:uppercase;opacity:.85;font-weight:700}
+.evhead .round .val{font-size:clamp(15px,2.1vw,20px);font-weight:800;line-height:1.15}
+/* The phase cell's flex BASIS stays at 130px. Widening it to fit the select
+   costs a whole extra header row on a 320-360px phone, because the cell can
+   then no longer share a row with the phase chip - the control is width:100%,
+   so the basis governs wrapping only. DesignSystem 22b. */
+.evhead .phase{flex:1 1 130px;background:linear-gradient(155deg,rgba(255,255,255,.10),rgba(0,0,0,.16)),var(--c-dark);color:var(--c-font);align-items:stretch;justify-content:center}
+.evhead .phase .lbl{font-size:10px;letter-spacing:.13em;text-transform:uppercase;opacity:.85;margin-bottom:4px;font-weight:700}
+.phase-sel{display:block;width:100%;max-width:100%;background:rgba(255,255,255,.92);color:var(--ink);border:1px solid var(--c-border);border-radius:9px;padding:6px 8px;font-family:inherit;font-size:13px;font-weight:700;line-height:1.25;cursor:pointer}
+.phase-sel option{background:#fff;color:var(--ink)}
+
+/* ---------- legend (DesignSystem 10) ---------- */
+.legendrow{display:flex;align-items:stretch;gap:9px;margin-bottom:14px;position:relative}
+.hints{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+@media(max-width:980px){.hints{grid-template-columns:1fr 1fr}}
+@media(max-width:680px){.hints{grid-template-columns:1fr}}
+.hint{display:flex;align-items:center;gap:11px;height:44px;padding:0 13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--chip);font-size:12.5px;line-height:1.25;overflow:hidden}
+.hint b,.hint-key{color:var(--strong);font-weight:700}
+.hint-ic{flex:0 0 auto;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--c-head-bg);color:var(--c-head-fg);cursor:help}
+.hint-ic svg{width:17px;height:17px;display:block}
+.hint-more{position:absolute;left:0;right:0;bottom:-38px;opacity:0;font-size:12px;color:var(--chip);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 12px;pointer-events:none;transition:opacity .13s ease}
+.hints.opendesc{margin-bottom:0}
+.legendrow.opendesc{margin-bottom:56px}
+.hint.showdesc .hint-more{opacity:1}
+.viewmode-btn{display:none;flex:0 0 auto;align-items:center;justify-content:center;gap:8px;height:44px;cursor:pointer;text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;padding:0 15px;border-radius:12px;background:var(--c-head-bg);color:var(--c-head-fg);border:1px solid var(--c-head-bg)}
+.viewmode-btn:hover{filter:brightness(1.06)}
+.viewmode-btn svg{width:16px;height:16px;display:block;flex:0 0 auto}
+@media(orientation:portrait){.viewmode-btn{display:inline-flex}}
+.portrait-only{display:none}
+@media(orientation:portrait){.portrait-only{display:inline}}
+
+/* ---------- one match ---------- */
+.ko-match{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(20,30,50,.08);overflow:hidden}
+.ko-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:9px 13px;background:var(--c-head-bg);color:var(--c-head-fg);font-size:13px;font-weight:800}
+.ko-head .ko-when{font-weight:600;opacity:.9;font-size:12px}
+
+/* The number of segment columns comes from the DATA, not from the interim
+   four-segment rule, so an archived phase can carry eight of them and the row
+   then needs more width than any phone has. Wide content scrolls inside its
+   OWN box; the page itself must never scroll sideways. --ko-min is worked out
+   in ASP from the same track widths, so the rows keep a floor under the team
+   name instead of being crushed to nothing. */
+.ko-grid{overflow-x:auto}
+.ko-hrow,.ko-trow{display:grid;grid-template-columns:var(--ko-cols);min-width:var(--ko-min,0);align-items:center;column-gap:4px;padding:0 12px}
+.ko-hrow{height:26px;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+.ko-trow{height:var(--rowh);font-size:14px}
+.ko-trow.vis{background:rgba(20,30,50,.035)}
+.ko-trow.home .nm{color:var(--home)}
+.ko-trow.vis .nm{color:var(--vis)}
+.ko-trow.home .seg a{color:var(--home)}
+.ko-trow.vis .seg a{color:var(--vis)}
+
+.ko-flag{width:26px;height:17px;object-fit:contain;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.20);display:block}
+.ko-name{min-width:0;display:flex;align-items:center}
+.ko-name .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.co,.seg,.tot{text-align:right;font-variant-numeric:tabular-nums}
+.co{color:var(--muted);font-size:13px}
+.tot{font-weight:800;color:var(--strong)}
+.seg a{border-bottom:1px dotted currentColor}
+.ko-hrow .seg,.ko-hrow .tot,.ko-hrow .co{text-align:right}
+
+/* ---------- rosters, one per team, opened by tapping the name ----------
+   A team name is only made tappable when that team actually HAS a roster, so
+   the dotted underline never promises something that will not open. */
+.ros-toggle{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.ko-name .nm.rosterable{cursor:pointer;border-bottom:1px dotted currentColor;-webkit-tap-highlight-color:transparent}
+.ko-roster{display:none;padding:10px 13px 12px;background:rgba(20,30,50,.04);border-top:1px solid var(--line);font-size:12.5px;line-height:1.55;color:var(--ink)}
+.ko-roster .rt{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;font-weight:800}
+/* "+" and not "~": each input is immediately followed by its OWN roster, and
+   the general sibling combinator would open the second team's as well */
+.ros-toggle:checked + .ko-roster{display:block}
+
+/* ---------- segment by segment, for the phone ---------- */
+.seg-toggle{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.seg-btn{display:none;align-items:center;gap:7px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;margin:0;padding:8px 13px;background:rgba(20,30,50,.04);border-top:1px solid var(--line);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--chip)}
+.seg-btn svg{width:13px;height:13px;transition:transform .2s ease}
+.seg-toggle:checked + .seg-btn svg{transform:rotate(180deg)}
+.ko-segs{display:none;padding:0 12px 10px;background:rgba(20,30,50,.02)}
+.seg-toggle:checked ~ .ko-segs{display:block}
+.sg-row{display:grid;grid-template-columns:38px 1fr 1fr 1fr 1fr;column-gap:4px;align-items:center;height:28px;font-size:12.5px;font-variant-numeric:tabular-nums}
+.sg-row.head{height:24px;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+.sg-row span{text-align:right}
+.sg-row .sg-no{text-align:left;font-weight:800}
+.sg-row .h1,.sg-row .h2{color:var(--home)}
+.sg-row .v1,.sg-row .v2{color:var(--vis)}
+.sg-row .h2,.sg-row .v2{font-weight:800}
+
+/* ---------- notice + footer ---------- */
+.notice{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;text-align:center;color:#33383f;font-size:14px}
+.foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 16px;color:var(--muted);font-size:12px;line-height:1.6;margin:16px 6px 6px;text-align:center}
+.foot img{height:26px;width:auto;display:block}
+.closebtn a{display:inline-block;background:var(--c-head-bg);color:var(--c-head-fg);font-weight:700;padding:8px 22px;border-radius:8px;font-size:13px}
+
+/* ---------- phone, upright ----------
+   The segment columns come out; every side keeps its flag, its name, the
+   carry-over and the latest running total. The segments are one tap away in
+   the panel underneath, laid out as rows so any number of them fits. */
+@media(orientation:portrait) and (max-width:620px){
+  body{padding:8px}
+  :root{--rowh:34px}
+  /* the compact portrait layout always fits, so the floor comes off */
+  .ko-hrow,.ko-trow{grid-template-columns:26px minmax(0,1fr) 36px 56px;min-width:0;padding:0 10px}
+  .ko-hrow .seg,.ko-trow .seg{display:none}
+  .ko-hrow .tot,.ko-trow .tot{display:none}
+  .ko-hrow .tot.last,.ko-trow .tot.last{display:block}
+  .seg-btn{display:flex}
+  .ko-trow{font-size:13.5px}
+  .evhead .cell{padding:10px 14px}
+}
+
+/* Desktop mode (qdesktop=1): every segment column back, even in portrait. */
+body.force-desktop .ko-hrow,body.force-desktop .ko-trow{grid-template-columns:var(--ko-cols);min-width:var(--ko-min,0);padding:0 12px}
+body.force-desktop .ko-hrow .seg,body.force-desktop .ko-trow .seg{display:block}
+body.force-desktop .ko-hrow .tot,body.force-desktop .ko-trow .tot{display:block}
+body.force-desktop .seg-btn{display:none}
+body.force-desktop .ko-segs{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="evhead">
+      <div class="cell title">2026 World Bridge Series</div>
+      <div class="cell round"><span class="lbl">Phase</span><span class="val">Final</span></div>
+      <div class="cell phase">
+        <span class="lbl">Event</span>
+        <select class="phase-sel" onchange="if(this.value)location.href=this.value;" title="Choose an event and a knockout phase">
+
+          <option value="?qtournid=2650&qphase=64&qdesktop=0">Open Teams KO - Phase of 64</option>
+
+          <option value="?qtournid=2650&qphase=32&qdesktop=0">Open Teams KO - Phase of 32</option>
+
+          <option value="?qtournid=2650&qphase=16&qdesktop=0">Open Teams KO - Phase of 16</option>
+
+          <option value="?qtournid=2650&qphase=QF&qdesktop=0">Open Teams KO - Quarterfinals</option>
+
+          <option value="?qtournid=2650&qphase=SF&qdesktop=0">Open Teams KO - Semifinals</option>
+
+          <option value="?qtournid=2650&qphase=FF&qdesktop=0" selected>Open Teams KO - Final</option>
+
+          <option value="?qtournid=2651&qphase=QF&qdesktop=0">Women Teams KO - Quarterfinals</option>
+
+          <option value="?qtournid=2651&qphase=SF&qdesktop=0">Women Teams KO - Semifinals</option>
+
+          <option value="?qtournid=2651&qphase=FF&qdesktop=0">Women Teams KO - Final</option>
+
+          <option value="?qtournid=2652&qphase=QF&qdesktop=0">Senior Teams - Quarterfinals</option>
+
+          <option value="?qtournid=2652&qphase=SF&qdesktop=0">Senior Teams - Semifinals</option>
+
+          <option value="?qtournid=2652&qphase=FF&qdesktop=0">Senior Teams - Final</option>
+
+          <option value="?qtournid=2653&qphase=32&qdesktop=0">Mixed Teams - Phase of 32</option>
+
+          <option value="?qtournid=2653&qphase=16&qdesktop=0">Mixed Teams - Phase of 16</option>
+
+          <option value="?qtournid=2653&qphase=QF&qdesktop=0">Mixed Teams - Quarterfinals</option>
+
+          <option value="?qtournid=2653&qphase=SF&qdesktop=0">Mixed Teams - Semifinals</option>
+
+          <option value="?qtournid=2653&qphase=FF&qdesktop=0">Mixed Teams - Final</option>
+
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="legendrow">
+
+    <a class="viewmode-btn" href="?qtournid=2650&qphase=FF&amp;qdesktop=1" title="Show every segment column, as on a desktop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Desktop view</a>
+
+    <div class="hints">
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg></span><span class="hint-key">Segment</span><span class="hint-more">Click a segment result to see that segment board by board<span class="portrait-only">, or open <b>segment by segment</b> under a match</span></span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><span class="hint-key">Other events</span><span class="hint-more">The menu at the top right opens any other event and knockout phase that has a result</span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="3.6"/><path d="M22 19v-1a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="hint-key">Roster</span><span class="hint-more">Tap a team name to see that team's roster</span></div>
+    </div>
+  </div>
+
+
+  <section class="ko-match" style="--ko-cols:26px minmax(96px,1fr) 40px 52px 62px 52px 62px 52px 62px 52px 62px;--ko-min:682px">
+    <div class="ko-head">
+      <span class="ko-mt">FF01</span>
+      <span class="ko-when">Final</span>
+    </div>
+
+    <div class="ko-grid">
+    <div class="ko-hrow">
+      <span></span>
+      <span>Team</span>
+      <span class="co">c/o</span>
+
+      <span class="seg">1</span>
+      <span class="tot">Tot</span>
+
+      <span class="seg">2</span>
+      <span class="tot">Tot</span>
+
+      <span class="seg">3</span>
+      <span class="tot">Tot</span>
+
+      <span class="seg">4</span>
+      <span class="tot last">Total</span>
+
+    </div>
+
+    <div class="ko-trow home">
+      <img class="ko-flag" src="/Graphics/Flags/wbf.gif" alt="wbf">
+      <span class="ko-name"><label class="nm rosterable" for="rosH1" title="Show this team's roster">ROSENTHAL</label></span>
+      <span class="co">0</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169032&amp;qphase=FF">8</a></span>
+      <span class="tot">8</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169033&amp;qphase=FF">8</a></span>
+      <span class="tot">16</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169034&amp;qphase=FF">38</a></span>
+      <span class="tot">54</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169035&amp;qphase=FF">36</a></span>
+      <span class="tot last">90</span>
+
+    </div>
+
+    <div class="ko-trow vis">
+      <img class="ko-flag" src="/Graphics/Flags/wbf.gif" alt="wbf">
+      <span class="ko-name"><label class="nm rosterable" for="rosV1" title="Show this team's roster">FLEISHER</label></span>
+      <span class="co">0</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169032&amp;qphase=FF">46</a></span>
+      <span class="tot">46</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169033&amp;qphase=FF">39</a></span>
+      <span class="tot">85</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169034&amp;qphase=FF">5</a></span>
+      <span class="tot">90</span>
+
+      <span class="seg"><a href="BoardDetailsKO.asp?qmatchid=169035&amp;qphase=FF">26</a></span>
+      <span class="tot last">116</span>
+
+    </div>
+    </div>
+
+
+    <input type="checkbox" id="rosH1" class="ros-toggle">
+    <div class="ko-roster"><span class="rt">ROSENTHAL roster</span>Christian BAKKE<br>Boye BROGELAND<br>Andrew ROSENTHAL<br>Martin SCHALTZ<br>Aaron SILVERSTEIN<br>Chris WILLENKEN</div>
+
+    <input type="checkbox" id="rosV1" class="ros-toggle">
+    <div class="ko-roster"><span class="rt">FLEISHER roster</span>Thomas BESSIS<br>Sjoert BRINK<br>Bas DRIJVER<br>Martin FLEISHER<br>Cedric LORENZINI<br>Chip MARTEL<br>Jan MARTEL captain</div>
+
+
+    <input type="checkbox" id="segK1" class="seg-toggle">
+    <label for="segK1" class="seg-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>Segment by segment</label>
+    <div class="ko-segs">
+      <div class="sg-row head">
+        <span class="sg-no">Seg</span>
+        <span class="h1">ROSENTHAL</span>
+        <span class="h2">Tot</span>
+        <span class="v1">FLEISHER</span>
+        <span class="v2">Tot</span>
+      </div>
+
+      <div class="sg-row">
+        <span class="sg-no">1</span>
+        <span class="h1"><a href="BoardDetailsKO.asp?qmatchid=169032&amp;qphase=FF">8</a></span>
+        <span class="h2">8</span>
+        <span class="v1"><a href="BoardDetailsKO.asp?qmatchid=169032&amp;qphase=FF">46</a></span>
+        <span class="v2">46</span>
+      </div>
+
+      <div class="sg-row">
+        <span class="sg-no">2</span>
+        <span class="h1"><a href="BoardDetailsKO.asp?qmatchid=169033&amp;qphase=FF">8</a></span>
+        <span class="h2">16</span>
+        <span class="v1"><a href="BoardDetailsKO.asp?qmatchid=169033&amp;qphase=FF">39</a></span>
+        <span class="v2">85</span>
+      </div>
+
+      <div class="sg-row">
+        <span class="sg-no">3</span>
+        <span class="h1"><a href="BoardDetailsKO.asp?qmatchid=169034&amp;qphase=FF">38</a></span>
+        <span class="h2">54</span>
+        <span class="v1"><a href="BoardDetailsKO.asp?qmatchid=169034&amp;qphase=FF">5</a></span>
+        <span class="v2">90</span>
+      </div>
+
+      <div class="sg-row">
+        <span class="sg-no">4</span>
+        <span class="h1"><a href="BoardDetailsKO.asp?qmatchid=169035&amp;qphase=FF">36</a></span>
+        <span class="h2">90</span>
+        <span class="v1"><a href="BoardDetailsKO.asp?qmatchid=169035&amp;qphase=FF">26</a></span>
+        <span class="v2">116</span>
+      </div>
+
+    </div>
+  </section>
+
+
+  <div class="foot">
+    <img src="/repository/graphics/Logo/wbf.gif" alt="WBF">
+    <span>&copy; WBF &#8211; unauthorized copying or sharing of (parts of) this information is strictly forbidden and illegal</span>
+    <span class="closebtn"><a href="javascript:window.close()">Close window</a></span>
+  </div>
+
+</div>
+<script>
+/* --- keep the sticky header's height in a CSS var (DesignSystem 14b) --- */
+(function(){
+  var bar=document.querySelector('.topbar');
+  function updTop(){ if(bar) document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight+'px'); }
+  updTop(); window.addEventListener('resize',updTop); window.addEventListener('orientationchange',updTop);
+})();
+/* --- legend: hovering the ICON opens that chip's description strip --- */
+(function(){
+  var row=document.querySelector('.legendrow');
+  if(!row) return;
+  var icons=row.querySelectorAll('.hint-ic');
+  for(var i=0;i<icons.length;i++){
+    (function(ic){
+      var chip=ic.parentNode;
+      ic.addEventListener('mouseenter',function(){ chip.classList.add('showdesc'); row.classList.add('opendesc'); });
+      ic.addEventListener('mouseleave',function(){ chip.classList.remove('showdesc'); row.classList.remove('opendesc'); });
+    })(icons[i]);
+  }
+})();
+</script>
+
+</body>
+</html>

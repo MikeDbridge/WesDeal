@@ -45,11 +45,20 @@ import {
   parseMatchMeta,
   parseResults,
   parseRoundSpec,
+  type BoardResult,
   type Deal,
   type Lineup,
+  type MatchMeta,
   type NamedId,
   type Play,
 } from './parse';
+import {
+  parseHands2026,
+  parseKoSegment2026,
+  parseMatchMeta2026,
+  parseResults2026,
+  type ImpCheck,
+} from './parse2026';
 
 const FETCH_DELAY_MS = 300;
 
@@ -75,9 +84,66 @@ export interface Tournament {
    *                  Use for new tournaments so only base URL + IDs are needed.
    */
   dealSource: 'handsacross' | 'boardacross' | 'auto';
+  /**
+   * Which parser set reads this tournament's pages:
+   *  'classic'   — the pre-2026 microsite template (parse.ts). Default.
+   *  'cards2026' — the redesigned template introduced for the 2026 World Bridge
+   *                Series / Katowice (parse2026.ts): card-grid deals, a combined
+   *                contract+declarer label, one signed score per room, and an
+   *                inline (not tooltip) bidding panel. The 'boardacross'
+   *                per-board fallback used by dealSource 'auto' is classic-only
+   *                — untested and expected unreachable for 'cards2026' tournaments,
+   *                since HandsAcrossKO has reliably returned every segment's deals.
+   */
+  pageFormat?: 'classic' | 'cards2026';
 }
 
 export const TOURNAMENTS: Record<string, Tournament> = {
+  // ---- 2026 World Bridge Series (Katowice) — the four world-title team
+  //      knockouts on the redesigned microsite template (pageFormat
+  //      'cards2026'). Each is knockout-only from the site's own qualifying
+  //      stage (Swiss/RR, not published in this template — rrTournid 0 skips
+  //      it), same convention as the *tn transnational entries below. Phases
+  //      verified live per event (a missing phase returns HTTP 200 with no
+  //      qmatchid= links, already handled as "no data"): Open Teams / Rosenblum
+  //      Cup runs 64→FF, Mixed Teams 32→FF, Women/Senior Teams QF→FF only. ----
+  katowice26: {
+    key: 'katowice26',
+    name: 'World Bridge Series — Rosenblum Cup / Open Teams (Katowice 2026)',
+    base: 'https://db.worldbridge.org/Repository/tourn/katowice.26/microsite/Asp',
+    events: [{ code: 'RBM', name: 'Rosenblum Cup (Open Teams)', rrTournid: 0, koTournid: 2650 }],
+    koPhases: ['64', '32', '16', 'QF', 'SF', 'FF'],
+    dealSource: 'auto',
+    pageFormat: 'cards2026',
+  },
+  katowice26mx: {
+    key: 'katowice26mx',
+    name: 'World Bridge Series — Mixed Teams (Katowice 2026)',
+    base: 'https://db.worldbridge.org/Repository/tourn/katowice.26/microsite/Asp',
+    events: [{ code: 'MIX', name: 'Mixed Teams', rrTournid: 0, koTournid: 2653 }],
+    koPhases: ['32', '16', 'QF', 'SF', 'FF'],
+    dealSource: 'auto',
+    pageFormat: 'cards2026',
+  },
+  katowice26w: {
+    key: 'katowice26w',
+    name: 'World Bridge Series — Women Teams (Katowice 2026)',
+    base: 'https://db.worldbridge.org/Repository/tourn/katowice.26/microsite/Asp',
+    events: [{ code: 'WOMEN', name: 'Women Teams', rrTournid: 0, koTournid: 2651 }],
+    koPhases: ['QF', 'SF', 'FF'],
+    dealSource: 'auto',
+    pageFormat: 'cards2026',
+  },
+  katowice26s: {
+    key: 'katowice26s',
+    name: 'World Bridge Series — Senior Teams (Katowice 2026)',
+    base: 'https://db.worldbridge.org/Repository/tourn/katowice.26/microsite/Asp',
+    events: [{ code: 'SEN', name: 'Senior Teams', rrTournid: 0, koTournid: 2652 }],
+    koPhases: ['QF', 'SF', 'FF'],
+    dealSource: 'auto',
+    pageFormat: 'cards2026',
+  },
+
   herning25: {
     key: 'herning25',
     name: '47th World Team Championships (Herning 2025)',
@@ -392,6 +458,41 @@ async function fetchOrNull(tourn: string, url: string): Promise<string | null> {
 
 // ---- Orchestration ---------------------------------------------------------
 
+/** The page-format-specific parsers a Tournament needs, selected once by
+ *  pageFormat so the rest of the scrape doesn't have to branch. parseResults
+ *  returns impChecks too (empty for 'classic', which reads impHome/impAway
+ *  straight off the page and has nothing to cross-check). */
+interface ParserSet {
+  parseHands: (html: string) => Map<number, Deal>;
+  parseMatchMeta: (html: string) => MatchMeta;
+  parseResults: (html: string) => { results: Map<number, BoardResult>; impChecks: ImpCheck[] };
+  parseKoSegment: (html: string) => number | null;
+}
+
+const CLASSIC_PARSERS: ParserSet = {
+  parseHands,
+  parseMatchMeta,
+  parseResults: (html) => ({ results: parseResults(html), impChecks: [] }),
+  parseKoSegment,
+};
+
+const CARDS2026_PARSERS: ParserSet = {
+  parseHands: parseHands2026,
+  parseMatchMeta: parseMatchMeta2026,
+  parseResults: parseResults2026,
+  parseKoSegment: parseKoSegment2026,
+};
+
+function parsersFor(t: Tournament): ParserSet {
+  return t.pageFormat === 'cards2026' ? CARDS2026_PARSERS : CLASSIC_PARSERS;
+}
+
+/** Running total of parse2026's per-board IMP cross-check (computed vs. the
+ *  page's own imp-h/imp-v figure), across every cards2026 match this run
+ *  scrapes — printed as an agreement rate at the end of runScrape. */
+let impCheckTotal = 0;
+let impCheckAgree = 0;
+
 /** DD table for a deal, solved once per distinct PBN across the whole run. */
 function ddFor(dds: Dds, memo: Map<string, number[][]>, pbn: string): number[][] {
   let dd = memo.get(pbn);
@@ -414,8 +515,11 @@ function buildMatch(
   hands: Map<number, Deal>,
   html: string,
 ): MatchRecord {
-  const meta = parseMatchMeta(html);
-  const results = parseResults(html);
+  const parsers = parsersFor(t);
+  const meta = parsers.parseMatchMeta(html);
+  const { results, impChecks } = parsers.parseResults(html);
+  impCheckTotal += impChecks.length;
+  impCheckAgree += impChecks.filter((c) => c.agree).length;
   const boards: MatchBoard[] = [];
   for (const [board, deal] of hands) {
     const r = results.get(board);
@@ -455,7 +559,7 @@ function buildMatch(
 async function roundDeals(t: Tournament, ev: WbfEvent, round: number, aMatchHtml: string): Promise<Map<number, Deal>> {
   if (t.dealSource !== 'boardacross') {
     const html = await fetchOrNull(t.key, `${t.base}/handsacross.asp?qtournid=${ev.rrTournid}&qround=${round}`);
-    const h = html ? parseHands(html) : new Map<number, Deal>();
+    const h = html ? parsersFor(t).parseHands(html) : new Map<number, Deal>();
     if (h.size > 0 || t.dealSource === 'handsacross') return h; // 'auto' with no hands falls through
   }
   const hands = new Map<number, Deal>();
@@ -484,7 +588,7 @@ async function scrapeRRRound(dds: Dds, memo: Map<string, number[][]>, t: Tournam
 /** The KO segment a match-segment page belongs to (cheap: no deal fetches). */
 function koSegmentNumber(t: Tournament, html: string): number | null {
   if (t.dealSource !== 'boardacross') {
-    const s = parseKoSegment(html);
+    const s = parsersFor(t).parseKoSegment(html);
     if (s !== null || t.dealSource === 'handsacross') return s;
   }
   // boardacross: the segment is the qboard's second field, e.g. "001.01.QF.2354" → 1.
@@ -497,7 +601,7 @@ async function koDeals(t: Tournament, ev: WbfEvent, phase: string, segment: numb
   if (t.dealSource !== 'boardacross') {
     const pad = String(segment).padStart(2, '0');
     const hb = await fetchOrNull(t.key, `${t.base}/HandsAcrossKO.asp?qtournid=${ev.koTournid}&qround=${pad}&qphase=${phase}`);
-    const h = hb ? parseHands(hb) : new Map<number, Deal>();
+    const h = hb ? parsersFor(t).parseHands(hb) : new Map<number, Deal>();
     if (h.size > 0 || t.dealSource === 'handsacross') return h;
   }
   const hands = new Map<number, Deal>();
@@ -612,5 +716,10 @@ export async function runScrape(): Promise<void> {
     console.log(`\n===== ${t.key}: ${t.name} =====`);
     await scrapeTournament(t, dds, memo, roundsOverride, phasesOverride, eventCodes);
     console.log(`done ${t.key} — ${memo.size} distinct deals solved so far`);
+  }
+
+  if (impCheckTotal > 0) {
+    const pct = ((100 * impCheckAgree) / impCheckTotal).toFixed(1);
+    console.log(`\ncards2026 IMP cross-check (computed vs. page imp-h/imp-v): ${impCheckAgree}/${impCheckTotal} boards agree (${pct}%)`);
   }
 }

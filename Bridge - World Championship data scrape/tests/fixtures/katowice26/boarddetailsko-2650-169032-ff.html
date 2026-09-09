@@ -1,0 +1,1016 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Teams KO - Final - Match</title>
+<style>
+:root{
+  --c-dark:#e6ebf5;
+  --c-light:#c6d4ec;
+  --c-font:#00194d;
+  --c-head-bg:#000066;
+  --c-head-fg:#FFFFFF;
+  --c-border:#999999;
+  --c-accent:#1a6fa3;
+  --c-accent2:#3a7ca5;
+  --home:#0000FF;
+  --vis:#BB0000;
+  --ink:#1b1e24; --muted:#6b7280; --line:#e3e6ea; --soft:#f4f6f9;
+  /* First track 94px: the "Brd 105" chip needs 69px and .brd-cell adds 16px of
+     padding, so 86px left only 1px of slack once the chip stopped wrapping -
+     too tight to survive a different font rendering. 94px leaves 9px. */
+  --cols:94px minmax(78px,1.35fr) minmax(48px,.85fr) minmax(44px,.7fr) minmax(56px,1fr) minmax(78px,1.35fr) minmax(48px,.85fr) minmax(44px,.7fr) minmax(56px,1fr) 104px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#e9edf3;color:#1c2029;font-family:"Segoe UI",Calibri,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%;padding:14px}
+a{color:inherit;text-decoration:none}
+img{border:0}
+.wrap{max-width:1120px;margin:0 auto}
+
+/* ---------- Sticky top menu (header = event navigation) ---------- */
+.topbar{position:sticky;top:0;z-index:40;background:#e9edf3;padding-bottom:10px;margin-bottom:14px;box-shadow:0 8px 16px -10px rgba(20,30,50,.32)}
+
+.evhead{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:0}
+.evhead .cell{border-radius:12px;padding:13px 18px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 2px 10px rgba(20,30,50,.14)}
+.evhead .title{flex:2 1 300px;background:linear-gradient(155deg,rgba(255,255,255,.06),rgba(0,0,0,.27)),var(--c-dark);color:var(--c-font);text-shadow:0 1px 2px rgba(0,0,0,.5);font-size:clamp(16px,2.2vw,25px);font-weight:700;line-height:1.2}
+.evhead .round{flex:0 0 auto;min-width:100px;background:var(--c-head-bg);color:var(--c-head-fg);align-items:center;text-align:center}
+.evhead .round .lbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;opacity:.85}
+.evhead .round .val{font-size:clamp(20px,2.8vw,30px);font-weight:800;line-height:1.1}
+.evhead .phase{flex:1 1 210px;background:linear-gradient(155deg,rgba(255,255,255,.06),rgba(0,0,0,.27)),var(--c-dark);color:var(--c-font);text-shadow:0 1px 2px rgba(0,0,0,.5);align-items:stretch;justify-content:center;text-align:right;font-weight:700}
+.evhead .phase .lbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;opacity:.85}
+.phase-sel{width:100%;margin-top:5px;font-family:inherit;font-size:clamp(13px,1.4vw,17px);font-weight:700;background:var(--c-head-bg);color:var(--c-head-fg);border:1px solid var(--c-head-bg);border-radius:9px;padding:8px 10px;cursor:pointer}
+.phase-sel:hover{filter:brightness(1.06)}
+.phase-sel option{background:#fff;color:#14161c;font-weight:600}
+
+/* ---------- Match header ---------- */
+.matchhead{background:linear-gradient(155deg,rgba(255,255,255,.06),rgba(0,0,0,.27)),var(--c-dark);color:var(--c-font);text-shadow:0 1px 2px rgba(0,0,0,.5);border-radius:14px;box-shadow:0 2px 12px rgba(20,30,50,.22);padding:14px 18px;margin-bottom:14px;text-align:center}
+.matchhead .teams{display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;font-size:clamp(17px,2.4vw,24px);font-weight:800}
+.matchhead .team{display:inline-flex;align-items:center;gap:9px;padding-bottom:4px}
+.matchhead .team.home{border-bottom:3px solid var(--home)}
+.matchhead .team.vis{border-bottom:3px solid var(--vis)}
+.matchhead .vs{opacity:.55;font-weight:600;font-size:.72em}
+.matchhead .totals{margin-top:9px;font-size:15px;opacity:.95}
+.matchhead .totals .imps{opacity:.7;font-style:italic}
+
+/* ---------- Legend (collapsed icon chips; hover the ICON to reveal) ---------- */
+.legendrow{position:relative;display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+.legendrow .hints{flex:1 1 auto;margin-bottom:0}
+.legendrow .hints.opendesc{margin-bottom:42px}
+.hints{position:relative;display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;margin-bottom:14px;transition:margin-bottom .18s ease}
+.hint{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;height:44px;background:#fff;border:1px solid #d7dde5;border-radius:12px;padding:0 13px;color:#3a404a;font-size:13px;line-height:1.35;box-shadow:0 1px 5px rgba(20,30,50,.10)}
+a.hint{cursor:pointer}
+.hint:hover{border-color:var(--c-head-bg);background:#f3f5f9}
+.hint b,.hint-key{color:#14161c;font-weight:700}
+.hint-ic{flex:0 0 auto;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--c-head-bg);color:var(--c-head-fg);box-shadow:0 1px 5px rgba(0,0,0,.28);cursor:help}
+a.hint .hint-ic{cursor:pointer}
+.hint-ic svg{width:18px;height:18px;display:block}
+.hint-more{position:absolute;left:0;right:0;top:100%;margin-top:4px;display:flex;align-items:center;height:34px;padding:0 14px;background:#fff;border:1px solid #d7dde5;border-radius:10px;box-shadow:0 3px 10px rgba(20,30,50,.14);font-size:13px;line-height:1.3;color:#3a404a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
+.hint.showdesc .hint-more{opacity:1}
+
+.viewmode-btn{display:none;flex:0 0 auto;align-items:center;justify-content:center;gap:8px;cursor:pointer;text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;height:44px;padding:0 15px;border-radius:12px;box-shadow:0 1px 5px rgba(20,30,50,.10);background:var(--c-head-bg);color:var(--c-head-fg);border:1px solid var(--c-head-bg)}
+.viewmode-btn:hover{filter:brightness(1.08)}
+.viewmode-btn svg{width:16px;height:16px;display:block;flex:0 0 auto}
+@media(orientation:portrait){.viewmode-btn{display:inline-flex}}
+
+/* ---------- Board cards ---------- */
+.boards{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.lhead{display:none}
+.board-card{position:relative;display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"brd imp" "open closed" "bid bid";background:#fff;border:1px solid var(--line);border-radius:12px;color:var(--ink);box-shadow:0 1px 5px rgba(20,30,50,.08)}
+.board-card:hover,.board-card:focus-within{z-index:20}
+.brd-cell{grid-area:brd;display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--soft);border-bottom:1px solid var(--line);border-radius:11px 11px 0 0}
+.imp-cell{grid-area:imp;display:flex;align-items:center;justify-content:flex-end;padding:8px 12px;background:var(--soft);border-bottom:1px solid var(--line);border-radius:11px 11px 0 0}
+/* The chip reads "Brd 36", not "Board 36": a real session runs boards 17-32 or
+   21-36, and the full word plus a two-digit number needed 84px against the 70px
+   the first column left it, so it broke onto a second line and made every row
+   17px taller. Shortening the text is what makes the width honest;
+   white-space:nowrap is the belt-and-braces half, so whatever a future track
+   width does the chip can no longer break. Measured need with nowrap on and a
+   three-digit board number: 69px. (The two pairs siblings already do this.) */
+.brd{font-weight:800;background:var(--c-head-bg);color:var(--c-head-fg);border-radius:8px;padding:3px 12px;font-size:14px;white-space:nowrap}
+.imp-bar{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}
+.imp-bar .imp-h{color:var(--home);text-align:right;min-width:30px}
+.imp-bar .imp-v{color:var(--vis);text-align:left;min-width:30px}
+.imp-bar .imp-lbl{font-size:10px;letter-spacing:.1em;color:var(--muted);font-weight:700}
+.room{padding:10px 12px}
+.room.open{grid-area:open;border-right:1px solid var(--line);border-radius:0 0 0 11px}
+.room.closed{grid-area:closed;background:var(--soft);border-radius:0 0 11px 0}
+.room-h{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px}
+.cell.contract{font-size:19px;font-weight:800;line-height:1.25;margin-bottom:8px;min-height:1.4em}
+.cell.contract .decl{font-size:13px;font-weight:600;color:var(--muted);margin-left:3px}
+.cell.lead,.cell.tricks,.cell.score{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0;border-top:1px dotted var(--line)}
+.cell .k{color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.06em;align-self:center}
+.cell .cv{font-weight:700;text-align:right}
+.cell .cv.score{font-weight:800}
+.cv.score.sc-home{color:var(--home)}
+.cv.score.sc-vis{color:var(--vis)}
+.room-empty{color:var(--muted);font-style:italic;font-size:13px;padding:8px 0}
+
+/* ---------- click-to-expand bidding ---------- */
+.bidtoggle{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.ctrl{cursor:pointer;border-bottom:1px dashed currentColor;-webkit-tap-highlight-color:transparent}
+.ctrl::after{content:"\25BE";font-size:.6em;margin-left:5px;color:var(--muted);vertical-align:middle}
+.bidtoggle:checked ~ .room .ctrl::after{content:"\25B4"}
+.bidpanel{grid-area:bid;display:none;grid-template-columns:1fr 1fr;gap:14px;border-top:1px solid var(--line);background:#fbfcfe;border-radius:0 0 11px 11px;padding:12px}
+.bidtoggle:checked ~ .bidpanel{display:grid}
+.bidcol{text-align:center}
+.bidcol-h{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px}
+.bidcol table{margin:0 auto;border-collapse:collapse;font-size:12px}
+.bidcol td{padding:1px 8px}
+.bidcol .none{color:var(--muted);font-style:italic;font-size:12px}
+
+/* ---------- line-ups ---------- */
+.lineups-panel{margin-top:14px;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:14px;color:var(--ink);box-shadow:0 2px 12px rgba(20,30,50,.10)}
+.lineups{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.lineup h4{margin:0 0 8px;text-align:center;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.compass{display:grid;grid-template-columns:1fr auto 1fr;grid-template-areas:"n n n" "w x e" "s s s";gap:4px 6px;align-items:center;justify-items:center}
+.pos-n{grid-area:n}.pos-w{grid-area:w}.pos-x{grid-area:x}.pos-e{grid-area:e}.pos-s{grid-area:s}
+.player-slot{display:flex;justify-content:center}
+.player{text-align:center;font-size:12px;max-width:150px;border-top:3px solid transparent;padding-top:4px}
+.player-slot.home .player{border-top-color:var(--home)}
+.player-slot.vis .player{border-top-color:var(--vis)}
+.player img{width:62px;height:auto;border-radius:6px;display:block;margin:0 auto 2px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.player .pn{display:inline-block;font-weight:700;line-height:1.12}
+.player-slot.home .pn{color:var(--home)}
+.player-slot.vis .pn{color:var(--vis)}
+/* Hide / show line-ups toggle (collapses the panel to a slim bar) */
+.lineup-toggle-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.lu-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.lineup-toggle-input:checked ~ .lu-bar{margin-bottom:0}
+.lu-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.lineup-btn{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;padding:6px 12px;border-radius:9px;background:#fff;border:1px solid #d7dde5;color:#3a404a;box-shadow:0 1px 4px rgba(20,30,50,.10)}
+.lineup-btn:hover{border-color:var(--c-head-bg);background:#f3f5f9}
+.lineup-btn svg{width:14px;height:14px;display:block;transition:transform .2s ease}
+.lineup-toggle-input:checked ~ .lu-bar .lineup-btn svg{transform:rotate(180deg)}
+.lineup-btn .lu-show{display:none}
+.lineup-toggle-input:checked ~ .lu-bar .lineup-btn .lu-hide{display:none}
+.lineup-toggle-input:checked ~ .lu-bar .lineup-btn .lu-show{display:inline}
+.lineup-toggle-input:checked ~ .lineups{display:none}
+
+/* Full desktop: keep the line-ups (players) pinned in view while scrolling the boards */
+@media(min-width:1000px){
+  .lineups-panel{position:sticky;top:calc(var(--topbar-h,92px) + 8px);z-index:30}
+}
+
+.notes{color:#5b616b;font-size:12px;line-height:1.7;margin:16px 6px 6px}
+/* footer matched to RoundTeams: EBL logo + copyright + close button */
+.foot{margin:18px 4px 4px;font-size:12px;line-height:1.6;color:#5b616b;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.foot img{height:34px;width:auto}
+.foot .closebtn{margin-left:auto;padding:8px 16px;border-radius:10px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;background:var(--c-head-bg);color:var(--c-head-fg);border:1px solid var(--c-head-bg)}
+.foot .closebtn:hover{filter:brightness(1.08)}
+
+@media(max-width:720px){.lineups{grid-template-columns:1fr}}
+@media(max-width:480px){body{padding:9px}.boards{grid-template-columns:1fr}.bidpanel{grid-template-columns:1fr}}
+
+/* ---------- Landscape: one board per line ---------- */
+@media(orientation:landscape){
+  .boards{grid-template-columns:1fr;gap:7px}
+  .lhead{display:grid;grid-template-columns:var(--cols);align-items:stretch;background:var(--c-head-bg);color:var(--c-head-fg);border-radius:9px;overflow:hidden}
+  .lhead .gb{grid-row:1;padding:5px 8px;text-align:left;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:11px;border-bottom:1px solid rgba(255,255,255,.25)}
+  .lhead .gb.brd{grid-column:1}
+  .lhead .gb.gopen{grid-column:2/6}
+  .lhead .gb.gclosed{grid-column:6/10}
+  .lhead .gb.gimp{grid-column:10;text-align:center}
+  .lhead .lbl.hv{grid-column:10;display:flex;justify-content:space-between}
+  .lhead .lbl{grid-row:2;padding:4px 8px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:10px;opacity:.92}
+  .board-card{grid-template-columns:var(--cols);grid-template-areas:none;align-items:stretch;border-radius:9px}
+  .room{display:contents}
+  .room-h{display:none}
+  .brd-cell{grid-column:1;grid-row:1;border-radius:0;border-bottom:0;border-right:1px solid var(--line);justify-content:flex-start;padding:7px 8px}
+  .imp-cell{grid-column:10;grid-row:1;border-radius:0;border-bottom:0;border-left:1px solid var(--line);justify-content:flex-start;padding:6px 6px}
+  .imp-bar{width:100%;justify-content:space-between;font-size:18px}
+  .imp-bar .imp-lbl{display:none}
+  .imp-bar .imp-h{text-align:left}
+  .imp-bar .imp-v{text-align:right}
+  .cell{grid-row:1;padding:7px 8px;border-top:0;display:flex;align-items:center;justify-content:flex-start;text-align:left}
+  .cell .k{display:none}
+  .cell .cv{text-align:left;font-weight:700}
+  .cell.contract{font-size:15px;font-weight:800;margin-bottom:0;min-height:0}
+  .cell.contract .decl{font-size:12px}
+  .room.open .cell.contract{grid-column:2}
+  .room.open .cell.lead{grid-column:3}
+  .room.open .cell.tricks{grid-column:4}
+  .room.open .cell.score{grid-column:5}
+  .room.closed .cell.contract{grid-column:6}
+  .room.closed .cell.lead{grid-column:7}
+  .room.closed .cell.tricks{grid-column:8}
+  .room.closed .cell.score{grid-column:9}
+  .room.open .cell{border-right:1px solid #eef0f3}
+  .room.closed .cell{background:var(--soft);border-right:1px solid #e7e9ee}
+  .room.closed .cell.contract{border-left:2px solid var(--c-border)}
+  .room-empty{grid-row:1;text-align:left;padding:7px 8px}
+  .room.open .room-empty{grid-column:2/6}
+  .room.closed .room-empty{grid-column:6/10}
+  .bidpanel{grid-column:1/-1;grid-row:2}
+}
+
+/* Desktop mode (qdesktop=1): same one-board-per-line table, forced in portrait */
+body.force-desktop .boards{grid-template-columns:1fr;gap:7px}
+body.force-desktop .lhead{display:grid;grid-template-columns:var(--cols);align-items:stretch;background:var(--c-head-bg);color:var(--c-head-fg);border-radius:9px;overflow:hidden}
+body.force-desktop .lhead .gb{grid-row:1;padding:5px 8px;text-align:left;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:11px;border-bottom:1px solid rgba(255,255,255,.25)}
+body.force-desktop .lhead .gb.brd{grid-column:1}
+body.force-desktop .lhead .gb.gopen{grid-column:2/6}
+body.force-desktop .lhead .gb.gclosed{grid-column:6/10}
+body.force-desktop .lhead .gb.gimp{grid-column:10;text-align:center}
+body.force-desktop .lhead .lbl.hv{grid-column:10;display:flex;justify-content:space-between}
+body.force-desktop .lhead .lbl{grid-row:2;padding:4px 8px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:10px;opacity:.92}
+body.force-desktop .board-card{grid-template-columns:var(--cols);grid-template-areas:none;align-items:stretch;border-radius:9px}
+body.force-desktop .room{display:contents}
+body.force-desktop .room-h{display:none}
+body.force-desktop .brd-cell{grid-column:1;grid-row:1;border-radius:0;border-bottom:0;border-right:1px solid var(--line);justify-content:flex-start;padding:7px 8px}
+body.force-desktop .imp-cell{grid-column:10;grid-row:1;border-radius:0;border-bottom:0;border-left:1px solid var(--line);justify-content:flex-start;padding:6px 6px}
+body.force-desktop .imp-bar{width:100%;justify-content:space-between;font-size:18px}
+body.force-desktop .imp-bar .imp-lbl{display:none}
+body.force-desktop .imp-bar .imp-h{text-align:left}
+body.force-desktop .imp-bar .imp-v{text-align:right}
+body.force-desktop .board-card .cell{grid-row:1;padding:7px 8px;border-top:0;display:flex;align-items:center;justify-content:flex-start;text-align:left}
+body.force-desktop .board-card .cell .k{display:none}
+body.force-desktop .board-card .cell .cv{text-align:left;font-weight:700}
+body.force-desktop .board-card .cell.contract{font-size:15px;font-weight:800;margin-bottom:0;min-height:0}
+body.force-desktop .board-card .cell.contract .decl{font-size:12px}
+body.force-desktop .room.open .cell.contract{grid-column:2}
+body.force-desktop .room.open .cell.lead{grid-column:3}
+body.force-desktop .room.open .cell.tricks{grid-column:4}
+body.force-desktop .room.open .cell.score{grid-column:5}
+body.force-desktop .room.closed .cell.contract{grid-column:6}
+body.force-desktop .room.closed .cell.lead{grid-column:7}
+body.force-desktop .room.closed .cell.tricks{grid-column:8}
+body.force-desktop .room.closed .cell.score{grid-column:9}
+body.force-desktop .room.open .cell{border-right:1px solid #eef0f3}
+body.force-desktop .room.closed .cell{background:var(--soft);border-right:1px solid #e7e9ee}
+body.force-desktop .room.closed .cell.contract{border-left:2px solid var(--c-border)}
+body.force-desktop .room-empty{grid-row:1;text-align:left;padding:7px 8px}
+body.force-desktop .room.open .room-empty{grid-column:2/6}
+body.force-desktop .room.closed .room-empty{grid-column:6/10}
+body.force-desktop .bidpanel{grid-column:1/-1;grid-row:2}
+
+@media(orientation:landscape) and (min-width:1000px){
+  .cell.contract{font-size:20px;white-space:nowrap}
+  .cell.contract .decl{font-size:13px}
+  .cell .cv{font-size:18px}
+  .imp-bar{font-size:22px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== Sticky top menu (header) - stays in view while scrolling ===== -->
+  <div class="topbar">
+  <div class="evhead">
+    <div class="cell title">2026 World Bridge Series</div>
+    <div class="cell round"><span class="lbl">Segment</span><span class="val">1</span></div>
+    <!-- ===== EVENT (TOURNAMENT) NAVIGATION - event dropdown -> RoundTeams.asp ===== -->
+    <div class="cell phase">
+      <span class="lbl">Event</span>
+      <select class="phase-sel" aria-label="Go to an event and knockout phase" onchange="if(this.value){window.location.href=this.value;}"><option value="knockoutphase.asp?qtournid=2650&qphase=64&qdesktop=0">Open Teams KO - Phase of 64</option><option value="knockoutphase.asp?qtournid=2650&qphase=32&qdesktop=0">Open Teams KO - Phase of 32</option><option value="knockoutphase.asp?qtournid=2650&qphase=16&qdesktop=0">Open Teams KO - Phase of 16</option><option value="knockoutphase.asp?qtournid=2650&qphase=QF&qdesktop=0">Open Teams KO - Quarterfinals</option><option value="knockoutphase.asp?qtournid=2650&qphase=SF&qdesktop=0">Open Teams KO - Semifinals</option><option value="knockoutphase.asp?qtournid=2650&qphase=FF&qdesktop=0" selected>Open Teams KO - Final</option><option value="knockoutphase.asp?qtournid=2651&qphase=QF&qdesktop=0">Women Teams KO - Quarterfinals</option><option value="knockoutphase.asp?qtournid=2651&qphase=SF&qdesktop=0">Women Teams KO - Semifinals</option><option value="knockoutphase.asp?qtournid=2651&qphase=FF&qdesktop=0">Women Teams KO - Final</option><option value="knockoutphase.asp?qtournid=2652&qphase=QF&qdesktop=0">Senior Teams - Quarterfinals</option><option value="knockoutphase.asp?qtournid=2652&qphase=SF&qdesktop=0">Senior Teams - Semifinals</option><option value="knockoutphase.asp?qtournid=2652&qphase=FF&qdesktop=0">Senior Teams - Final</option><option value="knockoutphase.asp?qtournid=2653&qphase=32&qdesktop=0">Mixed Teams - Phase of 32</option><option value="knockoutphase.asp?qtournid=2653&qphase=16&qdesktop=0">Mixed Teams - Phase of 16</option><option value="knockoutphase.asp?qtournid=2653&qphase=QF&qdesktop=0">Mixed Teams - Quarterfinals</option><option value="knockoutphase.asp?qtournid=2653&qphase=SF&qdesktop=0">Mixed Teams - Semifinals</option><option value="knockoutphase.asp?qtournid=2653&qphase=FF&qdesktop=0">Mixed Teams - Final</option></select>
+    </div>
+    <!-- ===== END EVENT (TOURNAMENT) NAVIGATION ===== -->
+  </div>
+  </div>
+  <!-- ===== end sticky top menu ===== -->
+
+  <div class="matchhead">
+    <div class="teams">
+      <span class="team home"><a href="knockoutphase.asp?qtournid=2650&amp;qphase=FF&amp;qdesktop=0">ROSENTHAL</a></span>
+      <span class="vs">vs</span>
+      <span class="team vis"><a href="knockoutphase.asp?qtournid=2650&amp;qphase=FF&amp;qdesktop=0">FLEISHER</a></span>
+    </div>
+    <div class="totals"><b>8 - 46</b> IMP</div>
+  </div>
+
+  <!-- ===== Line-ups (players) - kept at the top as in the original page; sticky on full desktop ===== -->
+
+  <div class="lineups-panel">
+    <input type="checkbox" id="lineupToggle" class="lineup-toggle-input">
+    <div class="lu-bar">
+      <span class="lu-title">Line-ups</span>
+      <label for="lineupToggle" class="lineup-btn" title="Show or hide the line-ups to free space for the results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg><span class="lu-hide">Hide line-ups</span><span class="lu-show">Show line-ups</span></label>
+    </div>
+    <div class="lineups">
+      <div class="lineup">
+        <h4>Open Room</h4>
+        <div class="compass">
+        <div class="pos-n player-slot home">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=29523" target="_blank"><img src="/repository/photogallery/photos/29523.jpg" alt="" width="62"><span class="pn">ROSENTHAL Andrew</span></a></div>
+
+        </div>
+        <div class="pos-w player-slot vis">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=3391" target="_blank"><img src="/repository/photogallery/photos/3391.jpg" alt="" width="62"><span class="pn">BRINK Sjoert</span></a></div>
+
+        </div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="56" height="56" alt=""></div>
+        <div class="pos-e player-slot vis">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=16819" target="_blank"><img src="/repository/photogallery/photos/16819.jpg" alt="" width="62"><span class="pn">DRIJVER Bas</span></a></div>
+
+        </div>
+        <div class="pos-s player-slot home">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=17578" target="_blank"><img src="/repository/photogallery/photos/17578.jpg" alt="" width="62"><span class="pn">SILVERSTEIN Aaron</span></a></div>
+
+        </div>
+        </div>
+      </div>
+      <div class="lineup">
+        <h4>Closed Room</h4>
+        <div class="compass">
+        <div class="pos-n player-slot vis">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=3470" target="_blank"><img src="/repository/photogallery/photos/3470.jpg" alt="" width="62"><span class="pn">BESSIS Thomas</span></a></div>
+
+        </div>
+        <div class="pos-w player-slot home">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=5924" target="_blank"><img src="/repository/photogallery/photos/5924.jpg" alt="" width="62"><span class="pn">WILLENKEN Chris</span></a></div>
+
+        </div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="56" height="56" alt=""></div>
+        <div class="pos-e player-slot home">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=3328" target="_blank"><img src="/repository/photogallery/photos/3328.jpg" alt="" width="62"><span class="pn">SCHALTZ Martin</span></a></div>
+
+        </div>
+        <div class="pos-s player-slot vis">
+
+          <div class="player"><a href="http://www.eurobridge.org/person?qryid=7967" target="_blank"><img src="/repository/photogallery/photos/7967.jpg" alt="" width="62"><span class="pn">LORENZINI Cedric</span></a></div>
+
+        </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ===== Legend: bottom-of-page items + menu options (icon-hover reveals) ===== -->
+  <div class="legendrow">
+
+    <a class="viewmode-btn" href="?qmatchid=169032&amp;qphase=FF&amp;qdesktop=1" title="Show the rotated (landscape) one-board-per-line table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Desktop view</a>
+
+    <div class="hints">
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h14"/><path d="M14 3l4 4-4 4"/><path d="M20 17H6"/><path d="M10 13l-4 4 4 4"/></svg></span><b class="hint-key">Other events</b><span class="hint-more">use the dropdown (top right) to open another event and knockout phase</span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg></span><b class="hint-key">Board results</b><span class="hint-more">click a board number to see every table's result for that board</span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="12" height="14" rx="2"/><path d="M8.5 6V5.2A2.2 2.2 0 0 1 10.7 3h7.1A2.2 2.2 0 0 1 20 5.2v11.6A2.2 2.2 0 0 1 17.8 19H16"/></svg></span><b class="hint-key">Bidding</b><span class="hint-more">tap either contract to reveal the full bidding of both rooms</span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="3.6"/><path d="M22 19v-1a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><b class="hint-key">Phase scores</b><span class="hint-more">click a team name to open this knockout phase's scoreboard</span></div>
+      <a class="hint" href="HandsAcrossKO.asp?qtournid=2650&amp;qround=1&amp;qphase=FF&amp;qdesktop=0"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="16" rx="2"/><path d="M7 8h6M7 12h6M7 16h3"/><path d="M17 8l4 1.5v7a2 2 0 0 1-2 2"/></svg></span><b class="hint-key">Hand records</b><span class="hint-more">view this round&#8217;s hand records on the web</span></a>
+
+    </div>
+  </div>
+
+  <div class="boards">
+    <div class="lhead">
+      <div class="gb brd">Brd</div><div class="gb gopen">Open Room</div><div class="gb gclosed">Closed Room</div><div class="gb gimp">IMP</div>
+      <div class="lbl">&nbsp;</div>
+      <div class="lbl">Contract</div><div class="lbl">Lead</div><div class="lbl">Trk</div><div class="lbl">Score</div>
+      <div class="lbl">Contract</div><div class="lbl">Lead</div><div class="lbl">Trk</div><div class="lbl">Score</div>
+      <div class="lbl hv"><span>H</span><span>V</span></div>
+    </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD1" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=001.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 1</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">11</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD1" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>T </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-420</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD1" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">W</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&clubs;</font>3 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">8</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+100</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td>1<font size="4">&spades;</font></td><td>Pass</td><td>1NT</td><td>Pass</td></tr><tr align="center"><td>2NT</td><td>Pass</td><td>3<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>3<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>3NT</td><td>Pass</td></tr><tr align="center"><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD2" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=002.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 2</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">11</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD2" class="ctrl">4<font face="Arial, Helvetica, sans-serif">&spades;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font>Q </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">11</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-450</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD2" class="ctrl">6<font face="Arial, Helvetica, sans-serif">&spades;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>2 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">11</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+50</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>1<font size="4">&spades;</font></td><td>Pass</td></tr><tr align="center"><td>2<font size="4">&clubs;</font></td><td>Pass</td><td>2<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>3<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>3<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>3NT</td><td>Pass</td></tr><tr align="center"><td>4<font size="4">&spades;</font></td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>1<font size="4">&spades;</font></td><td>Pass</td></tr><tr align="center"><td>2<font size="4">&clubs;</font></td><td>Pass</td><td>3<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>3<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>5<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>6<font size="4">&spades;</font></td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD3" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=003.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 3</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD3" class="ctrl">3NT <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>9 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-630</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD3" class="ctrl">3NT <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>2 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">-630</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>-</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>1NT</td><td>Pass</td></tr><tr align="center"><td>2<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>3NT</td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>-</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>1NT</td><td>Pass</td></tr><tr align="center"><td>2NT</td><td>Pass</td><td>3<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>3<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>3<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>3<font size="4">&spades;</font></td><td>Pass</td><td>3NT</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD4" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=004.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 4</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD4" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>T </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-620</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD4" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">W</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>Q </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">-620</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>1<font size="4">&clubs;</font></td><td>Pass</td><td>1<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>3<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>1<font size="4">&clubs;</font></td><td>Pass</td><td>1<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD5" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=005.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 5</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">1</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD5" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">W</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&clubs;</font>6 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">12</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-480</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD5" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&clubs;</font>2 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">11</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">-450</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>1<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>1<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>3<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>1<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>1NT</td><td>Pass</td><td>2<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>2<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>2<font size="4">&spades;</font></td><td>Pass</td><td>2NT</td><td>Pass</td></tr><tr align="center"><td>3<font size="4">&clubs;</font></td><td>Pass</td><td>3<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD6" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=006.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 6</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD6" class="ctrl">3NT <span class="decl">N</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>K </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">+430</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD6" class="ctrl">5<font face="Arial, Helvetica, sans-serif">&clubs;</font> <span class="decl">S</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>J </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">12</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+420</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>Pass</td><td>1<font color="#C01616" size="4">&diams;</font></td></tr><tr align="center"><td>Pass</td><td>1<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>2<font color="#C01616" size="4">&diams;</font></td></tr><tr align="center"><td>Pass</td><td>2NT</td><td>Pass</td><td>3NT</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>Pass</td><td>1<font color="#C01616" size="4">&diams;</font></td></tr><tr align="center"><td>Pass</td><td>1<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>2<font size="4">&clubs;</font></td></tr><tr align="center"><td>Pass</td><td>2<font size="4">&spades;</font></td><td>Pass</td><td>3<font color="#C01616" size="4">&diams;</font></td></tr><tr align="center"><td>Pass</td><td>4<font size="4">&clubs;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&diams;</font></td></tr><tr align="center"><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>5<font size="4">&clubs;</font></td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD7" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=007.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 7</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">13</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD7" class="ctrl">3NT <span class="decl">S</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>4 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">9</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">+600</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD7" class="ctrl">6<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font> <span class="decl">N</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&clubs;</font>6 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">12</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+1370</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>-</td><td>1<font color="#C01616" size="4">&diams;</font></td></tr><tr align="center"><td>Pass</td><td>2<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>2NT</td></tr><tr align="center"><td>Pass</td><td>3NT</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>-</td><td>1NT</td></tr><tr align="center"><td>Pass</td><td>2NT</td><td>Pass</td><td>3<font size="4">&clubs;</font></td></tr><tr align="center"><td>Pass</td><td>4<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td></tr><tr align="center"><td>Pass</td><td>4NT</td><td>Pass</td><td>6<font color="#C01616" size="4">&diams;</font></td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD8" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=008.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 8</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">1</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD8" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">W</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>Q </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-420</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD8" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">W</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&clubs;</font>Q </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">11</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">-450</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>1<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>3<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>3<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>3NT</td><td>Pass</td></tr><tr align="center"><td>4<font size="4">&clubs;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>1NT</td><td>Pass</td><td>2<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>3<font size="4">&spades;</font></td><td>Pass</td></tr><tr align="center"><td>3NT</td><td>Pass</td><td>4<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>4<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD9" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=009.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 9</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD9" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>J </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-620</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD9" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>2 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">-620</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>1<font color="#C01616" size="4">&hearts;</font></td><td>1<font size="4">&spades;</font></td></tr><tr align="center"><td>2<font color="#C01616" size="4">&diams;</font></td><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>2<font size="4">&spades;</font></td></tr><tr align="center"><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>1<font color="#C01616" size="4">&hearts;</font></td><td>1<font size="4">&spades;</font></td></tr><tr align="center"><td>2<font size="4">&spades;</font></td><td>3<font color="#C01616" size="4">&hearts;</font></td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD10" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=010.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 10</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">10</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD10" class="ctrl">3<font face="Arial, Helvetica, sans-serif">&clubs;</font> <span class="decl">N</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font>A </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">+130</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD10" class="ctrl">3NT <span class="decl">N</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>2 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">9</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+600</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>1<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>1<font size="4">&spades;</font></td><td>2<font size="4">&clubs;</font></td><td>x</td><td>3<font size="4">&clubs;</font></td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>Pass</td><td>1<font size="4">&clubs;</font></td></tr><tr align="center"><td>1<font color="#C01616" size="4">&hearts;</font></td><td>1NT</td><td>2<font color="#C01616" size="4">&hearts;</font></td><td>3NT</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD11" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=011.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 11</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD11" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">S</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>4 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">+420</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD11" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">S</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>5 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+420</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>-</td><td>1<font color="#C01616" size="4">&hearts;</font></td></tr><tr align="center"><td>Pass</td><td>2<font size="4">&clubs;</font></td><td>Pass</td><td>2<font size="4">&spades;</font></td></tr><tr align="center"><td>Pass</td><td>3<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>3<font size="4">&spades;</font></td></tr><tr align="center"><td>Pass</td><td>3NT</td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>-</td><td>1<font color="#C01616" size="4">&hearts;</font></td></tr><tr align="center"><td>Pass</td><td>2<font size="4">&clubs;</font></td><td>Pass</td><td>2<font size="4">&spades;</font></td></tr><tr align="center"><td>Pass</td><td>2NT</td><td>Pass</td><td>3NT</td></tr><tr align="center"><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD12" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=012.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 12</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">2</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD12" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">W</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>8 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">8</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">+100</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD12" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>2 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">9</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+50</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>1NT</td><td>Pass</td><td>2<font size="4">&clubs;</font></td><td>Pass</td></tr><tr align="center"><td>2<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>Pass</td><td>Pass</td><td>1<font color="#C01616" size="4">&diams;</font></td><td>2<font size="4">&clubs;</font></td></tr><tr align="center"><td>x</td><td>4<font size="4">&clubs;</font></td><td>x</td><td>Pass</td></tr><tr align="center"><td>4<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD13" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=013.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 13</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">5</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD13" class="ctrl">4<font face="Arial, Helvetica, sans-serif">&spades;</font>x <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font>A </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">7</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">+800</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD13" class="ctrl">4<font color="#C01616" face="Arial, Helvetica, sans-serif">&hearts;</font> <span class="decl">N</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&clubs;</font>Q </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">10</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">+620</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>1<font size="4">&spades;</font></td><td>2<font color="#C01616" size="4">&hearts;</font></td></tr><tr align="center"><td>2<font size="4">&spades;</font></td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>x</td><td>Pass</td></tr><tr align="center"><td>4<font size="4">&spades;</font></td><td>x</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>Pass</td><td>1<font size="4">&spades;</font></td><td>x</td></tr><tr align="center"><td>2<font size="4">&spades;</font></td><td>x</td><td>Pass</td><td>2NT</td></tr><tr align="center"><td>Pass</td><td>4<font color="#C01616" size="4">&hearts;</font></td><td>Pass</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+      <div class="board-card">
+<input type="checkbox" id="bidD14" class="bidtoggle">
+        <div class="brd-cell"><a class="brd" href="BoardAcrossKO.asp?qboard=014.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">Brd 14</a></div>
+        <div class="imp-cell"><div class="imp-bar"><span class="imp-h">&nbsp;</span><span class="imp-lbl">IMP</span><span class="imp-v">&nbsp;</span></div></div>
+
+        <div class="room open">
+          <div class="room-h">Open</div>
+
+          <div class="cell contract">
+
+<label for="bidD14" class="ctrl">3<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font> <span class="decl">E</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font face="Arial, Helvetica, sans-serif">&spades;</font>7 </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">9</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-vis">-110</span></div>
+
+        </div>
+
+        <div class="room closed">
+          <div class="room-h">Closed</div>
+
+          <div class="cell contract">
+
+<label for="bidD14" class="ctrl">2NT <span class="decl">N</span></label>
+
+          </div>
+          <div class="cell lead"><span class="k">Lead</span><span class="cv">
+<font color="#C01616" face="Arial, Helvetica, sans-serif">&diams;</font>K </span></div>
+          <div class="cell tricks"><span class="k">Tricks</span><span class="cv">6</span></div>
+          <div class="cell score"><span class="k">Score</span><span class="cv score sc-home">-100</span></div>
+
+        </div>
+
+
+        <div class="bidpanel">
+          <div class="bidcol"><div class="bidcol-h">Open Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>1<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>1<font color="#C01616" size="4">&hearts;</font></td><td>x</td><td>Pass</td><td>2<font size="4">&clubs;</font></td></tr><tr align="center"><td>2<font color="#C01616" size="4">&diams;</font></td><td>Pass</td><td>Pass</td><td>3<font size="4">&clubs;</font></td></tr><tr align="center"><td>Pass</td><td>Pass</td><td>3<font color="#C01616" size="4">&diams;</font></td><td>Pass</td></tr><tr align="center"><td>Pass</td><td>Pass</td><td> </table></div>
+          <div class="bidcol"><div class="bidcol-h">Closed Room</div><table><tr align="center"><td><b>West</b></td><td><b>North</b></td><td><b>East</b></td><td><b>South</b></td></tr><tr  align="center"><td>-</td><td>-</td><td>1<font color="#C01616" size="4">&diams;</font></td><td>1<font color="#C01616" size="4">&hearts;</font></td></tr><tr align="center"><td>x</td><td>2<font size="4">&clubs;</font></td><td>Pass</td><td>2<font color="#C01616" size="4">&hearts;</font></td></tr><tr align="center"><td>Pass</td><td>2NT</td><td>Pass</td><td>Pass</td></tr><tr align="center"><td>Pass</td><td> </table></div>
+        </div>
+
+      </div>
+
+    </div>
+
+  <p class="foot">
+    <img src="/repository/graphics/Logo/wbf.gif" alt="WBF">
+    <span>&copy; unauthorized copying or sharing of (parts of) this information is strictly forbidden and illegal.</span>
+    <a class="closebtn" href="javascript:window.close()">Close window</a>
+  </p>
+
+</div>
+
+<script>
+/* --- Legend: reveal a chip's description only while its ICON is hovered. --- */
+(function(){
+  var hints=document.querySelector('.legendrow .hints');
+  if(!hints) return;
+  var ics=hints.getElementsByClassName('hint-ic'), i;
+  for(i=0;i<ics.length;i++){
+    (function(ic){
+      var chip=ic.parentNode;
+      ic.addEventListener('mouseenter',function(){chip.classList.add('showdesc');hints.classList.add('opendesc');});
+      ic.addEventListener('mouseleave',function(){chip.classList.remove('showdesc');hints.classList.remove('opendesc');});
+    })(ics[i]);
+  }
+})();
+</script>
+<script>
+/* --- Track the sticky header height so the desktop sticky line-ups clear it. --- */
+(function(){
+  var bar=document.querySelector('.topbar');
+  function u(){ if(bar) document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight+'px'); }
+  u(); window.addEventListener('resize',u); window.addEventListener('orientationchange',u);
+})();
+/* --- Remember the hide/show line-ups choice for this browser tab --- */
+(function(){
+  var cb=document.getElementById('lineupToggle');
+  if(!cb) return;
+  try{ if(sessionStorage.getItem('buLineupsHidden')==='1') cb.checked=true; }catch(e){}
+  cb.addEventListener('change',function(){ try{ sessionStorage.setItem('buLineupsHidden', cb.checked?'1':'0'); }catch(e){} });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,665 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Teams KO - Final - Hand records</title>
+<style>
+:root{
+  --c-dark:#e6ebf5;
+  --c-light:#c6d4ec;
+  --c-font:#00194d;
+  --c-head-bg:#000066;
+  --c-head-fg:#FFFFFF;
+  --c-border:#999999;
+  --c-accent:#1a6fa3;
+  --c-accent2:#3a7ca5;
+  --red:#c01616;
+  --ink:#1b1e24; --muted:#6b7280; --line:#e3e6ea; --soft:#f4f6f9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#e9edf3;color:#1c2029;font-family:"Segoe UI",Calibri,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%;padding:14px}
+a{color:inherit;text-decoration:none}
+img{border:0}
+.wrap{max-width:1120px;margin:0 auto}
+
+/* ---------- Sticky top menu (header = event + round navigation) ---------- */
+.topbar{position:sticky;top:0;z-index:40;background:#e9edf3;padding-bottom:10px;margin-bottom:14px;box-shadow:0 8px 16px -10px rgba(20,30,50,.32)}
+.evhead{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:0}
+.evhead .cell{border-radius:12px;padding:13px 18px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 2px 10px rgba(20,30,50,.14)}
+.evhead .title{flex:2 1 300px;background:linear-gradient(155deg,rgba(255,255,255,.06),rgba(0,0,0,.27)),var(--c-dark);color:var(--c-font);text-shadow:0 1px 2px rgba(0,0,0,.5);font-size:clamp(16px,2.2vw,25px);font-weight:700;line-height:1.2}
+.evhead .round{flex:0 0 auto;min-width:120px;background:var(--c-head-bg);color:var(--c-head-fg);align-items:center;text-align:center}
+.evhead .round .lbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;opacity:.85}
+.evhead .round .val{font-size:clamp(20px,2.8vw,30px);font-weight:800;line-height:1.1}
+.rnav{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:1px}
+.rbtn{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.16);color:var(--c-head-fg);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rbtn svg{width:18px;height:18px;display:block}
+.rbtn:hover{background:rgba(0,0,0,.30)}
+.rbtn.dis{opacity:.26;cursor:default;pointer-events:none}
+.evhead .phase{flex:1 1 210px;background:linear-gradient(155deg,rgba(255,255,255,.06),rgba(0,0,0,.27)),var(--c-dark);color:var(--c-font);text-shadow:0 1px 2px rgba(0,0,0,.5);align-items:stretch;justify-content:center;text-align:right;font-weight:700}
+.evhead .phase .lbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;opacity:.85}
+.phase-sel{width:100%;margin-top:5px;font-family:inherit;font-size:clamp(13px,1.4vw,17px);font-weight:700;background:var(--c-head-bg);color:var(--c-head-fg);border:1px solid var(--c-head-bg);border-radius:9px;padding:8px 10px;cursor:pointer}
+.phase-sel:hover{filter:brightness(1.06)}
+.phase-sel option{background:#fff;color:#14161c;font-weight:600}
+
+/* ---------- Legend row (print button + icon chips) ---------- */
+.legendrow{position:relative;display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+.legendrow .hints{flex:1 1 auto;margin-bottom:0}
+.legendrow .hints.opendesc{margin-bottom:42px}
+.hints{position:relative;display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;margin-bottom:14px;transition:margin-bottom .18s ease}
+.hint{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;height:44px;background:#fff;border:1px solid #d7dde5;border-radius:12px;padding:0 13px;color:#3a404a;font-size:13px;line-height:1.35;box-shadow:0 1px 5px rgba(20,30,50,.10)}
+a.hint{cursor:pointer}
+.hint:hover{border-color:var(--c-head-bg);background:#f3f5f9}
+.hint b,.hint-key{color:#14161c;font-weight:700}
+.hint-ic{flex:0 0 auto;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--c-head-bg);color:var(--c-head-fg);box-shadow:0 1px 5px rgba(0,0,0,.28);cursor:help}
+a.hint .hint-ic{cursor:pointer}
+.hint-ic svg{width:18px;height:18px;display:block}
+.hint-more{position:absolute;left:0;right:0;top:100%;margin-top:4px;display:flex;align-items:center;height:34px;padding:0 14px;background:#fff;border:1px solid #d7dde5;border-radius:10px;box-shadow:0 3px 10px rgba(20,30,50,.14);font-size:13px;line-height:1.3;color:#3a404a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
+.hint.showdesc .hint-more{opacity:1}
+.printbtn{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;gap:8px;cursor:pointer;text-align:center;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;height:44px;padding:0 15px;border-radius:12px;box-shadow:0 1px 5px rgba(20,30,50,.10);background:var(--c-head-bg);color:var(--c-head-fg);border:1px solid var(--c-head-bg)}
+.printbtn:hover{filter:brightness(1.08)}
+.printbtn svg{width:16px;height:16px;display:block;flex:0 0 auto}
+
+/* ---------- Print-only heading ---------- */
+.printhead{display:none}
+
+/* ---------- Deals grid ---------- */
+.deals{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.deal-card{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 5px rgba(20,30,50,.08);padding:10px 12px 12px;break-inside:avoid}
+.dc-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dc-brd{flex:0 0 auto;background:var(--c-head-bg);color:var(--c-head-fg);font-weight:800;border-radius:8px;padding:3px 12px;font-size:15px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.dc-info{font-size:12px;color:var(--muted);line-height:1.25}
+.dc-info b{color:var(--ink)}
+
+/* ---------- Deal compass (N top, W-x-E middle, S bottom) ---------- */
+.deal{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-areas:". n ." "w x e" ". s .";gap:5px 8px;justify-items:center;align-items:center}
+.deal .pos-n{grid-area:n}.deal .pos-w{grid-area:w}.deal .pos-x{grid-area:x}.deal .pos-e{grid-area:e}.deal .pos-s{grid-area:s}
+.hand{font-size:14px;line-height:1.3;text-align:left;min-width:64px;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
+.hand .row{white-space:nowrap}
+.hand .su{display:inline-block;width:1.15em;font-weight:700}
+.hand .red{color:var(--red)}
+.deal .pos-x img{opacity:.85;display:block}
+
+/* ---------- footer (EBL logo + copyright + close) ---------- */
+.foot{margin:18px 4px 4px;font-size:12px;line-height:1.6;color:#5b616b;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.foot img{height:34px;width:auto}
+.foot .closebtn{margin-left:auto;padding:8px 16px;border-radius:10px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;background:var(--c-head-bg);color:var(--c-head-fg);border:1px solid var(--c-head-bg)}
+.foot .closebtn:hover{filter:brightness(1.08)}
+
+@media(max-width:480px){
+  body{padding:9px}
+  .deals{grid-template-columns:1fr}
+}
+
+/* ---------- A4 print: page-break-safe deal cards, readability first ---------- */
+@media print{
+  @page{size:A4;margin:10mm}
+  body{background:#fff;color:#000;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .topbar,.legendrow,.foot{display:none !important}
+  .wrap{max-width:none;margin:0}
+  .printhead{display:block;text-align:center;font-weight:800;font-size:15px;margin:0 0 5mm;color:#000}
+  .printhead .sub{display:block;font-weight:600;font-size:12px;color:#333;margin-top:1px}
+  .deals{grid-template-columns:repeat(3,1fr);gap:5mm}
+  .deal-card{break-inside:avoid;page-break-inside:avoid;box-shadow:none;border:1px solid #999;padding:5px 7px}
+  .dc-brd{background:#fff;color:#000;border:1px solid #000;box-shadow:none}
+  .hand{background:#fff;border:1px solid #bbb;font-size:12px}
+  /* Long suits wrap rather than clip - but a bare wrap strands the suit
+     symbol on a line of its own, which reads as a phantom void. The hanging
+     indent makes the continuation run UNDER the cards, never beside the
+     symbol. DesignSystem 17d. */
+  .hand .row{white-space:normal;padding-left:1.1em;text-indent:-1.1em}
+  .hand .red{color:#c01616 !important}
+  .deal .pos-x{display:none}            /* drop the centre icon to give W/E room */
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== Sticky top menu (header) - stays in view while scrolling ===== -->
+  <div class="topbar">
+  <div class="evhead">
+    <div class="cell title">2026 World Bridge Series</div>
+    <!-- ===== ROUND NAVIGATION - prev / next round of THIS page ===== -->
+    <div class="cell round">
+      <span class="lbl">Segment</span>
+      <div class="rnav">
+
+        <span class="rbtn dis" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>
+
+        <span class="val">1</span>
+
+        <a class="rbtn" href="?qtournid=2650&qround=2&qphase=FF&qdesktop=0" title="Next segment" aria-label="Next segment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></a>
+
+      </div>
+    </div>
+    <!-- ===== EVENT (TOURNAMENT) NAVIGATION - dropdown -> this page ===== -->
+    <div class="cell phase">
+      <span class="lbl">Event</span>
+      <select class="phase-sel" aria-label="Go to an event and knockout phase" onchange="if(this.value){window.location.href=this.value;}"><option value="?qtournid=2650&qround=4&qphase=64&qdesktop=0">Open Teams KO - Phase of 64</option><option value="?qtournid=2650&qround=4&qphase=32&qdesktop=0">Open Teams KO - Phase of 32</option><option value="?qtournid=2650&qround=4&qphase=16&qdesktop=0">Open Teams KO - Phase of 16</option><option value="?qtournid=2650&qround=4&qphase=QF&qdesktop=0">Open Teams KO - Quarterfinals</option><option value="?qtournid=2650&qround=4&qphase=SF&qdesktop=0">Open Teams KO - Semifinals</option><option value="?qtournid=2650&qround=4&qphase=FF&qdesktop=0" selected>Open Teams KO - Final</option><option value="?qtournid=2651&qround=4&qphase=QF&qdesktop=0">Women Teams KO - Quarterfinals</option><option value="?qtournid=2651&qround=4&qphase=SF&qdesktop=0">Women Teams KO - Semifinals</option><option value="?qtournid=2651&qround=4&qphase=FF&qdesktop=0">Women Teams KO - Final</option><option value="?qtournid=2652&qround=4&qphase=QF&qdesktop=0">Senior Teams - Quarterfinals</option><option value="?qtournid=2652&qround=4&qphase=SF&qdesktop=0">Senior Teams - Semifinals</option><option value="?qtournid=2652&qround=4&qphase=FF&qdesktop=0">Senior Teams - Final</option><option value="?qtournid=2653&qround=4&qphase=32&qdesktop=0">Mixed Teams - Phase of 32</option><option value="?qtournid=2653&qround=4&qphase=16&qdesktop=0">Mixed Teams - Phase of 16</option><option value="?qtournid=2653&qround=4&qphase=QF&qdesktop=0">Mixed Teams - Quarterfinals</option><option value="?qtournid=2653&qround=4&qphase=SF&qdesktop=0">Mixed Teams - Semifinals</option><option value="?qtournid=2653&qround=4&qphase=FF&qdesktop=0">Mixed Teams - Final</option></select>
+    </div>
+    <!-- ===== END EVENT (TOURNAMENT) NAVIGATION ===== -->
+  </div>
+  </div>
+  <!-- ===== end sticky top menu ===== -->
+
+  <!-- ===== Legend: print button + how-to (icon-hover reveals) ===== -->
+  <div class="legendrow">
+    <a class="printbtn" href="javascript:window.print()" title="Print these hand records (A4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Print</a>
+    <div class="hints">
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7l-5 5 5 5"/><path d="M15 7l5 5-5 5"/></svg></span><b class="hint-key">Segment</b><span class="hint-more">use the &#8249; / &#8250; arrows by the segment number to move to the previous or next segment of this phase</span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h14"/><path d="M14 3l4 4-4 4"/><path d="M20 17H6"/><path d="M10 13l-4 4 4 4"/></svg></span><b class="hint-key">Other events</b><span class="hint-more">use the dropdown (top right) to open another event and knockout phase at its latest segment</span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg></span><b class="hint-key">Board</b><span class="hint-more">click a board number to see that board's results across all tables</span></div>
+      <div class="hint"><span class="hint-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></span><b class="hint-key">Print</b><span class="hint-more">use the Print button (top left) for an A4 print-out of every deal in this round</span></div>
+    </div>
+  </div>
+
+  <div class="printhead">Open Teams KO &#8226; Final<span class="sub">Segment 1 &#8226; hand records</span></div>
+
+  <div class="deals">
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=001.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">1</a>
+        <span class="dc-info">Dealer <b>North</b><br><b>None</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> J8642</div>
+          <div class="row"><span class="su red">&hearts;</span> 6</div>
+          <div class="row"><span class="su red">&diams;</span> KJ7</div>
+          <div class="row"><span class="su">&clubs;</span> T532</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AKQ73</div>
+          <div class="row"><span class="su red">&hearts;</span> AJ4</div>
+          <div class="row"><span class="su red">&diams;</span> A4</div>
+          <div class="row"><span class="su">&clubs;</span> J87</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 9</div>
+          <div class="row"><span class="su red">&hearts;</span> KT832</div>
+          <div class="row"><span class="su red">&diams;</span> QT653</div>
+          <div class="row"><span class="su">&clubs;</span> K9</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> T5</div>
+          <div class="row"><span class="su red">&hearts;</span> Q975</div>
+          <div class="row"><span class="su red">&diams;</span> 982</div>
+          <div class="row"><span class="su">&clubs;</span> AQ64</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=002.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">2</a>
+        <span class="dc-info">Dealer <b>East</b><br><b>N-S</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> J97</div>
+          <div class="row"><span class="su red">&hearts;</span> T864</div>
+          <div class="row"><span class="su red">&diams;</span> 743</div>
+          <div class="row"><span class="su">&clubs;</span> Q65</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> A43</div>
+          <div class="row"><span class="su red">&hearts;</span> A973</div>
+          <div class="row"><span class="su red">&diams;</span> AQ9</div>
+          <div class="row"><span class="su">&clubs;</span> KT8</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> QT865</div>
+          <div class="row"><span class="su red">&hearts;</span> K</div>
+          <div class="row"><span class="su red">&diams;</span> JT8</div>
+          <div class="row"><span class="su">&clubs;</span> AJ92</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> K2</div>
+          <div class="row"><span class="su red">&hearts;</span> QJ52</div>
+          <div class="row"><span class="su red">&diams;</span> K652</div>
+          <div class="row"><span class="su">&clubs;</span> 743</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=003.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">3</a>
+        <span class="dc-info">Dealer <b>South</b><br><b>E-W</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> J632</div>
+          <div class="row"><span class="su red">&hearts;</span> Q842</div>
+          <div class="row"><span class="su red">&diams;</span> J984</div>
+          <div class="row"><span class="su">&clubs;</span> Q</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> KT8</div>
+          <div class="row"><span class="su red">&hearts;</span> KJ763</div>
+          <div class="row"><span class="su red">&diams;</span> K3</div>
+          <div class="row"><span class="su">&clubs;</span> T94</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AQ7</div>
+          <div class="row"><span class="su red">&hearts;</span> AT</div>
+          <div class="row"><span class="su red">&diams;</span> Q75</div>
+          <div class="row"><span class="su">&clubs;</span> KJ653</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 954</div>
+          <div class="row"><span class="su red">&hearts;</span> 95</div>
+          <div class="row"><span class="su red">&diams;</span> AT62</div>
+          <div class="row"><span class="su">&clubs;</span> A872</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=004.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">4</a>
+        <span class="dc-info">Dealer <b>West</b><br><b>All</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> QJ53</div>
+          <div class="row"><span class="su red">&hearts;</span> A963</div>
+          <div class="row"><span class="su red">&diams;</span> J43</div>
+          <div class="row"><span class="su">&clubs;</span> QT</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 42</div>
+          <div class="row"><span class="su red">&hearts;</span> K542</div>
+          <div class="row"><span class="su red">&diams;</span> KT</div>
+          <div class="row"><span class="su">&clubs;</span> AK763</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AK6</div>
+          <div class="row"><span class="su red">&hearts;</span> QJT87</div>
+          <div class="row"><span class="su red">&diams;</span> 752</div>
+          <div class="row"><span class="su">&clubs;</span> 42</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> T987</div>
+          <div class="row"><span class="su red">&hearts;</span> &#8211;</div>
+          <div class="row"><span class="su red">&diams;</span> AQ986</div>
+          <div class="row"><span class="su">&clubs;</span> J985</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=005.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">5</a>
+        <span class="dc-info">Dealer <b>North</b><br><b>N-S</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> QT</div>
+          <div class="row"><span class="su red">&hearts;</span> 753</div>
+          <div class="row"><span class="su red">&diams;</span> Q873</div>
+          <div class="row"><span class="su">&clubs;</span> J863</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 986</div>
+          <div class="row"><span class="su red">&hearts;</span> KQ86</div>
+          <div class="row"><span class="su red">&diams;</span> 4</div>
+          <div class="row"><span class="su">&clubs;</span> AKQ72</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> KJ42</div>
+          <div class="row"><span class="su red">&hearts;</span> AJT4</div>
+          <div class="row"><span class="su red">&diams;</span> AT52</div>
+          <div class="row"><span class="su">&clubs;</span> 9</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> A753</div>
+          <div class="row"><span class="su red">&hearts;</span> 92</div>
+          <div class="row"><span class="su red">&diams;</span> KJ96</div>
+          <div class="row"><span class="su">&clubs;</span> T54</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=006.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">6</a>
+        <span class="dc-info">Dealer <b>East</b><br><b>E-W</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> A76</div>
+          <div class="row"><span class="su red">&hearts;</span> A942</div>
+          <div class="row"><span class="su red">&diams;</span> Q5</div>
+          <div class="row"><span class="su">&clubs;</span> A864</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> JT83</div>
+          <div class="row"><span class="su red">&hearts;</span> JT753</div>
+          <div class="row"><span class="su red">&diams;</span> J8</div>
+          <div class="row"><span class="su">&clubs;</span> 95</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> KQ95</div>
+          <div class="row"><span class="su red">&hearts;</span> Q86</div>
+          <div class="row"><span class="su red">&diams;</span> T93</div>
+          <div class="row"><span class="su">&clubs;</span> KT3</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 42</div>
+          <div class="row"><span class="su red">&hearts;</span> K</div>
+          <div class="row"><span class="su red">&diams;</span> AK7642</div>
+          <div class="row"><span class="su">&clubs;</span> QJ72</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=007.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">7</a>
+        <span class="dc-info">Dealer <b>South</b><br><b>All</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> A32</div>
+          <div class="row"><span class="su red">&hearts;</span> AJ5</div>
+          <div class="row"><span class="su red">&diams;</span> KJT72</div>
+          <div class="row"><span class="su">&clubs;</span> QT</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> Q9874</div>
+          <div class="row"><span class="su red">&hearts;</span> 42</div>
+          <div class="row"><span class="su red">&diams;</span> 5</div>
+          <div class="row"><span class="su">&clubs;</span> J8542</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> KT6</div>
+          <div class="row"><span class="su red">&hearts;</span> K9873</div>
+          <div class="row"><span class="su red">&diams;</span> Q63</div>
+          <div class="row"><span class="su">&clubs;</span> 73</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> J5</div>
+          <div class="row"><span class="su red">&hearts;</span> QT6</div>
+          <div class="row"><span class="su red">&diams;</span> A984</div>
+          <div class="row"><span class="su">&clubs;</span> AK96</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=008.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">8</a>
+        <span class="dc-info">Dealer <b>West</b><br><b>None</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> T654</div>
+          <div class="row"><span class="su red">&hearts;</span> K</div>
+          <div class="row"><span class="su red">&diams;</span> KQ96</div>
+          <div class="row"><span class="su">&clubs;</span> QJ85</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> K32</div>
+          <div class="row"><span class="su red">&hearts;</span> AQJ83</div>
+          <div class="row"><span class="su red">&diams;</span> J42</div>
+          <div class="row"><span class="su">&clubs;</span> A7</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AQJ7</div>
+          <div class="row"><span class="su red">&hearts;</span> T542</div>
+          <div class="row"><span class="su red">&diams;</span> A875</div>
+          <div class="row"><span class="su">&clubs;</span> T</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 98</div>
+          <div class="row"><span class="su red">&hearts;</span> 976</div>
+          <div class="row"><span class="su red">&diams;</span> T3</div>
+          <div class="row"><span class="su">&clubs;</span> K96432</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=009.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">9</a>
+        <span class="dc-info">Dealer <b>North</b><br><b>E-W</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> T983</div>
+          <div class="row"><span class="su red">&hearts;</span> A84</div>
+          <div class="row"><span class="su red">&diams;</span> KQ3</div>
+          <div class="row"><span class="su">&clubs;</span> J84</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> KQ</div>
+          <div class="row"><span class="su red">&hearts;</span> T92</div>
+          <div class="row"><span class="su red">&diams;</span> A865</div>
+          <div class="row"><span class="su">&clubs;</span> AT73</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 74</div>
+          <div class="row"><span class="su red">&hearts;</span> KQJ73</div>
+          <div class="row"><span class="su red">&diams;</span> 74</div>
+          <div class="row"><span class="su">&clubs;</span> KQ96</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AJ652</div>
+          <div class="row"><span class="su red">&hearts;</span> 65</div>
+          <div class="row"><span class="su red">&diams;</span> JT92</div>
+          <div class="row"><span class="su">&clubs;</span> 52</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=010.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">10</a>
+        <span class="dc-info">Dealer <b>East</b><br><b>All</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> K85</div>
+          <div class="row"><span class="su red">&hearts;</span> T3</div>
+          <div class="row"><span class="su red">&diams;</span> T8</div>
+          <div class="row"><span class="su">&clubs;</span> AKQJ32</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AQT32</div>
+          <div class="row"><span class="su red">&hearts;</span> 642</div>
+          <div class="row"><span class="su red">&diams;</span> J52</div>
+          <div class="row"><span class="su">&clubs;</span> 54</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> J74</div>
+          <div class="row"><span class="su red">&hearts;</span> AKJ75</div>
+          <div class="row"><span class="su red">&diams;</span> K643</div>
+          <div class="row"><span class="su">&clubs;</span> 8</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 96</div>
+          <div class="row"><span class="su red">&hearts;</span> Q98</div>
+          <div class="row"><span class="su red">&diams;</span> AQ97</div>
+          <div class="row"><span class="su">&clubs;</span> T976</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=011.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">11</a>
+        <span class="dc-info">Dealer <b>South</b><br><b>None</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> A</div>
+          <div class="row"><span class="su red">&hearts;</span> 873</div>
+          <div class="row"><span class="su red">&diams;</span> 9862</div>
+          <div class="row"><span class="su">&clubs;</span> AKJT4</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 942</div>
+          <div class="row"><span class="su red">&hearts;</span> J52</div>
+          <div class="row"><span class="su red">&diams;</span> QT5</div>
+          <div class="row"><span class="su">&clubs;</span> Q632</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> QJ763</div>
+          <div class="row"><span class="su red">&hearts;</span> AT</div>
+          <div class="row"><span class="su red">&diams;</span> K73</div>
+          <div class="row"><span class="su">&clubs;</span> 985</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> KT85</div>
+          <div class="row"><span class="su red">&hearts;</span> KQ964</div>
+          <div class="row"><span class="su red">&diams;</span> AJ4</div>
+          <div class="row"><span class="su">&clubs;</span> 7</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=012.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">12</a>
+        <span class="dc-info">Dealer <b>West</b><br><b>N-S</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 75</div>
+          <div class="row"><span class="su red">&hearts;</span> Q9</div>
+          <div class="row"><span class="su red">&diams;</span> 964</div>
+          <div class="row"><span class="su">&clubs;</span> AQ9653</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> T964</div>
+          <div class="row"><span class="su red">&hearts;</span> AT63</div>
+          <div class="row"><span class="su red">&diams;</span> KT87</div>
+          <div class="row"><span class="su">&clubs;</span> K</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> KJ83</div>
+          <div class="row"><span class="su red">&hearts;</span> 8542</div>
+          <div class="row"><span class="su red">&diams;</span> AQJ52</div>
+          <div class="row"><span class="su">&clubs;</span> &#8211;</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AQ2</div>
+          <div class="row"><span class="su red">&hearts;</span> KJ7</div>
+          <div class="row"><span class="su red">&diams;</span> 3</div>
+          <div class="row"><span class="su">&clubs;</span> JT8742</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=013.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">13</a>
+        <span class="dc-info">Dealer <b>North</b><br><b>All</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AKT93</div>
+          <div class="row"><span class="su red">&hearts;</span> QT82</div>
+          <div class="row"><span class="su red">&diams;</span> 43</div>
+          <div class="row"><span class="su">&clubs;</span> T7</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> J64</div>
+          <div class="row"><span class="su red">&hearts;</span> J63</div>
+          <div class="row"><span class="su red">&diams;</span> KQ85</div>
+          <div class="row"><span class="su">&clubs;</span> 952</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> Q8752</div>
+          <div class="row"><span class="su red">&hearts;</span> 7</div>
+          <div class="row"><span class="su red">&diams;</span> AT7</div>
+          <div class="row"><span class="su">&clubs;</span> AQJ6</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> &#8211;</div>
+          <div class="row"><span class="su red">&hearts;</span> AK954</div>
+          <div class="row"><span class="su red">&diams;</span> J962</div>
+          <div class="row"><span class="su">&clubs;</span> K843</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="deal-card">
+      <div class="dc-head">
+        <a class="dc-brd" href="BoardAcrossKO.asp?qboard=014.01.FF.2650&amp;qphase=FF&amp;qdesktop=0">14</a>
+        <span class="dc-info">Dealer <b>East</b><br><b>None</b> vulnerable</span>
+      </div>
+      <div class="deal">
+        <div class="pos-n"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> AQJ9</div>
+          <div class="row"><span class="su red">&hearts;</span> Q76</div>
+          <div class="row"><span class="su red">&diams;</span> A93</div>
+          <div class="row"><span class="su">&clubs;</span> T85</div>
+        </div></div>
+        <div class="pos-w"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> T543</div>
+          <div class="row"><span class="su red">&hearts;</span> A543</div>
+          <div class="row"><span class="su red">&diams;</span> 765</div>
+          <div class="row"><span class="su">&clubs;</span> QJ</div>
+        </div></div>
+        <div class="pos-x"><img src="/graphics/Hand/board3.gif" width="52" height="52" alt=""></div>
+        <div class="pos-e"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> K86</div>
+          <div class="row"><span class="su red">&hearts;</span> 9</div>
+          <div class="row"><span class="su red">&diams;</span> KQJ42</div>
+          <div class="row"><span class="su">&clubs;</span> A972</div>
+        </div></div>
+        <div class="pos-s"><div class="hand">
+          <div class="row"><span class="su">&spades;</span> 72</div>
+          <div class="row"><span class="su red">&hearts;</span> KJT82</div>
+          <div class="row"><span class="su red">&diams;</span> T8</div>
+          <div class="row"><span class="su">&clubs;</span> K643</div>
+        </div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="foot">
+    <img src="/repository/graphics/Logo/wbf.gif" alt="WBF">
+    <span>&copy; unauthorized copying or sharing of (parts of) this information is strictly forbidden and illegal.</span>
+    <a class="closebtn" href="javascript:window.close()">Close window</a>
+  </p>
+
+</div>
+
+<script>
+/* --- Legend: reveal a chip's description only while its ICON is hovered. --- */
+(function(){
+  var hints=document.querySelector('.legendrow .hints');
+  if(!hints) return;
+  var ics=hints.getElementsByClassName('hint-ic'), i;
+  for(i=0;i<ics.length;i++){
+    (function(ic){
+      var chip=ic.parentNode;
+      ic.addEventListener('mouseenter',function(){chip.classList.add('showdesc');hints.classList.add('opendesc');});
+      ic.addEventListener('mouseleave',function(){chip.classList.remove('showdesc');hints.classList.remove('opendesc');});
+    })(ics[i]);
+  }
+})();
+</script>
+</body>
+</html>
